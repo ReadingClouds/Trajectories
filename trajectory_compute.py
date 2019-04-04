@@ -47,13 +47,14 @@ class trajectory_family :
             match_traj = self.family[ref-(t_off+1)]
             matching_objects = list([])
             for it_back in range(0,traj.ref_file+1) :
+                ref_time = traj.ref_file-it_back
+                match_time = match_traj.ref_file + t_off - it_back +1
 #                print("Matching at reference trajectory time {}".format(it_back))
                 matching_object_at_time = list([])
                 for iobj in range(0, traj.nobjects) :
                     corr_box = np.array([],dtype=int)
-                    if traj.num_cloud[traj.ref_file-it_back ,iobj] > 0 :
-                        b_test = traj.cloud_box[traj.ref_file-it_back, iobj,...]
-                        match_time = match_traj.ref_file + t_off - it_back +1
+                    if traj.num_cloud[ref_time ,iobj] > 0 :
+                        b_test = traj.cloud_box[ref_time, iobj,...]
 #                        if iobj == 0 : print("Matching time {}".format(match_time))
                         if (match_time >= 0) & \
                           (match_time < np.shape(match_traj.cloud_box)[0]) :
@@ -90,6 +91,7 @@ class trajectory_family :
         for t_off in range(0, len(mol)) :
             matching_objects = mol[t_off]
             match_list = list([])
+            match_time = ref-(t_off+1)
             for iobj in range(0, len(matching_objects[0])) :
                 objlist = list([])
                 otypelist = list([])
@@ -101,10 +103,10 @@ class trajectory_family :
 #                                print(self.family)
 #                                print(ref,t_off,ref-(t_off+1))
 #                                print(self.family[ref-(t_off+1)].max_at_ref)
-                                if (ref-(t_off+1)) >= 0 & \
-                                   (ref-(t_off+1)) < len(self.family) :
+                                if (match_time >= 0) & \
+                                   (match_time < len(self.family)) :
                                     if obj in \
-                                      self.family[ref-(t_off+1)].max_at_ref :
+                                      self.family[match_time].max_at_ref :
                                         otype = 'Linked'
                                 objlist.append(obj)
                                 otypelist.append(otype)
@@ -252,6 +254,7 @@ class trajectories :
         moist_static_energy = Cp * self.data[:, :, self.var("th")] * piref_z + \
                               grav * tr_z + \
                               L_vap * self.data[:, :, self.var("q_vapour")]
+#        print("Computed MSE")
                                       
         def set_props(prop, time, obj, mask, where_mask) :
             prop[time, obj, r1] = np.sum(data[time, mask,:], axis=0)
@@ -291,6 +294,7 @@ class trajectories :
             obj_z = tr_z[:,obj_ptrs]
             if debug_mean : print(np.shape(data))
             mse = moist_static_energy[:, obj_ptrs]
+#            print("MSE:", iobj,np.min(mse),np.max(mse))
             qcl = data[:,:,self.var("q_cloud_liquid_mass")]
             mask = (qcl >= thresh)
      
@@ -340,7 +344,6 @@ class trajectories :
                             if debug_mean : print('Cloud base',first_cloud_base[iobj])
     #                        input("Press Enter to continue...")
                         else : # it > 0
-        #                    traj_class[it, class_set] = IN_CLOUD 
                     
     #                        input("Press Enter to continue...")
         # Detect first points to be in cloud.                
@@ -487,12 +490,14 @@ class trajectories :
                             where_newcl_from_above_bl = np.where( \
                                                         newcl_from_above_bl)[0]
 
-                            class_set_from_bl = where_obj_ptrs[where_newcl_from_bl]
+                            class_set_from_bl = where_obj_ptrs[ \
+                                              where_newcl_from_bl]
                             traj_class[0:it, class_set_from_bl] = \
                                         PRE_CLOUD_ENTR_FROM_BL 
                             traj_class[it, class_set_from_bl] = \
                                         ENTR_FROM_BL 
-                            class_set_from_above_bl = where_obj_ptrs[where_newcl_from_above_bl]
+                            class_set_from_above_bl = where_obj_ptrs[ \
+                                                    where_newcl_from_above_bl]
                             traj_class[0:it, class_set_from_above_bl] = \
                                         PRE_CLOUD_ENTR_FROM_ABOVE_BL
                             traj_class[it, class_set_from_above_bl] = \
@@ -501,12 +506,16 @@ class trajectories :
                             if debug_mean : 
                                 print("From BL",class_set_from_bl)
                                 print("From above BL",class_set_from_above_bl)
-                                input("Press Enter to continue...") 
-                            mean_entr_bot_prop = set_props(mean_entr_bot_prop, \
+                                input("Press Enter to continue...")
+                            if np.size(where_newcl_from_bl) > 0 :
+                                mean_entr_bot_prop = set_props( \
+                                        mean_entr_bot_prop, \
                                         it, iobj, newcl_from_bl, \
                                         where_newcl_from_bl)
                             
-                            mean_entr_prop = set_props(mean_entr_prop, \
+                            if np.size(where_newcl_from_above_bl) > 0 :
+                                mean_entr_prop = set_props( \
+                                        mean_entr_prop, \
                                         it, iobj, newcl_from_above_bl, \
                                         where_newcl_from_above_bl)
 
@@ -614,12 +623,12 @@ class trajectories :
                                                         newcl_from_above_bl)[0]
 
                             class_set_from_bl = where_obj_ptrs[where_newcl_from_bl]
-                            traj_class[0:it, class_set_from_bl] = \
+                            traj_class[it-1, class_set_from_bl] = \
                                         PRE_CLOUD_ENTR_FROM_BL 
                             traj_class[it, class_set_from_bl] = \
                                         ENTR_FROM_BL 
                             class_set_from_above_bl = where_obj_ptrs[where_newcl_from_above_bl]
-                            traj_class[0:it, class_set_from_above_bl] = \
+                            traj_class[it-1, class_set_from_above_bl] = \
                                         PRE_CLOUD_ENTR_FROM_ABOVE_BL
                             traj_class[it, class_set_from_above_bl] = \
                                         ENTR_FROM_ABOVE_BL
@@ -628,11 +637,15 @@ class trajectories :
                                 print("From BL",class_set_from_bl)
                                 print("From above BL",class_set_from_above_bl)
                                 input("Press Enter to continue...") 
-                            mean_entr_bot_prop = set_props(mean_entr_bot_prop, \
+                            if np.size(where_newcl_from_bl) > 0 :
+                                mean_entr_bot_prop = set_props( \
+                                        mean_entr_bot_prop, \
                                         it, iobj, newcl_from_bl, \
                                         where_newcl_from_bl)
                             
-                            mean_entr_prop = set_props(mean_entr_prop, \
+                            if np.size(where_newcl_from_above_bl) > 0 :
+                                mean_entr_prop = set_props( \
+                                        mean_entr_prop, \
                                         it, iobj, newcl_from_above_bl, \
                                         where_newcl_from_above_bl)
 
@@ -710,10 +723,19 @@ class trajectories :
         for ii in range(nvars+4) : 
             mean_detr_prop[:,:,ii][m] = mean_detr_prop[:,:,ii][m] \
               /mean_detr_prop[:,:,r4][m]
+              
+        mean_properties = {"cloud":mean_cloud_prop, \
+                           "entr":mean_entr_prop, \
+                           "entr_bot":mean_entr_bot_prop, \
+                           "detr":mean_detr_prop, \
+                           "class":traj_class, \
+                           "first cloud base": first_cloud_base, \
+                           "min cloud base":min_cloud_base, \
+                           "cloud top":cloud_top, \
+                           "version":version, \
+                           }
 
-        return mean_cloud_prop, mean_entr_prop, mean_entr_bot_prop, \
-               mean_detr_prop, traj_class, first_cloud_base, \
-               min_cloud_base, cloud_top 
+        return mean_properties
         
     def var(self, v) :
         for ii, vr in enumerate(list(self.variable_list)) :

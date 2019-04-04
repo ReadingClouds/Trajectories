@@ -2,6 +2,8 @@ import glob
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+
+import pickle as pickle
 #from datetime import datetime, timedelta
 #from netCDF4 import num2date, date2num
 
@@ -32,7 +34,7 @@ files.sort(key=file_key)
 #start_file = end_file-1
 
 #ref_file = 39
-first_ref_file = 88
+first_ref_file = 49
 last_ref_file =  89
 tr_back_len = 40
 tr_forward_len = 30
@@ -64,14 +66,27 @@ fn = dir + fn
 
 ref_prof_file = glob.glob(dir+'diagnostics_ts_*.nc')[0]
 
-#get_traj = False
-get_traj = True
+get_traj = False
+#get_traj = True
 
+test_pickle = 'traj_family_{:03d}_{:03d}_{:03d}_{:03d}'.format(first_ref_file ,\
+                           last_ref_file, tr_back_len, tr_forward_len)
 if get_traj :
     tfm = trajectory_family(files, ref_prof_file, \
                  first_ref_file, last_ref_file, \
                  tr_back_len, tr_forward_len, \
                  100.0, 100.0, 40.0)
+    outfile = open(test_pickle,'wb')
+    print('Pickling')
+    pickle.dump(tfm, outfile)
+    outfile.close()
+else :
+    infile = open(test_pickle,'rb')
+    print('Un-pickling')
+    tfm = pickle.load(infile)
+    infile.close()
+    
+    
 
 traj_list = tfm.family
 tfm.print_matching_object_list()
@@ -95,13 +110,13 @@ sel_list_r = np.array([0, 5, 72, 78, 92])
 #data_mean, traj_m_centroid = compute_traj_centroids(traj_m)
 input("Press Enter to continue...")
 # Plot all clouds
-if False :
+if True :
     plot_traj_animation(traj_m, save_anim=False, with_boxes=True, \
                         title = 'Reference Time {}'.format(last_ref_file))
 
 #input("Press Enter to continue...")
 # Plot all clouds with galilean transform
-if False :
+if True :
     plot_traj_animation(traj_m, save_anim=False, \
         title = 'Reference Time {} Galilean Tranformed'.format(last_ref_file), \
         galilean = np.array([-8.5,0]))
@@ -143,10 +158,7 @@ if False :
         with_boxes = False, galilean = np.array([-8.5,0]) )
     
 if True :
-    mean_cloud_properties, mean_entr_properties, mean_entr_bot_properties, \
-    mean_detr_properties, traj_class, \
-    first_cloud_base, min_cloud_base, cloud_top \
-      = traj_m.cloud_properties(version = 1)
+    mean_prop = traj_m.cloud_properties(version = 1)
       
 if True :
     for cloud in sel_list :
@@ -155,22 +167,13 @@ if True :
                     no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
                     title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
                     format(last_ref_file, cloud), with_boxes = False, 
-                    galilean = np.array([-8.5,0]), plot_class = traj_class,\
-                    version = 1)
+                    galilean = np.array([-8.5,0]), plot_class = mean_prop['class'],\
+                    version = mean_prop['version'])
 if True :
-    plot_trajectory_mean_history(traj_m, mean_cloud_properties, \
-                                 mean_entr_properties, \
-                                 mean_entr_bot_properties, \
-                                 mean_detr_properties, \
-                                 traj_class, first_cloud_base, cloud_top, fn, \
-                                 select = sel_list,\
-                                 version = 1) 
+    plot_trajectory_mean_history(traj_m, mean_prop, fn, select = sel_list) 
 
 if True :
-    mean_cloud_properties2, mean_entr_properties2, mean_entr_bot_properties2, \
-    mean_detr_properties2, traj_class2, \
-    first_cloud_base2, min_cloud_base2, cloud_top2 \
-      = traj_m.cloud_properties(version = 2)
+    mean_prop2 = traj_m.cloud_properties(version = 2)
       
 if True :
     for cloud in sel_list :
@@ -179,19 +182,13 @@ if True :
                     no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
                     title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
                     format(last_ref_file, cloud), with_boxes = False, 
-                    galilean = np.array([-8.5,0]), plot_class = traj_class2,\
-                    version = 2)
+                    galilean = np.array([-8.5,0]), plot_class = mean_prop2['class'],\
+                    version = mean_prop2['version'])
 # Plot max_list clouds mean history
      
       
 if True :
-    plot_trajectory_mean_history(traj_m, mean_cloud_properties2, \
-                                 mean_entr_properties2, \
-                                 mean_entr_bot_properties2, \
-                                 mean_detr_properties2, \
-                                 traj_class2, first_cloud_base2, cloud_top2, fn, \
-                                 select = sel_list,\
-                                 version = 2) 
+    plot_trajectory_mean_history(traj_m, mean_prop2, fn, select = sel_list) 
 
 #max_list=np.array([9,18,21,22,24,36,38,43,49,52,63,69,70,77,83,87,88,96])
 #max_list=np.array([20,23,34,35,37,42,48,51,69,76,82,83,86])
@@ -225,7 +222,7 @@ if False :
                                  mean_entr_properties, mean_detr_properties, \
                                  traj_class, first_cloud_base, cloud_top, fn, \
                                  select = max_list) 
-if False :
+if True :
     plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
                     legend = True, plot_field = True, \
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
@@ -233,7 +230,7 @@ if False :
                     format(last_ref_file), with_boxes = False, \
                     galilean = np.array([-8.5,0]))
 
-if False :
+if True :
     for cloud in sel_list :
         plot_traj_animation(traj_m, save_anim=False, select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = True, \
@@ -241,7 +238,7 @@ if False :
                     title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
                     format(last_ref_file, cloud), \
                     galilean = np.array([-8.5,0]))
-        for tback in [1] :
+        for tback in [10, 20] :
             plot_traj_family_animation(tfm, tback, save_anim=False, \
                     select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = False, \
