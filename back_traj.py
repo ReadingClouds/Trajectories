@@ -18,15 +18,20 @@ def file_key(file):
 #dir = '/projects/paracon/toweb/r4677_Circle-A/diagnostic_files/'
 #dir = '/projects/paracon/toweb/r4677_Circle-A/diagnostic_files/S_ReI_1200_A/'
 #dir = '/projects/paracon/toweb/r4677_Circle-A/diagnostic_files/traj_Pete/'
-dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r6/'
+#dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r6/'
 #dir = 'C:/Users/xm904103/OneDrive - University of Reading/traj_data/r6/'
 
 #dir = '/storage/shared/metcloud/wxproc/xm904103/traj/'
 #dir = '/projects/paracon/appc/MONC/r4664_CA_traj/diagnostic_files/r5/'
 #dir = '/projects/paracon/appc/MONC/prev/r4664_CA_traj/diagnostic_files/'
 #dir = '/projects/paracon/appc/MONC/r4664_CA_traj/diagnostic_files/r6/'
+dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r6/'
 files = glob.glob(dir+"diagnostics_3d_ts_*.nc")
 files.sort(key=file_key)
+
+print(files)
+print(dir)
+
 
 #print thref, piref, thref*piref
 
@@ -76,13 +81,13 @@ if get_traj :
                  first_ref_file, last_ref_file, \
                  tr_back_len, tr_forward_len, \
                  100.0, 100.0, 40.0)
-    outfile = open(test_pickle,'wb')
-    print('Pickling')
+    outfile = open(dir+test_pickle,'wb')
+    print('Pickling ',dir+test_pickle)
     pickle.dump(tfm, outfile)
     outfile.close()
 else :
-    infile = open(test_pickle,'rb')
-    print('Un-pickling')
+    infile = open(dir+test_pickle,'rb')
+    print('Un-pickling ',dir+test_pickle)
     tfm = pickle.load(infile)
     infile.close()
     
@@ -110,13 +115,13 @@ sel_list_r = np.array([0, 5, 72, 78, 92])
 #data_mean, traj_m_centroid = compute_traj_centroids(traj_m)
 input("Press Enter to continue...")
 # Plot all clouds
-if True :
+if False :
     plot_traj_animation(traj_m, save_anim=False, with_boxes=True, \
                         title = 'Reference Time {}'.format(last_ref_file))
 
 #input("Press Enter to continue...")
 # Plot all clouds with galilean transform
-if True :
+if False :
     plot_traj_animation(traj_m, save_anim=False, \
         title = 'Reference Time {} Galilean Tranformed'.format(last_ref_file), \
         galilean = np.array([-8.5,0]))
@@ -157,10 +162,10 @@ if False :
         title = 'Reference Time {} Galilean Tranformed'.format(last_ref_file-1), \
         with_boxes = False, galilean = np.array([-8.5,0]) )
     
-if True :
+if False :
     mean_prop = traj_m.cloud_properties(version = 1)
       
-if True :
+if False :
     for cloud in sel_list :
         plot_traj_animation(traj_m, save_anim=False, \
                     select = np.array([cloud]), fps = 2,  \
@@ -169,25 +174,26 @@ if True :
                     format(last_ref_file, cloud), with_boxes = False, 
                     galilean = np.array([-8.5,0]), plot_class = mean_prop['class'],\
                     version = mean_prop['version'])
-if True :
+if False :
     plot_trajectory_mean_history(traj_m, mean_prop, fn, select = sel_list) 
 
-if True :
+if False :
     mean_prop2 = traj_m.cloud_properties(version = 2)
       
-if True :
+if False :
     for cloud in sel_list :
         plot_traj_animation(traj_m, save_anim=False, \
                     select = np.array([cloud]), fps = 2,  \
                     no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
                     title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
                     format(last_ref_file, cloud), with_boxes = False, 
-                    galilean = np.array([-8.5,0]), plot_class = mean_prop2['class'],\
+                    galilean = np.array([-8.5,0]), \
+                    plot_class = mean_prop2['class'],\
                     version = mean_prop2['version'])
 # Plot max_list clouds mean history
      
       
-if True :
+if False :
     plot_trajectory_mean_history(traj_m, mean_prop2, fn, select = sel_list) 
 
 #max_list=np.array([9,18,21,22,24,36,38,43,49,52,63,69,70,77,83,87,88,96])
@@ -225,6 +231,7 @@ if False :
 if True :
     plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
                     legend = True, plot_field = True, \
+                    dir_override=dir, \
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
                     title = 'Reference Time {0} Galilean Trans with clouds'.\
                     format(last_ref_file), with_boxes = False, \
@@ -234,6 +241,7 @@ if True :
     for cloud in sel_list :
         plot_traj_animation(traj_m, save_anim=False, select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = True, \
+                    dir_override=dir, \
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
                     title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
                     format(last_ref_file, cloud), \
@@ -242,6 +250,7 @@ if True :
             plot_traj_family_animation(tfm, tback, save_anim=False, \
                     select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = False, \
+                    dir_override=dir, \
                     title = 'Reference Times {0},{1} Cloud {2} Galilean Trans'.\
                     format(last_ref_file, last_ref_file-tback,  cloud), \
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
@@ -251,6 +260,7 @@ if True :
             plot_traj_family_animation(tfm, tback, save_anim=False, \
                     select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = False, \
+                    dir_override=dir, \
                     title = 'Reference Times {0} Cloud {1} Galilean Trans'.\
                     format(last_ref_file,  cloud), \
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \

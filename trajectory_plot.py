@@ -1,3 +1,4 @@
+import os
 from netCDF4 import Dataset
 #from scipy.io import netcdf
 import numpy as np
@@ -336,6 +337,7 @@ def box_xyz(b):
 
 def plot_traj_animation(traj, save_anim=False, legend = False, select = None, \
                         galilean = None, plot_field = False, \
+                        dir_override = None, \
                         title = None, \
                         plot_class = None, \
                         no_cloud_size = 0.2, cloud_size = 2.0, \
@@ -472,7 +474,12 @@ def plot_traj_animation(traj, save_anim=False, legend = False, select = None, \
         j = i 
     #    print 'Frame %d Time %d'%(i,j)
         if plot_field :
-            dataset = Dataset(traj.files[j])
+            if dir_override is None :
+                dataset = Dataset(traj.files[j])
+            else :
+                filename = os.path.basename(traj.files[j]).split('\\')[-1] 
+#                print(filename)
+                dataset = Dataset(dir_override+filename)
             qcl_field = dataset.variables["q_cloud_liquid_mass"]
             in_cl = (qcl_field[0,...] > traj.thresh)
             x = xg[in_cl]
@@ -550,6 +557,7 @@ def plot_traj_family_animation(traj_family, match_index, \
                         title = None, \
                         select = None, \
                         galilean = None, plot_field = False,
+                        dir_override = None, \
                         no_cloud_size = 0.2, cloud_size = 2.0, \
                         field_size = 0.5, fps = 10, with_boxes = False) :
     
@@ -844,10 +852,14 @@ def plot_traj_family_animation(traj_family, match_index, \
 #        input("Press enter")
         if plot_field :
             if j >= 0 :
-                dataset = Dataset(match_traj.files[j])
+                filename = match_traj.files[j]
             else :                
-                dataset = Dataset(match_traj.files[i])
-                
+                filename = match_traj.files[i]
+            if dir_override is not None :
+                filename = os.path.basename(filename).split('\\')[-1] 
+#                print(filename)
+                filename = dir_override + filename
+            dataset = Dataset(filename)    
             qcl_field = dataset.variables["q_cloud_liquid_mass"]
             in_cl = (qcl_field[0,...] > traj.thresh)
             x = xg[in_cl]
