@@ -553,6 +553,7 @@ def plot_traj_animation(traj, save_anim=False, legend = False, select = None, \
     return
 
 def plot_traj_family_animation(traj_family, match_index, \
+                        overlap_thresh = 0.02, \
                         save_anim=False, legend = False, \
                         title = None, \
                         select = None, \
@@ -568,26 +569,34 @@ def plot_traj_family_animation(traj_family, match_index, \
         
         if select is None : select = np.arange(0, nobj, dtype = int)
         match_traj = traj_family.family[-(1+match_index)]
-        match_objs = traj_family.matching_object_list_summary()
+        match_objs = traj_family.matching_object_list_summary( \
+                select = select, overlap_thresh = overlap_thresh)
+#        print(match_objs)
         plot_linked = False
         max_t = match_index -1
         nframes = traj.ntimes+match_index
         
     else:
         
-        ref_obj = traj_family.family[-1].max_at_ref
-        if select is None : select = ref_obj
+        if select is None : 
+            ref_obj = traj.max_at_ref
+        else :
+            ref_obj = select
         plot_linked = True
-        linked_objs = traj_family.find_linked_objects()
+        linked_objs = traj_family.find_linked_objects(select = ref_obj , \
+                                      overlap_thresh = overlap_thresh)
+#        print(linked_objs)
         max_t = 0
-        for iobj in range(0,traj.nobjects):
-            if np.isin(iobj,ref_obj) :
-                mobj_ptr=np.where(ref_obj == iobj)[0][0]
+#        for iobj in range(0,traj.nobjects):
+#            if np.isin(iobj,ref_obj) :
+        for obj in linked_objs :
+#                mobj_ptr=np.where(ref_obj == iobj)[0][0]
 #        for mo in linked_objs :
-                for t,o in linked_objs[mobj_ptr] :
+            for t,o in obj :
 #                    print(iobj,t,o)
-                    max_t = np.max([max_t,t])
-                    nframes = traj.ntimes+max_t+1
+                max_t = np.max([max_t,t])
+        nframes = traj.ntimes+max_t+1
+#        print(max_t, nframes)
 #    print(match_traj)
 #    print("Match index {}".format(match_index))
     # First set up the figure, the axis, and the plot element we want to animate
@@ -623,59 +632,63 @@ def plot_traj_family_animation(traj_family, match_index, \
     match_traj_list_list = list([])
     
     nplt = 0
-    for iobj in range(0,traj.nobjects):
-        if np.isin(iobj,select) :
-            
-            traj_list.append((traj.trajectory[:,traj.labels == iobj,...], \
+#    for iobj in range(0,traj.nobjects):
+    for iobj in select:
+#        if np.isin(iobj,select) :
+#        print("Adding {} to traj_list".format(iobj))
+        traj_list.append((traj.trajectory[:,traj.labels == iobj,...], \
                               traj.data[:,traj.labels == iobj,...], 
                               traj.cloud_box[:,iobj,...]) )
     
-            match_list = list([])
+        match_list = list([])
 
-            if plot_linked :
+        if plot_linked :
                 
 #                print(ref_obj, iobj)
                 
-                if np.isin(iobj,ref_obj) :
+            if np.isin(iobj,ref_obj) :
                     
 #                    print(np.where(ref_obj  == iobj))
-                    mobj_ptr=np.where(ref_obj == iobj)[0][0]
-#                    print(mobj_ptr)
-#                    input("Press enter")
+                mobj_ptr=np.where(ref_obj == iobj)[0][0]
+#                print(mobj_ptr)
+#                input("Press enter")
         
-                    for match_obj in linked_objs[mobj_ptr] :
-#                        print("Linked object {}".format(match_obj))
-                        match_traj = traj_family.family[-(1+match_obj[0]+1)]
-                        mobj = match_obj[1]
-                        match_list.append((match_traj.trajectory\
+                for match_obj in linked_objs[mobj_ptr] :
+#                    print("Linked object {}".format(match_obj))
+                    match_traj = traj_family.family[-(1+match_obj[0]+1)]
+                    mobj = match_obj[1]
+                    match_list.append((match_traj.trajectory\
                           [:, match_traj.labels == mobj, ...], \
                                            match_traj.data\
                           [:, match_traj.labels == mobj, ...], \
                                            match_traj.cloud_box \
                           [:, mobj,...]) )
                     
-            else :
+        else :
                 
-                mob = match_objs[match_index-1][iobj]
-#                print(mob)
-#                input("Press enter")
-#                for match_obj in mob :
-#                    print(match_obj)
-#                input("Press enter")
+            mobj_ptr=np.where(select == iobj)[0][0]
+#            print(iobj, mobj_ptr)
+            mob = match_objs[match_index-1][mobj_ptr]
+                
+#            print(mob)
+#            input("Press enter")
+#            for match_obj in mob :
+#                print(match_obj)
+#            input("Press enter")
 
-                for match_obj in mob :
-                    mobj = match_obj[0]
-#                    print("Matching object {} {}".format(match_obj, mobj))
-                    match_list.append((match_traj.trajectory\
+            for match_obj in mob :
+                mobj = match_obj[0]
+#                print("Matching object {} {}".format(match_obj, mobj))
+                match_list.append((match_traj.trajectory\
                       [:, match_traj.labels == mobj, ...], \
                                        match_traj.data\
                       [:, match_traj.labels == mobj, ...], \
                                        match_traj.cloud_box \
                       [:, mobj,...]) )
     
-            match_traj_list_list.append(match_list)
+        match_traj_list_list.append(match_list)
             
-            nplt += 1
+        nplt += 1
             
 #    print(match_traj_list_list)
 #    input("Press enter")
@@ -703,68 +716,70 @@ def plot_traj_family_animation(traj_family, match_index, \
     
     nplt = 0
     timestep = traj.times[1]-traj.times[0]
-    for iobj in range(0,traj.nobjects):
-        if np.isin(iobj,select) :
-            line, = ax.plot([], [], linestyle='' ,marker='o', \
+    for iobj in select:
+#    for iobj in range(0,traj.nobjects):
+#        if np.isin(iobj,select) :
+        line, = ax.plot([], [], linestyle='' ,marker='o', \
                                markersize = no_cloud_size)
-            line_cl, = ax.plot([], [], linestyle='' ,marker='o', \
+        line_cl, = ax.plot([], [], linestyle='' ,marker='o', \
                                markersize = cloud_size, \
                                color = line.get_color(),
                                label='{}'.format(iobj))
-            line_list.append([line,line_cl])
-            if with_boxes :
-                box, = ax.plot([],[],color = line.get_color())
-                box_list.append(box)
+        line_list.append([line,line_cl])
+        if with_boxes :
+            box, = ax.plot([],[],color = line.get_color())
+            box_list.append(box)
                         
-            match_line_list = list([])
-            match_box_list = list([])
+        match_line_list = list([])
+        match_box_list = list([])
 #            print(iobj,line_list)
 #            input("Press enter - Here")
             
-            if plot_linked :
+        if plot_linked :
                 
-                if np.isin(iobj, ref_obj) :
+            if np.isin(iobj, ref_obj) :
                     
-                    mobj_ptr=np.where(ref_obj == iobj)[0][0]
+                mobj_ptr=np.where(ref_obj == iobj)[0][0]
                    
-                    for match_obj in linked_objs[mobj_ptr] :
-                        line, = ax.plot([], [], linestyle='' ,marker='o', \
+                for match_obj in linked_objs[mobj_ptr] :
+                    line, = ax.plot([], [], linestyle='' ,marker='o', \
                                            markersize = no_cloud_size)
-                        line_cl, = ax.plot([], [], linestyle='' ,marker='o', \
+                    line_cl, = ax.plot([], [], linestyle='' ,marker='o', \
                                            markersize = cloud_size, \
                                            color = line.get_color(), \
                                            label='{}'.format(match_obj))
-                        match_line_list.append([line,line_cl])
-                        if with_boxes :
-                            box, = ax.plot([],[],color = line.get_color())
-                            match_box_list.append(box)
-            else :
+                    match_line_list.append([line,line_cl])
+                    if with_boxes :
+                        box, = ax.plot([],[],color = line.get_color())
+                        match_box_list.append(box)
+        else :
                 
 #                print(match_objs[match_index-1][iobj])
 #                input("Press enter")
 #                for match_obj in match_objs[match_index-1][iobj] :
 #                    print(match_obj)
 #                input("Press enter")
-                for match_obj in match_objs[match_index-1][iobj] :
+            mobj_ptr=np.where(select == iobj)[0][0]
+            for match_obj in match_objs[match_index-1][mobj_ptr] :
 #                    print("Matching object {} ho ho".format(match_obj))
-                    line, = ax.plot([], [], linestyle='' ,marker='o', \
+                line, = ax.plot([], [], linestyle='' ,marker='o', \
                                        markersize = no_cloud_size)
-                    line_cl, = ax.plot([], [], linestyle='' ,marker='o', \
+                line_cl, = ax.plot([], [], linestyle='' ,marker='o', \
                                        markersize = cloud_size, \
                                        color = line.get_color(), \
                                        label='{}'.format(match_obj))
 #                    print("Matching lines created")
-                    match_line_list.append([line,line_cl])
-                    if with_boxes :
-                        box, = ax.plot([],[],color = line.get_color())
-                        match_box_list.append(box)
+                match_line_list.append([line,line_cl])
+                if with_boxes :
+                    box, = ax.plot([],[],color = line.get_color())
+                    match_box_list.append(box)
 #                    print(match_line_list)
             
-            match_line_list_list.append(match_line_list)
-            if with_boxes :
-                match_box_list_list.append(match_box_list)
+        match_line_list_list.append(match_line_list)
+        if with_boxes :
+            match_box_list_list.append(match_box_list)
                 
-            nplt +=1
+        nplt +=1
     if legend : plt.legend()
     
 #    print(line_list)            
@@ -776,25 +791,26 @@ def plot_traj_family_animation(traj_family, match_index, \
         if plot_field :
             line_field.set_data([], [])
         nplt = 0
-        for iobj in range(0,traj.nobjects):
-            if np.isin(iobj,select) :
+        for iobj in select:
+#        for iobj in range(0,traj.nobjects):
+#            if np.isin(iobj,select) :
 #                print("Initializing line for object {}".format(iobj))
 #                input("Press enter")
-                for line in line_list[nplt] :
-                    line.set_data([], [])
+            for line in line_list[nplt] :
+                line.set_data([], [])
                     
-                for match_line_list in match_line_list_list[nplt] :
+            for match_line_list in match_line_list_list[nplt] :
 #                    print("Initialising matching line data",match_line_list)
 #                    input("Press enter")
-                    for line in match_line_list :
-                        line.set_data([], [])
+                for line in match_line_list :
+                    line.set_data([], [])
                     
-                if with_boxes :
-                    box_list[nplt].set_data([], [])
-                    for box in match_box_list_list[nplt] :
-                        box.set_data([], [])
+            if with_boxes :
+                box_list[nplt].set_data([], [])
+                for box in match_box_list_list[nplt] :
+                    box.set_data([], [])
                 
-                nplt +=1
+            nplt +=1
         return
     
     def set_line_data(tr, it, t_off, ln) :
@@ -879,55 +895,56 @@ def plot_traj_family_animation(traj_family, match_index, \
             line_field.set_3d_properties(z) 
             
         nplt = 0
-        for iobj in range(0,traj.nobjects):
-            if np.isin(iobj,select) :
+        for iobj in select:
+#        for iobj in range(0,traj.nobjects):
+#            if np.isin(iobj,select) :
 #                print("Setting line data", j, nplt, line_list[nplt])
 #                input("Press enter")
 
-                set_line_data(traj_list[nplt], j, 0, line_list[nplt])
+            set_line_data(traj_list[nplt], j, 0, line_list[nplt])
 #                input("Press enter")
               
-                if plot_linked :
-                    if np.isin(iobj,ref_obj) :
-                        mobj_ptr=np.where(ref_obj == iobj)[0][0]
-                        for (match_line_list, m_traj, match_obj ) in \
-                            zip(match_line_list_list[nplt], \
-                                match_traj_list_list[nplt], \
-                                linked_objs[mobj_ptr]) :
-#                            input("Press enter")
-                            match_index = match_obj[0]+1
-                            set_line_data(m_traj, j, match_index, match_line_list)
+            if plot_linked :
+                if np.isin(iobj,ref_obj) :
+                    mobj_ptr=np.where(ref_obj == iobj)[0][0]
+                    for (match_line_list, m_traj, match_obj ) in \
+                        zip(match_line_list_list[nplt], \
+                            match_traj_list_list[nplt], \
+                            linked_objs[mobj_ptr]) :
+#                               input("Press enter")
+                        match_index = match_obj[0]+1
+                        set_line_data(m_traj, j, match_index, match_line_list)
 #                            input("Press enter")
                                
-                        if with_boxes :
-                            set_box_data(traj_list[nplt], j, 0, box_list[nplt])
-                            for (box, m_traj, match_obj) in \
-                                zip(match_box_list_list[nplt], \
-                                    match_traj_list_list[nplt], \
-                                    linked_objs[iobj]) :
+                    if with_boxes :
+                        set_box_data(traj_list[nplt], j, 0, box_list[nplt])
+                        for (box, m_traj, match_obj) in \
+                            zip(match_box_list_list[nplt], \
+                                match_traj_list_list[nplt], \
+                                linked_objs[iobj]) :
         #                        print(box, m_traj)
-                                match_index = match_obj[0]+1
-                                set_box_data(m_traj, j, match_index, box)
-                else :
+                            match_index = match_obj[0]+1
+                            set_box_data(m_traj, j, match_index, box)
+            else :
                     
 #                    print(len(match_line_list_list[nplt]), \
 #                            len(match_traj_list_list[nplt]))
-                    for (match_line_list, m_traj) in \
-                        zip(match_line_list_list[nplt], \
-                            match_traj_list_list[nplt]) :
+                for (match_line_list, m_traj) in \
+                    zip(match_line_list_list[nplt], \
+                        match_traj_list_list[nplt]) :
 #                        print(m_traj)
 #                        print("Match line list", match_line_list)
 #                        input("Press enter")
     
-                        set_line_data(m_traj, j, match_index, match_line_list)
+                    set_line_data(m_traj, j, match_index, match_line_list)
 #                        input("Press enter")
                            
-                    if with_boxes :
-                        set_box_data(traj_list[nplt], j, 0, box_list[nplt])
-                        for (box, m_traj) in zip(match_box_list_list[nplt], \
-                                                 match_traj_list_list[nplt]) :
+                if with_boxes :
+                    set_box_data(traj_list[nplt], j, 0, box_list[nplt])
+                    for (box, m_traj) in zip(match_box_list_list[nplt], \
+                                             match_traj_list_list[nplt]) :
     #                        print(box, m_traj)
-                            set_box_data(m_traj, j, match_index, box)
+                        set_box_data(m_traj, j, match_index, box)
                         
                 nplt +=1
 #        plt.title('Time index {:03d}'.format(ntraj-j-1))

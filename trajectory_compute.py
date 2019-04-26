@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from netCDF4 import Dataset
 import numpy as np
 from scipy import ndimage
@@ -22,11 +23,37 @@ cyclic_xy = True
 use_bilin = True
 
 class trajectory_family : 
+    """
+    Class defining a familiy of back trajectories.
+    This is an ordered list of trajectories with sequential reference times.
+
+    @author: Peter Clark
+    """
     def __init__(self, files, ref_prof_file, \
                  first_ref_file, last_ref_file, \
                  back_len, forward_len, \
                  deltax, deltay, deltaz, variable_list=None, \
                  thresh=1.0E-5) : 
+        """
+        Create an instance of a familiy of back trajectories.
+        This is an ordered list of trajectories with sequential reference times.
+
+        Args:
+            files              : ordered list of files used to generate 
+                                 trajectories
+            ref_prof_file      : name of file containing reference profile.
+            first_ref_file     : Index of first file to use as reference.
+            last_ref_file      : Index of last file to use as reference.
+            back_len           : How many output timesteps to go back from ref.
+            forward_len        : How many output timesteps to go forward.
+            deltax             : Model x grid spacing in m.
+            deltay             : Model y grid spacing in m.
+            deltaz             : Model z grid spacing in m. 
+            variable_list=None : List of variable names for data to interpolate
+                                 to trajectory.
+            thresh=1.0E-5      : Threshold for cloud definition.
+        @author: Peter Clark
+        """
         self.family = list([])
         for ref in range(first_ref_file, last_ref_file+1):
             start_file = ref - back_len
@@ -38,24 +65,68 @@ class trajectory_family :
 #            input("Press a key")
         return
     
-    def matching_object_list(self, ref = None ):
+    def matching_object_list(self, ref = None, select = None ):
+        """
+        Method to generate a list of matching objects at all times they match. 
+        Matching is done using overlap of cloud boxes.
+        
+        Args : 
+            ref = None  : Which trajectory set in family to use to find 
+                          matching objects.
+                          Default is the last set.
+                          
+        Returns :
+            List with one member for each trajectory set with an earlier 
+            reference time than ref. By default, this is all the sets apart 
+            from the last. Let us say t_off is the backwards offset from the
+            reference time, with t_off=0 for the time immediately before the
+            reference time.
+            
+            Each member is a list with one member for each back trajectory time 
+            in the ref trajectories, containing a list with one member for 
+            every object in ref,comprising an array of integer indices of the 
+            matching objects in the earlier set that match the reference object
+            at the given time. This may be empty if no matches have been found.
+            Let us say the it_back measures the time backwards from ref, with
+            it_back=0 at th ereference time.
+            
+            Thus, if mol is the matching object list,
+            mol[t_off][it_back][iobj] is an array of object ids belonging to
+            trajectory set ref-(t_off+1), at ref trajectory time it_back before 
+            the ref reference time and matching iobj a the reference time.
+        @author: Peter Clark
+        """
         mol = list([])
-        if ref == None : ref = len(self.family) - 1
+        if ref is None : ref = len(self.family) - 1
         traj = self.family[ref]
+        if select is None : select = np.arange(0, traj.nobjects, dtype = int)
+        # Iterate backwards from first set before ref.
         for t_off in range(0, ref) :
 #            print("Matching at reference time offset {}".format(t_off+1))
+            # We are looking for objects in match_traj matching those in traj.
             match_traj = self.family[ref-(t_off+1)]
+            # matching_objects[t_off] will be those objects in match_traj 
+            # which match traj at any time.
             matching_objects = list([])
+            # Iterate backwards over all set times from ref to start. 
             for it_back in range(0,traj.ref_file+1) :
+                # Time to make comparison
                 ref_time = traj.ref_file-it_back
+                # Time in match_traj that matches ref_time
+                # Note: match_traj.ref_file should be ref-(t_off+1)
+                #       so match_time = ref - it_back
                 match_time = match_traj.ref_file + t_off - it_back +1
 #                print("Matching at reference trajectory time {}".format(it_back))
                 matching_object_at_time = list([])
-                for iobj in range(0, traj.nobjects) :
+                # Iterate over objects in ref.
+                for iobj in select :
                     corr_box = np.array([],dtype=int)
+                    # Only look at clouds
                     if traj.num_cloud[ref_time ,iobj] > 0 :
                         b_test = traj.cloud_box[ref_time, iobj,...]
 #                        if iobj == 0 : print("Matching time {}".format(match_time))
+                        # Find boxes in match_traj at match_time that overlap
+                        # cloud box for iobj at the same time.
                         if (match_time >= 0) & \
                           (match_time < np.shape(match_traj.cloud_box)[0]) :
                             b_set  = match_traj.cloud_box[match_time,...]
@@ -71,86 +142,196 @@ class trajectory_family :
             mol.append(matching_objects)
         return mol
    
-    def print_matching_object_list(self, ref = None) :    
+    def print_matching_object_list(self, ref = None, select = None) :    
+        """
+        Method to print matching object list.
+        See method matching_object_list.
+        
+        @author: Peter Clark
+        """
         if ref == None : ref = len(self.family) - 1
-        mol = self.matching_object_list(ref = ref)
+        if select is None : select = np.arange(0, self.family[ref].nobjects, \
+                                           dtype = int)
+        mol = self.matching_object_list(ref = ref, select = select)
         for t_off in range(0, len(mol)) :
             matching_objects = mol[t_off]
-            for iobj in range(0, len(matching_objects[0])) :
+            for i in range(0, len(matching_objects[0])) :
+                iobj = select[i]
                 for it_back in range(0, len(matching_objects)) :
-                    for obj in matching_objects[it_back][iobj] :
+                    for obj in matching_objects[it_back][i] :
                         if np.size(obj) > 0 :
                             print("t_off: {0} iobj: {1} it_back: {2} obj: {3}".\
                                   format(t_off+1, iobj, it_back, obj))
         return
     
-    def matching_object_list_summary(self, ref = None) :
-        if ref == None : ref = len(self.family) - 1
+    def matching_object_list_summary(self, ref = None, select = None, \
+                                     overlap_thresh = 0.02) :
+        """
+        Method to classify matching objects.
+        
+        Args : 
+            ref = None  : Which trajectory set in family to use to find 
+                          matching objects.
+                          Default is the last set.
+                          
+        Returns :
+            List with one member for each trajectory set with an earlier 
+            reference than ref. By default, this is all the sets apart from 
+            the last.
+            Each member is a list with one member for each object in ref,
+            containing a list of objects in the earlier set that match the
+            object in ref AT ANY TIME.
+            Each of these is classified 'Linked' if the object is in the 
+            max_at_ref list at the earler reference time, otherwise 'Same'.
+        @author: Peter Clark
+        """
+        if ref is None : ref = len(self.family) - 1
+        if select is None : select = np.arange(0, self.family[ref].nobjects, \
+                                               dtype = int )
         mol = self.matching_object_list(ref = ref)
         mols = list([])
-        for t_off in range(0, len(mol)) :
-            matching_objects = mol[t_off]
+        # Iterate backwards from first set before ref.
+        for t_off, matching_objects in enumerate(mol) :
             match_list = list([])
             match_time = ref-(t_off+1)
-            for iobj in range(0, len(matching_objects[0])) :
+            for iobj in select :
                 objlist = list([])
                 otypelist = list([])
+                interlist = list([])
                 for it_back in range(0, len(matching_objects)) :
                     for obj in matching_objects[it_back][iobj] :
                         if np.size(obj) > 0 :
                             if obj not in objlist : 
-                                otype = 'Same'
-#                                print(self.family)
-#                                print(ref,t_off,ref-(t_off+1))
-#                                print(self.family[ref-(t_off+1)].max_at_ref)
-                                if (match_time >= 0) & \
-                                   (match_time < len(self.family)) :
-                                    if obj in \
-                                      self.family[match_time].max_at_ref :
-                                        otype = 'Linked'
-                                objlist.append(obj)
-                                otypelist.append(otype)
-                match_list.append(list(zip(objlist,otypelist)))
+                                
+                                inter = self.refine_object_overlap(t_off, \
+                                            it_back, iobj, obj, ref = ref)
+                                
+                                if inter > overlap_thresh :
+                                
+                                    otype = 'Same'
+                                    if (match_time >= 0) & \
+                                        (match_time < len(self.family)) :
+                                        if obj in \
+                                        self.family[match_time].max_at_ref :
+                                            otype = 'Linked'
+                                    objlist.append(obj)
+                                    otypelist.append(otype)
+                                    interlist.append(int(inter*100+0.5))
+                match_list.append(list(zip(objlist,otypelist,interlist)))
             mols.append(match_list)
         return mols
     
-    def print_matching_object_list_summary(self, ref = None) :    
+    def print_matching_object_list_summary(self, ref = None,  select = None, \
+                                           overlap_thresh = 0.02) :    
+        """
+        Method to print matching object list summary.
+        See method matching_object_list_summary.
+        
+        @author: Peter Clark
+        """
         if ref == None : ref = len(self.family) - 1
-        mols = self.matching_object_list_summary(ref = ref)
+        if select is None : select = np.arange(0, self.family[ref].nobjects, \
+                                               dtype = int)
+        mols = self.matching_object_list_summary(ref = ref, select = select, \
+                                                 overlap_thresh = \
+                                                 overlap_thresh)
         for t_off in range(0, len(mols)) :
             matching_objects = mols[t_off]
-            for iobj in range(0, len(matching_objects)) :
+            for i in range(0, len(matching_objects)) :
+                iobj = select[i]
                 rep =""
-                for mo, mot in matching_objects[iobj] : 
-                    rep += "({}, {})".format(mo,mot)
+                for mo, mot, mint in matching_objects[i] : 
+                    rep += "({}, {}, {:02d})".format(mo,mot,mint)
                 print("t_off: {0} iobj: {1} obj: {2} ".\
                                   format(t_off, iobj, rep))
                            
         return
 
-    def find_linked_objects(self, ref = None) :   
-        if ref == None : ref = len(self.family) - 1
-        mols = self.matching_object_list_summary(ref = ref)
+    def find_linked_objects(self, ref = None, select = None, \
+        overlap_thresh = 0.02) :   
+        """
+        Method to find all objects linked to objects in max_at_ref list in ref.
+        
+        Args : 
+            ref = None  : Which trajectory set in family to use to find 
+                          matching objects.
+                          Default is the last set.
+                          
+        Returns :
+            List with one member for each object in max_at_ref list in ref.
+            Each member is a list of pairs containing the t_off and 
+            object id of objects in the max_at_ref list of the family at 
+            ref-(t_off+1) classified as 'Linked'.
+        @author: Peter Clark
+        """
+        if ref is None : ref = len(self.family) - 1
+        if select is None : select = self.family[ref].max_at_ref
+        mols = self.matching_object_list_summary(ref = ref, select=select,
+                                                 overlap_thresh = \
+                                                 overlap_thresh)
         linked_objects = list([])
-        for iobj in self.family[ref].max_at_ref :
+        for i in range(len(select)) :
             linked_obj = list([])
             for t_off in range(0, len(mols)) :
-                matching_objects = mols[t_off][iobj]
-                for mo, mot in matching_objects : 
+                matching_objects = mols[t_off][i]
+                for mo, mot, mint in matching_objects : 
                     if mot == 'Linked' :
                         linked_obj.append([t_off, mo])
             linked_objects.append(linked_obj)
         return linked_objects
     
-    def print_linked_objects(self, ref = None) :
+    def print_linked_objects(self, ref = None, select = None, \
+                             overlap_thresh = 0.02) :
+        """
+        Method to print linked object list.
+        See method find_linked_objects.
+        
+        @author: Peter Clark
+        """
         if ref == None : ref = len(self.family) - 1
-        linked_objects = self.find_linked_objects(ref = ref)
-        for iobj, linked_obj in zip(self.family[ref].max_at_ref, \
+        if select is None : select = self.family[ref].max_at_ref
+        linked_objects = self.find_linked_objects(ref = ref, select=select, \
+                                                  overlap_thresh = \
+                                                  overlap_thresh)
+        for iobj, linked_obj in zip(select, \
                                     linked_objects) :
             rep =""
             for t_off, mo in linked_obj : 
                 rep += "({}, {})".format(t_off, mo)
             print("iobj: {0} objects: {1} ".format(iobj, rep))
+        return
+            
+    def refine_object_overlap(self, t_off, time, obj, mobj, ref = None) :
+        if ref == None : ref = len(self.family) - 1
+#        print(t_off, time, obj, mobj)
+#        print("Comparing trajectories {} and {}".format(ref, ref-(t_off+1)))
+        
+        def extract_obj_as1Dint(fam, ref, time, obj) :
+            traj = fam[ref]
+            tr_time = traj.ref_file-time
+#            print("Time in {} is {}, {}".format(ref, tr_time, traj.times[tr_time]))
+            obj_ptrs = (traj.labels == obj)
+            qcl = traj.data[tr_time, obj_ptrs, traj.var("q_cloud_liquid_mass")]
+#            print(np.shape(qcl))
+            mask = (qcl >= traj.thresh)
+#            print(np.shape(mask))
+            tr = (traj.trajectory[tr_time, obj_ptrs, ... ] + 0.5).astype(int)
+#            print(np.shape(tr))
+            tr = tr[mask,:]
+#            for i in range(2) : print(np.min(tr[:,i]),np.max(tr[:,i]))
+            tr1D = np.unique(tr[:,0] + traj.nx * (tr[:,1] + traj.ny * tr[:,2]))
+            return tr1D
+    
+        tr1D = extract_obj_as1Dint(self.family, ref, time, obj)
+        trm1D = extract_obj_as1Dint(self.family, ref-(t_off+1), \
+                                    time-(t_off+1) , mobj)
+                
+        max_size = np.max([np.size(tr1D),np.size(trm1D)])
+        if max_size > 0 :
+            intersection = np.size(np.intersect1d(tr1D,trm1D))/max_size
+        else :
+            intersection = 0
+        return intersection
             
     def __str__(self):
         rep = "Trajectories family\n"
@@ -246,6 +427,8 @@ class trajectories :
         min_cloud_base = np.zeros(self.nobjects)
         first_cloud_base = np.zeros(self.nobjects)
         cloud_top = np.zeros(self.nobjects)
+        cloud_trigger_time = np.zeros(self.nobjects)
+        cloud_dissipate_time = np.ones(self.nobjects)*self.ntimes
         
         tr_z = (self.trajectory[:,:,2]-0.5)*self.deltaz
         zn = (np.arange(0,np.size(self.piref))-0.5)*self.deltaz
@@ -532,6 +715,7 @@ class trajectories :
                                 # Must be cloud points that were present before.
                                 traj_class[it:, class_set] = PREVIOUS_CLOUD
                     else :
+                        if in_main_cloud : cloud_trigger_time[iobj] = it
                         in_main_cloud = False
                         
                     # Now what about entraining air?
@@ -673,6 +857,7 @@ class trajectories :
                     else :
                         if in_main_cloud and not after_cloud_dissipated :
                             # At cloud top.
+                            cloud_dissipate_time[iobj] = it
                             cloud_top[iobj] = (np.max(tr[it-1,mask[it-1,:],2])-0.5) \
                                                 *self.deltaz
                         in_main_cloud = False
@@ -732,6 +917,8 @@ class trajectories :
                            "first cloud base": first_cloud_base, \
                            "min cloud base":min_cloud_base, \
                            "cloud top":cloud_top, \
+                           "cloud_trigger_time":cloud_trigger_time, \
+                           "cloud_dissipate_time":cloud_dissipate_time, \
                            "version":version, \
                            }
 

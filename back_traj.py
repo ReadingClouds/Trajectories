@@ -18,27 +18,20 @@ def file_key(file):
 #dir = '/projects/paracon/toweb/r4677_Circle-A/diagnostic_files/'
 #dir = '/projects/paracon/toweb/r4677_Circle-A/diagnostic_files/S_ReI_1200_A/'
 #dir = '/projects/paracon/toweb/r4677_Circle-A/diagnostic_files/traj_Pete/'
-#dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r6/'
-#dir = 'C:/Users/xm904103/OneDrive - University of Reading/traj_data/r6/'
 
 #dir = '/storage/shared/metcloud/wxproc/xm904103/traj/'
 #dir = '/projects/paracon/appc/MONC/r4664_CA_traj/diagnostic_files/r5/'
 #dir = '/projects/paracon/appc/MONC/prev/r4664_CA_traj/diagnostic_files/'
 #dir = '/projects/paracon/appc/MONC/r4664_CA_traj/diagnostic_files/r6/'
-dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r6/'
+dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r6/'
+#dir = 'C:/Users/xm904103/OneDrive - University of Reading/traj_data/r6/'
+#dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r6/'
 files = glob.glob(dir+"diagnostics_3d_ts_*.nc")
 files.sort(key=file_key)
 
-print(files)
+#print(files)
 print(dir)
 
-
-#print thref, piref, thref*piref
-
-#end_file = len(files)-1
-#start_file = end_file-1
-
-#ref_file = 39
 first_ref_file = 49
 last_ref_file =  89
 tr_back_len = 40
@@ -92,21 +85,36 @@ else :
     infile.close()
     
     
-
 traj_list = tfm.family
 tfm.print_matching_object_list()
-tfm.print_matching_object_list_summary()
+tfm.print_matching_object_list_summary(overlap_thresh=0.1)
 
-tfm.print_linked_objects()
+tfm.print_linked_objects(overlap_thresh=0.1)
+sel = np.array([85])
+tfm.print_matching_object_list(select = sel)
+tfm.print_matching_object_list_summary(select = sel, overlap_thresh=0.1)
+tfm.print_linked_objects(select = sel, overlap_thresh=0.1)
+
+input("Press Enter to continue...")
 
 matching_object_list = tfm.matching_object_list()
+iobj = 85
+t_off = 9
+time = 9
+
+match_obj = matching_object_list[t_off][time][iobj][-1] 
+print(match_obj)
+inter = tfm.refine_object_overlap(t_off, time, iobj, match_obj)
+print(inter)
 
 traj_m = traj_list[-1]
 traj_r = traj_list[0]
+# Appropriate for r6 test data
 sel_list   = np.array([0, 62, 70, 85])
-#sel_list_r = np.array([0, 1, 2, 6, 8, 11, 67, 71])
-#sel_list_r = np.array([2,12,73])
 sel_list_r = np.array([0, 5, 72, 78, 92])
+
+# Appropriate for r11 test data
+#sel_list   = np.array([0, 62, 70, 85])
 
 
 #plot_traj_pos(traj_m, ref_file-start_file, save=False) 
@@ -115,25 +123,25 @@ sel_list_r = np.array([0, 5, 72, 78, 92])
 #data_mean, traj_m_centroid = compute_traj_centroids(traj_m)
 input("Press Enter to continue...")
 # Plot all clouds
-if False :
+if True :
     plot_traj_animation(traj_m, save_anim=False, with_boxes=True, \
                         title = 'Reference Time {}'.format(last_ref_file))
 
 #input("Press Enter to continue...")
 # Plot all clouds with galilean transform
-if False :
+if True :
     plot_traj_animation(traj_m, save_anim=False, \
         title = 'Reference Time {} Galilean Tranformed'.format(last_ref_file), \
         galilean = np.array([-8.5,0]))
 
-if False :
+if True :
     plot_traj_animation(traj_r, save_anim=False, \
         title = 'Reference Time {} Galilean Tranformed'.format(first_ref_file), \
         galilean = np.array([-8.5,0]))
 
 max_list = traj_m.max_at_ref
 print(max_list)
-if False :
+if True :
 #    for iobj in range(0,traj_m.nobjects):
 #    for iobj in range(1,7):    
     for iobj in sel_list:
@@ -150,7 +158,7 @@ if False :
 #input("Press Enter to continue...")
 
 # Plot max_list clouds with galilean transform
-if False :
+if True :
     plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
         no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
         title = 'Reference Time {} Galilean Tranformed'.format(last_ref_file), \
@@ -177,10 +185,18 @@ if False :
 if False :
     plot_trajectory_mean_history(traj_m, mean_prop, fn, select = sel_list) 
 
-if False :
+if True :
     mean_prop2 = traj_m.cloud_properties(version = 2)
+    
+#    print(mean_prop2['cloud_trigger_time'])
+#    print(mean_prop2['cloud_dissipate_time'])
+    cloud_lifetime = mean_prop2['cloud_dissipate_time'] - \
+                     mean_prop2['cloud_trigger_time']
+    
+    plt.hist(cloud_lifetime)
+    plt.show()
       
-if False :
+if True :
     for cloud in sel_list :
         plot_traj_animation(traj_m, save_anim=False, \
                     select = np.array([cloud]), fps = 2,  \
@@ -193,7 +209,7 @@ if False :
 # Plot max_list clouds mean history
      
       
-if False :
+if True :
     plot_trajectory_mean_history(traj_m, mean_prop2, fn, select = sel_list) 
 
 #max_list=np.array([9,18,21,22,24,36,38,43,49,52,63,69,70,77,83,87,88,96])
@@ -221,13 +237,7 @@ if False :
                     no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
                     with_boxes = False, galilean = np.array([-8.5,0]))
 
-
-# Plot subset max_list clouds mean history
-if False :
-    plot_trajectory_mean_history(traj_m, mean_cloud_properties, \
-                                 mean_entr_properties, mean_detr_properties, \
-                                 traj_class, first_cloud_base, cloud_top, fn, \
-                                 select = max_list) 
+ 
 if True :
     plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
                     legend = True, plot_field = True, \
@@ -247,7 +257,8 @@ if True :
                     format(last_ref_file, cloud), \
                     galilean = np.array([-8.5,0]))
         for tback in [10, 20] :
-            plot_traj_family_animation(tfm, tback, save_anim=False, \
+            plot_traj_family_animation(tfm, tback, overlap_thresh = 0.1, \
+                    save_anim=False, \
                     select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = False, \
                     dir_override=dir, \
@@ -257,7 +268,8 @@ if True :
                     with_boxes = False, galilean = np.array([-8.5,0]))
 
         for tback in [-1] :
-            plot_traj_family_animation(tfm, tback, save_anim=False, \
+            plot_traj_family_animation(tfm, tback, overlap_thresh = 0.1, \
+                    save_anim=False, \
                     select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = False, \
                     dir_override=dir, \
