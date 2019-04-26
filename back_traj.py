@@ -113,6 +113,9 @@ traj_r = traj_list[0]
 sel_list   = np.array([0, 62, 70, 85])
 sel_list_r = np.array([0, 5, 72, 78, 92])
 
+# Appropriate for r11 test data
+#sel_list   = np.array([0, 62, 70, 85])
+
 
 #plot_traj_pos(traj_m, ref_file-start_file, save=False) 
 #plot_traj_pos(traj_m, ref_file-start_file+1, save=False) 
