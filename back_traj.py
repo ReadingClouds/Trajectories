@@ -86,32 +86,46 @@ else :
     
     
 traj_list = tfm.family
-tfm.print_matching_object_list()
-tfm.print_matching_object_list_summary(overlap_thresh=0.1)
+#tfm.print_matching_object_list()
+#tfm.print_matching_object_list_summary(overlap_thresh=0.1)
 
-tfm.print_linked_objects(overlap_thresh=0.1)
-sel = np.array([85])
-tfm.print_matching_object_list(select = sel)
-tfm.print_matching_object_list_summary(select = sel, overlap_thresh=0.1)
-tfm.print_linked_objects(select = sel, overlap_thresh=0.1)
+#tfm.print_linked_objects(overlap_thresh=0.1)
+sel = np.array([92])
+tfm.print_matching_object_list(ref=39,select = sel)
+tfm.print_matching_object_list_summary(ref=39, select = sel, overlap_thresh=0.1)
+tfm.print_linked_objects(ref=39, select = sel, overlap_thresh=0.1)
 
-input("Press Enter to continue...")
+#input("Press Enter to continue...")
 
 matching_object_list = tfm.matching_object_list()
 iobj = 85
-t_off = 9
-time = 9
+t_off = 0
+time = 1
 
-match_obj = matching_object_list[t_off][time][iobj][-1] 
-print(match_obj)
-inter = tfm.refine_object_overlap(t_off, time, iobj, match_obj)
-print(inter)
+for match_obj in matching_object_list[t_off][time][iobj]  : 
+    inter = tfm.refine_object_overlap(t_off, time, iobj, match_obj)
+    print("Object refinement object {} overlap: {}".format(match_obj,inter))
+
+sup = tfm.find_super_objects(select = sel, \
+        overlap_thresh = 0.3) 
+print(sup)
+
+mem_list = [(85,40,40),(0,39,41),(92,39,41),(0,38,42),(1,38,42)]
+#mem_list = [(85,40,40),(92,39,41)]
+plot_traj_family_members(tfm, mem_list, galilean = np.array([-8.5,0]), \
+                         with_boxes=True, asint = True, )
+#plot_traj_family_members(tfm, mem_list, with_boxes=True )
+#plot_traj_family_members(tfm,[(85,40,40),(92,39,41)]) 
+
+#input("Press Enter to continue...")
 
 traj_m = traj_list[-1]
 traj_r = traj_list[0]
 # Appropriate for r6 test data
 sel_list   = np.array([0, 62, 70, 85])
-sel_list_r = np.array([0, 5, 72, 78, 92])
+#sel_list   = np.array([0, 62, 70, 85])
+ssel_list_r = np.array([0, 5, 72, 78, 92])
+
 
 # Appropriate for r11 test data
 #sel_list   = np.array([0, 62, 70, 85])
@@ -121,7 +135,7 @@ sel_list_r = np.array([0, 5, 72, 78, 92])
 #plot_traj_pos(traj_m, ref_file-start_file+1, save=False) 
 
 #data_mean, traj_m_centroid = compute_traj_centroids(traj_m)
-input("Press Enter to continue...")
+#input("Press Enter to continue...")
 # Plot all clouds
 if True :
     plot_traj_animation(traj_m, save_anim=False, with_boxes=True, \
@@ -129,19 +143,20 @@ if True :
 
 #input("Press Enter to continue...")
 # Plot all clouds with galilean transform
-if True :
+if False :
     plot_traj_animation(traj_m, save_anim=False, \
         title = 'Reference Time {} Galilean Tranformed'.format(last_ref_file), \
         galilean = np.array([-8.5,0]))
 
-if True :
+if False :
     plot_traj_animation(traj_r, save_anim=False, \
         title = 'Reference Time {} Galilean Tranformed'.format(first_ref_file), \
         galilean = np.array([-8.5,0]))
 
 max_list = traj_m.max_at_ref
 print(max_list)
-if True :
+#sel_list = max_list
+if False :
 #    for iobj in range(0,traj_m.nobjects):
 #    for iobj in range(1,7):    
     for iobj in sel_list:
@@ -158,7 +173,7 @@ if True :
 #input("Press Enter to continue...")
 
 # Plot max_list clouds with galilean transform
-if True :
+if False :
     plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
         no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
         title = 'Reference Time {} Galilean Tranformed'.format(last_ref_file), \
@@ -220,9 +235,7 @@ if True :
 #max_list=np.array([0,62,70,85,95])
 #max_list_r=np.array([0,3,7,67,71,86])
 
-#if False :
-#    plot_traj_animation(traj_r, save_anim=False, select=sel_list_r,legend=True)
-    
+
 
 # Plot subset max_list clouds with galilean transform
 # Not needed   
@@ -278,9 +291,6 @@ if True :
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
                     with_boxes = False, galilean = np.array([-8.5,0]))
 
-#if True :
-#    for cloud in sel_list :
-        
 
 #print(min_cloud_base)
     

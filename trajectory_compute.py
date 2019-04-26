@@ -86,7 +86,9 @@ class trajectory_family :
         Returns :
 		
             List with one member for each trajectory set with an earlier 
-            reference time than ref. By default, this is all the sets apart 
+            reference time than ref. 
+            
+            By default, this is all the sets apart 
             from the last. Let us say t_off is the backwards offset from the
             reference time, with t_off=0 for the time immediately before the
             reference time.
@@ -120,34 +122,43 @@ class trajectory_family :
             # matching_objects[t_off] will be those objects in match_traj 
             # which match traj at any time.
             matching_objects = list([])
+#            print('ref, t_off',ref, t_off)
             # Iterate backwards over all set times from ref to start. 
             for it_back in range(0,traj.ref_file+1) :
                 # Time to make comparison
                 ref_time = traj.ref_file-it_back
+                # Note match_traj.ref_file in general will equal traj.ref_file 
                 # Time in match_traj that matches ref_time
-                # Note: match_traj.ref_file should be ref-(t_off+1)
-                #       so match_time = ref - it_back
-                match_time = match_traj.ref_file + t_off - it_back +1
+                 #       so match_time = ref - it_back
+                match_time = match_traj.ref_file + (t_off + 1)- it_back 
 #                print("Matching at reference trajectory time {}".format(it_back))
                 matching_object_at_time = list([])
                 # Iterate over objects in ref.
+ #               print('ref_time, match_time',ref_time, match_time)
+#                input("Press enter")
                 for iobj in select :
-                    corr_box = np.array([],dtype=int)
+#                    corr_box = np.array([],dtype=int)
                     # Only look at clouds
+#                    print('iobj',iobj)
                     if traj.num_cloud[ref_time ,iobj] > 0 :
                         b_test = traj.cloud_box[ref_time, iobj,...]
+#                        print("b_test",b_test)
 #                        if iobj == 0 : print("Matching time {}".format(match_time))
                         # Find boxes in match_traj at match_time that overlap
                         # cloud box for iobj at the same time.
                         if (match_time >= 0) & \
                           (match_time < np.shape(match_traj.cloud_box)[0]) :
                             b_set  = match_traj.cloud_box[match_time,...]
+#                            print(b_set[0:4])
                             corr_box = box_overlap_with_wrap(b_test, b_set, \
                                 traj.nx, traj.ny)
+#                            print("corr_box",corr_box,b_set[corr_box,...])
                             valid = (match_traj.num_cloud[match_time, corr_box]>0)
+#                            print("valid", valid)
+#                            print('box 1',match_traj.cloud_box[match_time,1])
                             corr_box = corr_box[valid]
-#                            if iobj == 0 :
-#                                print(iobj,b_test, corr_box, b_set[corr_box,...])
+#                            if iobj == 85 :
+#                                print(iobj,match_time,b_test, corr_box, b_set[corr_box,...])
 #                                input("Press enter")
                     matching_object_at_time.append(corr_box)
                 matching_objects.append(matching_object_at_time)
@@ -168,11 +179,13 @@ class trajectory_family :
         if select is None : select = np.arange(0, self.family[ref].nobjects, \
                                            dtype = int)
         mol = self.matching_object_list(ref = ref, select = select)
+#        for t_off in range(0, 4) :
         for t_off in range(0, len(mol)) :
             matching_objects = mol[t_off]
             for i in range(0, len(matching_objects[0])) :
                 iobj = select[i]
                 for it_back in range(0, len(matching_objects)) :
+#                for it_back in range(0, 4) :
                     for obj in matching_objects[it_back][i] :
                         if np.size(obj) > 0 :
                             print("t_off: {0} iobj: {1} it_back: {2} obj: {3}".\
@@ -191,11 +204,14 @@ class trajectory_family :
                           
         Returns :
             List with one member for each trajectory set with an earlier 
-            reference than ref. By default, this is all the sets apart from 
-            the last.
+            reference than ref. 
+            
+            By default, this is all the sets apart from the last.
+            
             Each member is a list with one member for each object in ref,
             containing a list of objects in the earlier set that match the
             object in ref AT ANY TIME.
+            
             Each of these is classified 'Linked' if the object is in the 
             max_at_ref list at the earler reference time, otherwise 'Same'.
 			
@@ -203,37 +219,45 @@ class trajectory_family :
 		
         """
         if ref is None : ref = len(self.family) - 1
-        if select is None : select = np.arange(0, self.family[ref].nobjects, \
-                                               dtype = int )
-        mol = self.matching_object_list(ref = ref)
+        traj = self.family[ref]
+        if select is None : select = np.arange(0, traj.nobjects, dtype = int )
+        
+        mol = self.matching_object_list(ref = ref, select=select)
         mols = list([])
         # Iterate backwards from first set before ref.
         for t_off, matching_objects in enumerate(mol) :
             match_list = list([])
-            match_time = ref-(t_off+1)
-            for iobj in select :
+#            match_time = ref-(t_off+1)
+                # Note match_traj.ref_file in general will equal traj.ref_file 
+                # Time in match_traj that matches ref_time
+                 #       so match_time = ref - it_back
+            for i, iobj in enumerate(select) :
                 objlist = list([])
                 otypelist = list([])
                 interlist = list([])
                 for it_back in range(0, len(matching_objects)) :
-                    for obj in matching_objects[it_back][iobj] :
+                    match_traj = self.family[ref-(t_off+1)]
+                    ref_time = traj.ref_file-it_back
+                    match_time = match_traj.ref_file + (t_off + 1)- it_back 
+#                    print('times',ref_time,match_time)
+                    for obj in matching_objects[it_back][i] :
                         if np.size(obj) > 0 :
                             if obj not in objlist : 
                                 
-                                inter = self.refine_object_overlap(t_off, \
+                                if (match_time >= 0) & \
+                                        (match_time < len(self.family)) :
+                                    inter = self.refine_object_overlap(t_off, \
                                             it_back, iobj, obj, ref = ref)
                                 
-                                if inter > overlap_thresh :
+                                    if inter > overlap_thresh :
                                 
-                                    otype = 'Same'
-                                    if (match_time >= 0) & \
-                                        (match_time < len(self.family)) :
+                                        otype = 'Same'
                                         if obj in \
-                                        self.family[match_time].max_at_ref :
-                                            otype = 'Linked'
-                                    objlist.append(obj)
-                                    otypelist.append(otype)
-                                    interlist.append(int(inter*100+0.5))
+                                            match_traj.max_at_ref :
+                                                otype = 'Linked'
+                                        objlist.append(obj)
+                                        otypelist.append(otype)
+                                        interlist.append(int(inter*100+0.5))
                 match_list.append(list(zip(objlist,otypelist,interlist)))
             mols.append(match_list)
         return mols
@@ -326,7 +350,39 @@ class trajectory_family :
                 rep += "({}, {})".format(t_off, mo)
             print("iobj: {0} objects: {1} ".format(iobj, rep))
         return
-            
+    
+    def find_super_objects(self, ref = None, select = None, \
+        overlap_thresh = 0.02) :
+        if ref is None : ref = len(self.family) - 1
+        if select is None : select = self.family[ref].max_at_ref
+        
+        def step_obj_back(ref, objs) :
+            found_super_objs = list([])
+            mol = self.matching_object_list(ref = ref, select=objs)
+            t_off = 0
+            matching_objects = mol[t_off]
+            match_time = ref-(t_off+1)
+            for i,iobj in enumerate(objs) :
+                objlist = list([(ref,iobj,100)])
+                it_back = 0
+#            print(iobj)
+#            print(ref,match_time, matching_objects[it_back][i])
+                for obj in matching_objects[it_back][i] :
+                    if np.size(obj) > 0 :
+                                
+                        inter = self.refine_object_overlap(t_off, \
+                                    it_back, iobj, obj, ref = ref)
+                                
+                        if inter > overlap_thresh :
+                            if obj in self.family[match_time].max_at_ref :
+                                objlist.append((match_time,obj,\
+                                                int(inter*100+0.5)))
+            found_super_objs.append(objlist)
+            return found_super_objs
+        sup_obj = step_obj_back(ref, select)
+        return sup_obj
+
+           
     def refine_object_overlap(self, t_off, time, obj, mobj, ref = None) :
         if ref == None : ref = len(self.family) - 1
 #        print(t_off, time, obj, mobj)
@@ -337,6 +393,7 @@ class trajectory_family :
             tr_time = traj.ref_file-time
 #            print("Time in {} is {}, {}".format(ref, tr_time, traj.times[tr_time]))
             obj_ptrs = (traj.labels == obj)
+#            print('extr',ref, time, tr_time)
             qcl = traj.data[tr_time, obj_ptrs, traj.var("q_cloud_liquid_mass")]
 #            print(np.shape(qcl))
             mask = (qcl >= traj.thresh)
@@ -347,8 +404,13 @@ class trajectory_family :
 #            for i in range(2) : print(np.min(tr[:,i]),np.max(tr[:,i]))
             tr1D = np.unique(tr[:,0] + traj.nx * (tr[:,1] + traj.ny * tr[:,2]))
             return tr1D
+#        traj = self.family[ref]
+#        match_traj = self.family[ref-(t_off+1)]
+#        ref_time = traj.ref_file-it_back
+#        match_time = match_traj.ref_file + (t_off + 1)- it_back 
     
-        tr1D = extract_obj_as1Dint(self.family, ref, time, obj)
+        tr1D  = extract_obj_as1Dint(self.family, ref,           \
+                                    time, obj)
         trm1D = extract_obj_as1Dint(self.family, ref-(t_off+1), \
                                     time-(t_off+1) , mobj)
                 
@@ -1667,16 +1729,28 @@ def print_boxes(traj) :
     return 
 
 def box_overlap_with_wrap(b_test, b_set, nx, ny) :
-    x_overlap = np.logical_or( np.logical_and( \
-        b_test[0,0] >= b_set[...,0,0] , b_test[0,0] <= b_set[...,1,0]), \
-                               np.logical_and( \
-        b_test[1,0] >= b_set[...,0,0] , b_test[1,0] <= b_set[...,1,0]) ) 
+    t1 = np.logical_and( \
+        b_test[0,0] >= b_set[...,0,0] , b_test[0,0] <= b_set[...,1,0])
+    t2 = np.logical_and( \
+        b_test[1,0] >= b_set[...,0,0] , b_test[1,0] <= b_set[...,1,0])
+    t3 = np.logical_and( \
+        b_test[0,0] <= b_set[...,0,0] , b_test[1,0] >= b_set[...,1,0])
+    t4 = np.logical_and( \
+        b_test[0,0] >= b_set[...,0,0] , b_test[1,0] <= b_set[...,1,0])
+    x_overlap =np.logical_or(np.logical_or( t1, t2), np.logical_or( t3, t4) )
+
+#    print(x_overlap)
     x_ind = np.where(x_overlap)[0]
-    
-    y_overlap = np.logical_or( np.logical_and( \
-        b_test[0,1] >= b_set[x_ind,0,1] , b_test[0,1] <= b_set[x_ind,1,1]), \
-                               np.logical_and( \
-        b_test[1,1] >= b_set[x_ind,0,1] , b_test[1,1] <= b_set[x_ind,1,1]) )
+#    print(x_ind)
+    t1 = np.logical_and( \
+        b_test[0,1] >= b_set[x_ind,0,1] , b_test[0,1] <= b_set[x_ind,1,1])
+    t2 = np.logical_and( \
+        b_test[1,1] >= b_set[x_ind,0,1] , b_test[1,1] <= b_set[x_ind,1,1])
+    t3 = np.logical_and( \
+        b_test[0,1] <= b_set[x_ind,0,1] , b_test[1,1] >= b_set[x_ind,1,1])
+    t4 = np.logical_and( \
+        b_test[0,1] >= b_set[x_ind,0,1] , b_test[1,1] <= b_set[x_ind,1,1])
+    y_overlap = np.logical_or(np.logical_or( t1, t2), np.logical_or( t3, t4) )
     
     y_ind = np.where(y_overlap)[0]
     

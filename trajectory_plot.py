@@ -552,6 +552,62 @@ def plot_traj_animation(traj, save_anim=False, legend = False, select = None, \
     plt.show()
     return
 
+def plot_traj_family_members(traj_family,selection_list, galilean = None, \
+                             with_boxes = False, asint = True, \
+                             no_cloud_size = 0.2, cloud_size = 2.0) :
+    fig = plt.figure(figsize=(10,6))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    for selection in selection_list :
+        iobj, ref, time = selection
+        abs_time = ref+time-80
+        tr_time = time
+        tr = traj_family.family[ref]
+        osel = (tr.labels == iobj)
+        timestep = tr.times[1]-tr.times[0]
+        x = tr.trajectory[tr_time,osel,0]
+        y = tr.trajectory[tr_time,osel,1]
+        z = tr.trajectory[tr_time,osel,2]
+        ax.set_zlim(0, tr.zcoord[-1])
+        if galilean is not None :
+            x, y = gal_trans(x, y,  galilean, abs_time, timestep, tr, ax)  
+
+#        print(np.min(x),np.max(x))                      
+#        print(np.min(y),np.max(y))                      
+#        print(np.min(z),np.max(z))                      
+
+        if asint :
+            x = (x + 0.5).astype(int)
+            y = (y + 0.5).astype(int)
+            z = (z + 0.5).astype(int)
+        qcl = tr.data[tr_time, osel, tr.var("q_cloud_liquid_mass")]
+        in_cl = (qcl > tr.thresh) 
+        not_in_cl = ~in_cl 
+        
+#        print(np.shape(x),np.shape(y),np.shape(y))
+#        print(np.shape(x[not_in_cl]),np.shape(y[not_in_cl]),np.shape(y[not_in_cl]))
+        
+        line, = ax.plot(x[not_in_cl], y[not_in_cl], linestyle='' ,marker='o', \
+                               markersize = no_cloud_size)
+        line.set_3d_properties(z[not_in_cl])
+        line_cl, = ax.plot(x[in_cl], y[in_cl], linestyle='' ,marker='o', \
+                               markersize = cloud_size, \
+                               color = line.get_color(),
+                               label='{}'.format(selection))
+        line_cl.set_3d_properties(z[in_cl])
+        if with_boxes :
+            b = tr.cloud_box[tr_time,iobj,:,:]
+            x, y, z = box_xyz(b)
+            if galilean is not None :
+                x, y = gal_trans(x, y, galilean, abs_time, timestep, tr, ax)                        
+
+            box, = ax.plot(x,y,color = line.get_color())
+            box.set_3d_properties(z)
+    plt.legend()
+    plt.show()
+    return
+
 def plot_traj_family_animation(traj_family, match_index, \
                         overlap_thresh = 0.02, \
                         save_anim=False, legend = False, \
