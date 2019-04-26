@@ -24,11 +24,14 @@ use_bilin = True
 
 class trajectory_family : 
     """
-    Class defining a familiy of back trajectories.
-    This is an ordered list of trajectories with sequential reference times.
+    Class defining a family of back trajectories.
+    
+	This is an ordered list of trajectories with sequential reference times.
 
     @author: Peter Clark
+	
     """
+	
     def __init__(self, files, ref_prof_file, \
                  first_ref_file, last_ref_file, \
                  back_len, forward_len, \
@@ -36,6 +39,7 @@ class trajectory_family :
                  thresh=1.0E-5) : 
         """
         Create an instance of a familiy of back trajectories.
+		
         This is an ordered list of trajectories with sequential reference times.
 
         Args:
@@ -52,8 +56,11 @@ class trajectory_family :
             variable_list=None : List of variable names for data to interpolate
                                  to trajectory.
             thresh=1.0E-5      : Threshold for cloud definition.
+			
         @author: Peter Clark
+			
         """
+		
         self.family = list([])
         for ref in range(first_ref_file, last_ref_file+1):
             start_file = ref - back_len
@@ -67,7 +74,8 @@ class trajectory_family :
     
     def matching_object_list(self, ref = None, select = None ):
         """
-        Method to generate a list of matching objects at all times they match. 
+        Method to generate a list of matching objects at all times they match.
+		
         Matching is done using overlap of cloud boxes.
         
         Args : 
@@ -76,6 +84,7 @@ class trajectory_family :
                           Default is the last set.
                           
         Returns :
+		
             List with one member for each trajectory set with an earlier 
             reference time than ref. By default, this is all the sets apart 
             from the last. Let us say t_off is the backwards offset from the
@@ -94,8 +103,11 @@ class trajectory_family :
             mol[t_off][it_back][iobj] is an array of object ids belonging to
             trajectory set ref-(t_off+1), at ref trajectory time it_back before 
             the ref reference time and matching iobj a the reference time.
+			
         @author: Peter Clark
+		
         """
+		
         mol = list([])
         if ref is None : ref = len(self.family) - 1
         traj = self.family[ref]
@@ -145,10 +157,13 @@ class trajectory_family :
     def print_matching_object_list(self, ref = None, select = None) :    
         """
         Method to print matching object list.
+		
         See method matching_object_list.
         
         @author: Peter Clark
+		
         """
+		
         if ref == None : ref = len(self.family) - 1
         if select is None : select = np.arange(0, self.family[ref].nobjects, \
                                            dtype = int)
@@ -183,7 +198,9 @@ class trajectory_family :
             object in ref AT ANY TIME.
             Each of these is classified 'Linked' if the object is in the 
             max_at_ref list at the earler reference time, otherwise 'Same'.
+			
         @author: Peter Clark
+		
         """
         if ref is None : ref = len(self.family) - 1
         if select is None : select = np.arange(0, self.family[ref].nobjects, \
@@ -225,10 +242,13 @@ class trajectory_family :
                                            overlap_thresh = 0.02) :    
         """
         Method to print matching object list summary.
+		
         See method matching_object_list_summary.
         
         @author: Peter Clark
+		
         """
+		
         if ref == None : ref = len(self.family) - 1
         if select is None : select = np.arange(0, self.family[ref].nobjects, \
                                                dtype = int)
@@ -262,8 +282,11 @@ class trajectory_family :
             Each member is a list of pairs containing the t_off and 
             object id of objects in the max_at_ref list of the family at 
             ref-(t_off+1) classified as 'Linked'.
+			
         @author: Peter Clark
+		
         """
+		
         if ref is None : ref = len(self.family) - 1
         if select is None : select = self.family[ref].max_at_ref
         mols = self.matching_object_list_summary(ref = ref, select=select,
@@ -284,10 +307,13 @@ class trajectory_family :
                              overlap_thresh = 0.02) :
         """
         Method to print linked object list.
+		
         See method find_linked_objects.
         
         @author: Peter Clark
+		
         """
+		
         if ref == None : ref = len(self.family) - 1
         if select is None : select = self.family[ref].max_at_ref
         linked_objects = self.find_linked_objects(ref = ref, select=select, \
@@ -346,10 +372,37 @@ class trajectory_family :
         return rep
 
 class trajectories :
+    """
+    Class defining a set of back trajectories with a given reference.
+    
+    @author: Peter Clark
+	
+    """
 
     def __init__(self, files, ref_prof_file, start_file_no, ref_file_no, \
                  end_file_no, deltax, deltay, deltaz, variable_list=None, \
                  thresh=1.0E-5) : 
+        """
+        Create an instance of a set of trajectories with a given reference.
+		
+        This is an ordered list of trajectories with sequential reference times.
+
+        Args:
+            files              : ordered list of files used to generate 
+                                 trajectories
+            ref_prof_file      : name of file containing reference profile.
+            start_file_no      : Index of file for origin of back trajectories.
+            end_file_no        : Index of file for end of forward trajectories.
+            deltax             : Model x grid spacing in m.
+            deltay             : Model y grid spacing in m.
+            deltaz             : Model z grid spacing in m. 
+            variable_list=None : List of variable names for data to interpolate
+                                 to trajectory.
+            thresh=1.0E-5      : Threshold for cloud definition.
+			
+        @author: Peter Clark
+			
+        """
         
         if variable_list == None : 
             variable_list = { \
