@@ -90,29 +90,35 @@ traj_list = tfm.family
 #tfm.print_matching_object_list_summary(overlap_thresh=0.1)
 
 #tfm.print_linked_objects(overlap_thresh=0.1)
-sel = np.array([92])
-tfm.print_matching_object_list(ref=39,select = sel)
-tfm.print_matching_object_list_summary(ref=39, select = sel, overlap_thresh=0.1)
-tfm.print_linked_objects(ref=39, select = sel, overlap_thresh=0.1)
+sel = np.array([85])
+tfm.print_matching_object_list(ref=40,select = sel)
+tfm.print_matching_object_list_summary(ref=40, select = sel, overlap_thresh=0.1)
+tfm.print_linked_objects(ref=40, select = sel, overlap_thresh=0.1)
 
 #input("Press Enter to continue...")
 
-matching_object_list = tfm.matching_object_list()
+#matching_object_list = tfm.matching_object_list()
 iobj = 85
 t_off = 0
 time = 1
 
-for match_obj in matching_object_list[t_off][time][iobj]  : 
-    inter = tfm.refine_object_overlap(t_off, time, iobj, match_obj)
-    print("Object refinement object {} overlap: {}".format(match_obj,inter))
-
-sup = tfm.find_super_objects(select = sel, \
-        overlap_thresh = 0.3) 
-print(sup)
+#for match_obj in matching_object_list[t_off][time][iobj]  : 
+#    inter = tfm.refine_object_overlap(t_off, time, iobj, match_obj)
+#    print("Object refinement object {} overlap: {}".format(match_obj,inter))
+#
+#for th in np.arange(0.3,1.0,0.1) :
+#    sup, len_sup = tfm.find_super_objects(overlap_thresh = th) 
+#    #print(sup)
+#    plt.hist(len_sup)
+#    plt.title('Threshold = {:2.0f}'.format(th*100))
+#    plt.show()
+th = 0.5
+sup, len_sup = tfm.find_super_objects(overlap_thresh = th)
 
 mem_list = [(85,40,40),(0,39,41),(92,39,41),(0,38,42),(1,38,42)]
 #mem_list = [(85,40,40),(92,39,41)]
-plot_traj_family_members(tfm, mem_list, galilean = np.array([-8.5,0]), \
+if False :
+    plot_traj_family_members(tfm, mem_list, galilean = np.array([-8.5,0]), \
                          with_boxes=True, asint = True, )
 #plot_traj_family_members(tfm, mem_list, with_boxes=True )
 #plot_traj_family_members(tfm,[(85,40,40),(92,39,41)]) 
@@ -122,9 +128,10 @@ plot_traj_family_members(tfm, mem_list, galilean = np.array([-8.5,0]), \
 traj_m = traj_list[-1]
 traj_r = traj_list[0]
 # Appropriate for r6 test data
-sel_list   = np.array([0, 62, 70, 85])
+sel_list   = np.array([0, 62, 85])
+#sel_list   = np.array([0])
 #sel_list   = np.array([0, 62, 70, 85])
-ssel_list_r = np.array([0, 5, 72, 78, 92])
+sel_list_r = np.array([0, 5, 72, 78, 92])
 
 
 # Appropriate for r11 test data
@@ -137,7 +144,7 @@ ssel_list_r = np.array([0, 5, 72, 78, 92])
 #data_mean, traj_m_centroid = compute_traj_centroids(traj_m)
 #input("Press Enter to continue...")
 # Plot all clouds
-if True :
+if False :
     plot_traj_animation(traj_m, save_anim=False, with_boxes=True, \
                         title = 'Reference Time {}'.format(last_ref_file))
 
@@ -200,7 +207,7 @@ if False :
 if False :
     plot_trajectory_mean_history(traj_m, mean_prop, fn, select = sel_list) 
 
-if True :
+if False :
     mean_prop2 = traj_m.cloud_properties(version = 2)
     
 #    print(mean_prop2['cloud_trigger_time'])
@@ -211,7 +218,7 @@ if True :
     plt.hist(cloud_lifetime)
     plt.show()
       
-if True :
+if False :
     for cloud in sel_list :
         plot_traj_animation(traj_m, save_anim=False, \
                     select = np.array([cloud]), fps = 2,  \
@@ -224,7 +231,7 @@ if True :
 # Plot max_list clouds mean history
      
       
-if True :
+if False :
     plot_trajectory_mean_history(traj_m, mean_prop2, fn, select = sel_list) 
 
 #max_list=np.array([9,18,21,22,24,36,38,43,49,52,63,69,70,77,83,87,88,96])
@@ -251,7 +258,7 @@ if False :
                     with_boxes = False, galilean = np.array([-8.5,0]))
 
  
-if True :
+if False :
     plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
                     legend = True, plot_field = True, \
                     dir_override=dir, \
@@ -259,7 +266,7 @@ if True :
                     title = 'Reference Time {0} Galilean Trans with clouds'.\
                     format(last_ref_file), with_boxes = False, \
                     galilean = np.array([-8.5,0]))
-
+th=0.1
 if True :
     for cloud in sel_list :
         plot_traj_animation(traj_m, save_anim=False, select = np.array([cloud]), \
@@ -270,7 +277,7 @@ if True :
                     format(last_ref_file, cloud), \
                     galilean = np.array([-8.5,0]))
         for tback in [10, 20] :
-            plot_traj_family_animation(tfm, tback, overlap_thresh = 0.1, \
+            plot_traj_family_animation(tfm, tback, overlap_thresh = th, \
                     save_anim=False, \
                     select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = False, \
@@ -281,15 +288,26 @@ if True :
                     with_boxes = False, galilean = np.array([-8.5,0]))
 
         for tback in [-1] :
-            plot_traj_family_animation(tfm, tback, overlap_thresh = 0.1, \
+            plot_traj_family_animation(tfm, tback, overlap_thresh = th, \
                     save_anim=False, \
                     select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = False, \
                     dir_override=dir, \
-                    title = 'Reference Times {0} Cloud {1} Galilean Trans'.\
+                    title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
                     format(last_ref_file,  cloud), \
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
-                    with_boxes = False, galilean = np.array([-8.5,0]))
+                    with_boxes=False, galilean = np.array([-8.5,0]))
+
+        for tback in [-1] :
+            plot_traj_family_animation(tfm, tback, overlap_thresh = th, \
+                    save_anim=False, \
+                    select = np.array([cloud]), super_obj = sup, \
+                    fps = 10, legend = True, plot_field = False, \
+                    dir_override=dir, \
+                    title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
+                    format(last_ref_file,  cloud), \
+                    no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
+                    with_boxes=False, galilean = np.array([-8.5,0]))
 
 
 #print(min_cloud_base)

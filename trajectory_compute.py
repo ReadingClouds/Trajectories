@@ -193,14 +193,16 @@ class trajectory_family :
         return
     
     def matching_object_list_summary(self, ref = None, select = None, \
-                                     overlap_thresh = 0.02) :
+                                     overlap_thresh=0.02) :
         """
         Method to classify matching objects.
         
         Args : 
-            ref = None  : Which trajectory set in family to use to find 
-                          matching objects.
-                          Default is the last set.
+            ref=None  : Which trajectory set in family to use to find 
+                        matching objects.
+                        Default is the last set.
+            overlap_thresh=0.02 Threshold for overlap to be sufficient 
+            for inclusion.
                           
         Returns :
             List with one member for each trajectory set with an earlier 
@@ -218,6 +220,7 @@ class trajectory_family :
         @author: Peter Clark
 		
         """
+        
         if ref is None : ref = len(self.family) - 1
         traj = self.family[ref]
         if select is None : select = np.arange(0, traj.nobjects, dtype = int )
@@ -300,12 +303,14 @@ class trajectory_family :
             ref = None  : Which trajectory set in family to use to find 
                           matching objects.
                           Default is the last set.
+            overlap_thresh=0.02 Threshold for overlap to be sufficient 
+            for inclusion.
                           
         Returns :
             List with one member for each object in max_at_ref list in ref.
-            Each member is a list of pairs containing the t_off and 
-            object id of objects in the max_at_ref list of the family at 
-            ref-(t_off+1) classified as 'Linked'.
+            Each member is a an array of triplets containing the time,
+            object id and percentage ovelap with next of objects in the 
+            max_at_ref list of the family at time classified as 'Linked'.
 			
         @author: Peter Clark
 		
@@ -319,12 +324,13 @@ class trajectory_family :
         linked_objects = list([])
         for i in range(len(select)) :
             linked_obj = list([])
+            linked_obj.append([ref, select[i], 100])
             for t_off in range(0, len(mols)) :
                 matching_objects = mols[t_off][i]
                 for mo, mot, mint in matching_objects : 
                     if mot == 'Linked' :
-                        linked_obj.append([t_off, mo])
-            linked_objects.append(linked_obj)
+                        linked_obj.append([ref-t_off-1, mo, mint])
+            linked_objects.append(np.array(linked_obj))
         return linked_objects
     
     def print_linked_objects(self, ref = None, select = None, \
@@ -346,15 +352,35 @@ class trajectory_family :
         for iobj, linked_obj in zip(select, \
                                     linked_objects) :
             rep =""
-            for t_off, mo in linked_obj : 
-                rep += "({}, {})".format(t_off, mo)
+ #           for t_off, mo in linked_obj : 
+            for i in range(np.shape(linked_obj)[0]) :
+                t_off, mo, mint = linked_obj[i,:]  
+                rep += "[{}, {}, {}]".format(t_off, mo, mint)
             print("iobj: {0} objects: {1} ".format(iobj, rep))
         return
     
-    def find_super_objects(self, ref = None, select = None, \
+    def find_super_objects(self, ref = None, \
         overlap_thresh = 0.02) :
-        if ref is None : ref = len(self.family) - 1
-        if select is None : select = self.family[ref].max_at_ref
+        """
+        Method to find all objects linked contiguously to objects in max_at_ref list in ref.
+        
+        Args : 
+            ref = None  : Which trajectory set in family to use to find 
+                          matching objects.
+                          Default is the last set.
+            overlap_thresh=0.02 Threshold for overlap to be sufficient 
+            for inclusion.
+                          
+        Returns :
+            List with one member for each object in max_at_ref list in ref.
+            Each member is an array of triplets containing the time,
+            object id and percentage ovelap with next of objects in the 
+            max_at_ref list of the family at time classified as 'Linked'.
+			
+        @author: Peter Clark
+		
+        """
+		
         
         def step_obj_back(ref, objs) :
             found_super_objs = list([])
@@ -365,22 +391,70 @@ class trajectory_family :
             for i,iobj in enumerate(objs) :
                 objlist = list([(ref,iobj,100)])
                 it_back = 0
-#            print(iobj)
-#            print(ref,match_time, matching_objects[it_back][i])
+#                print(iobj)
+#                print(ref,match_time, matching_objects[it_back][i])
                 for obj in matching_objects[it_back][i] :
                     if np.size(obj) > 0 :
                                 
                         inter = self.refine_object_overlap(t_off, \
                                     it_back, iobj, obj, ref = ref)
-                                
+#                        print(obj,inter)        
                         if inter > overlap_thresh :
-                            if obj in self.family[match_time].max_at_ref :
+                            if obj in self.family[ref-(t_off+1)].max_at_ref :
                                 objlist.append((match_time,obj,\
                                                 int(inter*100+0.5)))
-            found_super_objs.append(objlist)
+#                                print(objlist)
+            
+                found_super_objs.append(objlist)
             return found_super_objs
-        sup_obj = step_obj_back(ref, select)
-        return sup_obj
+        print("Finding super-objects")
+        if ref is None : ref = len(self.family) - 1
+        select = self.family[ref].max_at_ref
+        super_objects = list([])
+        incomplete_objects = list([])
+        incomplete_object_ids = np.array([],dtype=int)
+        for newref in range(ref,0,-1) :
+            sup_obj = step_obj_back(newref, select)
+            next_level_objs = self.family[newref-1].max_at_ref
+#            incomplete_objflags = np.zeros(len(next_level_objs), dtype=bool)
+            new_incomplete_objects = list([])
+            new_incomplete_object_ids = list([])
+#            print(next_level_objs)
+            for i, obj in enumerate(sup_obj) :
+                # Four options
+                # 1. New object length 1.
+                # 2. Termination of previous object.
+                # 3. New object continued at next level.
+                # 4. Continuation of previous object.
+                if len(obj) == 1 :
+                    if obj[0][1] in incomplete_object_ids :
+                        # Terminate incomplete object.
+                        j = np.where(obj[0][1] == incomplete_object_ids)[0][0]
+                        super_objects.append(np.array(incomplete_objects[j]))
+                    else :
+                        super_objects.append(np.array(obj))
+                else :
+#                    incomplete_objflags[i] = True
+                    if obj[0][1] in incomplete_object_ids :
+                        j = np.where(obj[0][1] == incomplete_object_ids)[0][0]
+                        incomplete_objects[j].append(obj[1])
+                        new_incomplete_objects.append(incomplete_objects[j]) 
+                    else :
+                        new_incomplete_objects.append(obj) 
+                        
+                    new_incomplete_object_ids.append(\
+                                new_incomplete_objects[-1][-1][1])
+            incomplete_object_ids = np.array(new_incomplete_object_ids)           
+            incomplete_objects = new_incomplete_objects
+#            print(incomplete_object_ids) 
+            select = next_level_objs        
+#            print(select)
+        for obj in incomplete_objects : super_objects.append(np.array(obj))  
+        len_sup=[]
+        for s in super_objects : len_sup.append(len(s))
+        len_sup = np.array(len_sup)
+                         
+        return super_objects, len_sup
 
            
     def refine_object_overlap(self, t_off, time, obj, mobj, ref = None) :
