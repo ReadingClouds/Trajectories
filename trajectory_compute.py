@@ -455,7 +455,6 @@ class trajectory_family :
         len_sup = np.array(len_sup)
                          
         return super_objects, len_sup
-
            
     def refine_object_overlap(self, t_off, time, obj, mobj, ref = None) :
         if ref == None : ref = len(self.family) - 1
@@ -585,6 +584,11 @@ class trajectories :
         when_max_qcl = np.where(max_qcl)
         self.max_at_ref = when_max_qcl[1][when_max_qcl[0] == self.ref_file]
         return
+        
+    def var(self, v) :
+        for ii, vr in enumerate(list(self.variable_list)) :
+            if vr==v : break
+        return ii
     
     def select_object(self, iobj) :
         in_object = (self.labels == iobj)
@@ -616,8 +620,8 @@ class trajectories :
         min_cloud_base = np.zeros(self.nobjects)
         first_cloud_base = np.zeros(self.nobjects)
         cloud_top = np.zeros(self.nobjects)
-        cloud_trigger_time = np.zeros(self.nobjects)
-        cloud_dissipate_time = np.ones(self.nobjects)*self.ntimes
+        cloud_trigger_time = np.zeros(self.nobjects, dtype=int)
+        cloud_dissipate_time = np.ones(self.nobjects, dtype=int)*self.ntimes
         
         tr_z = (self.trajectory[:,:,2]-0.5)*self.deltaz
         zn = (np.arange(0,np.size(self.piref))-0.5)*self.deltaz
@@ -1112,11 +1116,6 @@ class trajectories :
                            }
 
         return mean_properties
-        
-    def var(self, v) :
-        for ii, vr in enumerate(list(self.variable_list)) :
-            if vr==v : break
-        return ii
                       
     def __str__(self):
         rep = "Trajectories centred on {0}\n".format(self.files[self.ref_file])
@@ -1130,6 +1129,18 @@ class trajectories :
         rep = "Trajectory Reference time: {0}, Times:{1}, Points:{2}, Objects:{3}\n".format(\
           self.times[self.ref_file],self.ntimes,self.npoints, self.nobjects)
         return rep
+
+def get_sup_obj(sup, t, o) :
+    slist = list()
+    for s in sup :
+        l = (s[:,0] == t)
+        st = s[l,:]
+        if len(st) >0 :
+            st1 = st[st[:,1]==o]
+            if len(st1) > 0 : 
+#                print(s,st,st1)
+                slist.append(s)
+    return slist
     
 def compute_trajectories(files, start_file, ref_file, end_file, \
                          variable_list, thref, thresh=1.0E-5) :

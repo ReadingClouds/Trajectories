@@ -26,16 +26,28 @@ def file_key(file):
 dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r6/'
 #dir = 'C:/Users/xm904103/OneDrive - University of Reading/traj_data/r6/'
 #dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r6/'
+dn = 11
+#dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r11/'
+dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
 files = glob.glob(dir+"diagnostics_3d_ts_*.nc")
 files.sort(key=file_key)
 
 #print(files)
 print(dir)
 
-first_ref_file = 49
-last_ref_file =  89
-tr_back_len = 40
-tr_forward_len = 30
+if dn == 11 :
+    first_ref_file = 49
+#   first_ref_file = 88
+    last_ref_file =  89
+    tr_back_len = 40
+    tr_forward_len = 30
+    ref = 40
+else:
+    first_ref_file = 24
+    last_ref_file =  44
+    tr_back_len = 20
+    tr_forward_len = 15
+    ref = 20
 
 
 #debug_unsplit = True
@@ -86,21 +98,22 @@ else :
     
     
 traj_list = tfm.family
+
 #tfm.print_matching_object_list()
 #tfm.print_matching_object_list_summary(overlap_thresh=0.1)
 
 #tfm.print_linked_objects(overlap_thresh=0.1)
-sel = np.array([85])
-tfm.print_matching_object_list(ref=40,select = sel)
-tfm.print_matching_object_list_summary(ref=40, select = sel, overlap_thresh=0.1)
-tfm.print_linked_objects(ref=40, select = sel, overlap_thresh=0.1)
+sel = np.array([72])
+tfm.print_matching_object_list(ref=ref,select = sel)
+tfm.print_matching_object_list_summary(ref=ref, select = sel, overlap_thresh=0.1)
+tfm.print_linked_objects(ref=ref, select = sel, overlap_thresh=0.1)
 
 #input("Press Enter to continue...")
 
 #matching_object_list = tfm.matching_object_list()
-iobj = 85
-t_off = 0
-time = 1
+#iobj = 85
+#t_off = 0
+#time = 1
 
 #for match_obj in matching_object_list[t_off][time][iobj]  : 
 #    inter = tfm.refine_object_overlap(t_off, time, iobj, match_obj)
@@ -114,6 +127,9 @@ time = 1
 #    plt.show()
 th = 0.5
 sup, len_sup = tfm.find_super_objects(overlap_thresh = th)
+plt.hist(len_sup)
+plt.title('Threshold = {:2.0f}'.format(th*100))
+plt.show()    
 
 mem_list = [(85,40,40),(0,39,41),(92,39,41),(0,38,42),(1,38,42)]
 #mem_list = [(85,40,40),(92,39,41)]
@@ -128,14 +144,15 @@ if False :
 traj_m = traj_list[-1]
 traj_r = traj_list[0]
 # Appropriate for r6 test data
-sel_list   = np.array([0, 62, 85])
+#sel_list   = np.array([0, 62, 85])
 #sel_list   = np.array([0])
 #sel_list   = np.array([0, 62, 70, 85])
 sel_list_r = np.array([0, 5, 72, 78, 92])
 
 
 # Appropriate for r11 test data
-#sel_list   = np.array([0, 62, 70, 85])
+sel_list   = np.array([14, 44, 72, 74, 79, 85, 92])
+sel_list   = np.array([72])
 
 
 #plot_traj_pos(traj_m, ref_file-start_file, save=False) 
@@ -207,7 +224,7 @@ if False :
 if False :
     plot_trajectory_mean_history(traj_m, mean_prop, fn, select = sel_list) 
 
-if False :
+if True :
     mean_prop2 = traj_m.cloud_properties(version = 2)
     
 #    print(mean_prop2['cloud_trigger_time'])
@@ -218,7 +235,7 @@ if False :
     plt.hist(cloud_lifetime)
     plt.show()
       
-if False :
+if True :
     for cloud in sel_list :
         plot_traj_animation(traj_m, save_anim=False, \
                     select = np.array([cloud]), fps = 2,  \
@@ -231,7 +248,7 @@ if False :
 # Plot max_list clouds mean history
      
       
-if False :
+if True :
     plot_trajectory_mean_history(traj_m, mean_prop2, fn, select = sel_list) 
 
 #max_list=np.array([9,18,21,22,24,36,38,43,49,52,63,69,70,77,83,87,88,96])
@@ -241,7 +258,6 @@ if False :
 #max_list=np.array([2,13,26,29,37,42])
 #max_list=np.array([0,62,70,85,95])
 #max_list_r=np.array([0,3,7,67,71,86])
-
 
 
 # Plot subset max_list clouds with galilean transform
@@ -267,7 +283,7 @@ if False :
                     format(last_ref_file), with_boxes = False, \
                     galilean = np.array([-8.5,0]))
 th=0.1
-if True :
+if False :
     for cloud in sel_list :
         plot_traj_animation(traj_m, save_anim=False, select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = True, \
