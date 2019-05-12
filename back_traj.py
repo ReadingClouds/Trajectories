@@ -103,10 +103,10 @@ traj_list = tfm.family
 #tfm.print_matching_object_list_summary(overlap_thresh=0.1)
 
 #tfm.print_linked_objects(overlap_thresh=0.1)
-sel = np.array([72])
-tfm.print_matching_object_list(ref=ref,select = sel)
-tfm.print_matching_object_list_summary(ref=ref, select = sel, overlap_thresh=0.1)
-tfm.print_linked_objects(ref=ref, select = sel, overlap_thresh=0.1)
+#sel = np.array([72])
+#tfm.print_matching_object_list(ref=ref,select = sel)
+#tfm.print_matching_object_list_summary(ref=ref, select = sel, overlap_thresh=0.1)
+#tfm.print_linked_objects(ref=ref, select = sel, overlap_thresh=0.1)
 
 #input("Press Enter to continue...")
 
@@ -127,8 +127,11 @@ tfm.print_linked_objects(ref=ref, select = sel, overlap_thresh=0.1)
 #    plt.show()
 th = 0.5
 sup, len_sup = tfm.find_super_objects(overlap_thresh = th)
-plt.hist(len_sup)
-plt.title('Threshold = {:2.0f}'.format(th*100))
+plt.hist(len_sup, bins = np.arange(0.5,16.5), density=True)
+plt.title('Threshold = {:2.0f}%'.format(th*100))
+plt.xlabel('Super-object length (min)')
+plt.ylabel('Fraction of super objects')
+plt.savefig(dir+'Super_object_length.png')
 plt.show()    
 
 mem_list = [(85,40,40),(0,39,41),(92,39,41),(0,38,42),(1,38,42)]
@@ -152,7 +155,7 @@ sel_list_r = np.array([0, 5, 72, 78, 92])
 
 # Appropriate for r11 test data
 sel_list   = np.array([14, 44, 72, 74, 79, 85, 92])
-sel_list   = np.array([72])
+#sel_list   = np.array([72])
 
 
 #plot_traj_pos(traj_m, ref_file-start_file, save=False) 
@@ -161,13 +164,13 @@ sel_list   = np.array([72])
 #data_mean, traj_m_centroid = compute_traj_centroids(traj_m)
 #input("Press Enter to continue...")
 # Plot all clouds
-if False :
-    plot_traj_animation(traj_m, save_anim=False, with_boxes=True, \
+if True :
+    plot_traj_animation(traj_m, save_anim=False, with_boxes=False, \
                         title = 'Reference Time {}'.format(last_ref_file))
 
 #input("Press Enter to continue...")
 # Plot all clouds with galilean transform
-if False :
+if True :
     plot_traj_animation(traj_m, save_anim=False, \
         title = 'Reference Time {} Galilean Tranformed'.format(last_ref_file), \
         galilean = np.array([-8.5,0]))
@@ -176,6 +179,13 @@ if False :
     plot_traj_animation(traj_r, save_anim=False, \
         title = 'Reference Time {} Galilean Tranformed'.format(first_ref_file), \
         galilean = np.array([-8.5,0]))
+
+# Plot max_list clouds with galilean transform
+if True :
+    plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
+        no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
+        title = 'Reference Time {} Galilean Tranformed'.format(last_ref_file), \
+        with_boxes = False, galilean = np.array([-8.5,0]) )
 
 max_list = traj_m.max_at_ref
 print(max_list)
@@ -196,12 +206,6 @@ if False :
 
 #input("Press Enter to continue...")
 
-# Plot max_list clouds with galilean transform
-if False :
-    plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
-        no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
-        title = 'Reference Time {} Galilean Tranformed'.format(last_ref_file), \
-        with_boxes = False, galilean = np.array([-8.5,0]) )
 
 if False :
     plot_traj_animation(traj_r, save_anim=False, select = sel_list_r, \
@@ -232,13 +236,16 @@ if True :
     cloud_lifetime = mean_prop2['cloud_dissipate_time'] - \
                      mean_prop2['cloud_trigger_time']
     
-    plt.hist(cloud_lifetime)
+    plt.hist(cloud_lifetime, bins = np.arange(0,75,10, dtype=int), density=True)
+    plt.xlabel('Lagrangian lifetime (min)')
+    plt.ylabel('Fraction of clouds')
+    plt.savefig(dir+'Cloud_lifetime.png')
     plt.show()
       
 if True :
     for cloud in sel_list :
         plot_traj_animation(traj_m, save_anim=False, \
-                    select = np.array([cloud]), fps = 2,  \
+                    select = np.array([cloud]), fps = 10,  \
                     no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
                     title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
                     format(last_ref_file, cloud), with_boxes = False, 
@@ -248,7 +255,7 @@ if True :
 # Plot max_list clouds mean history
      
       
-if True :
+if False :
     plot_trajectory_mean_history(traj_m, mean_prop2, fn, select = sel_list) 
 
 #max_list=np.array([9,18,21,22,24,36,38,43,49,52,63,69,70,77,83,87,88,96])
@@ -274,7 +281,7 @@ if False :
                     with_boxes = False, galilean = np.array([-8.5,0]))
 
  
-if False :
+if True :
     plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
                     legend = True, plot_field = True, \
                     dir_override=dir, \
@@ -282,8 +289,10 @@ if False :
                     title = 'Reference Time {0} Galilean Trans with clouds'.\
                     format(last_ref_file), with_boxes = False, \
                     galilean = np.array([-8.5,0]))
+    
+sel_list   = np.array([72])
 th=0.1
-if False :
+if True :
     for cloud in sel_list :
         plot_traj_animation(traj_m, save_anim=False, select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = True, \

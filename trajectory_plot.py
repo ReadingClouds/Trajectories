@@ -95,7 +95,7 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
         
         ymax = np.ceil(np.max(mean_prop['cloud top'])/100)*100
         if new_fig :
-            fig1, axa = plt.subplots(3, 2, figsize=(8,10), sharey=True)
+            fig1, axa = plt.subplots(3, 3, figsize=(10,10), sharey=True)
                         
             for j,v in enumerate(["w","th","q_vapour","q_cloud_liquid_mass"]):
     
@@ -113,38 +113,52 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             ax.set_xlabel(r"$q_t$ kg/kg",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
             ax.set_ylim(0,ymax)
+
+            ax = axa[0,2]
+            ax.set_xlabel(r"Moist static energy kJ kg$^{-1}$",fontsize=16)
+            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_ylim(0,ymax)
+            
+            ax = axa[1,2]
+            ax.set_xlabel(r"Moist static energy change kJ kg$^{-1}$",\
+                          fontsize=16)
+            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_ylim(0,ymax)
             
             fig2, axb = plt.subplots(3, 2, figsize=(8,10), sharey=True)
-            
+            entrmax=0.01
             ax = axb[0,0]
             ax.set_xlabel(r"Volume km$^3$",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
             ax.set_ylim(0,ymax)
 
             ax = axb[0,1]
-            ax.set_xlabel(r"Entrainment rate s$^{-1}$",fontsize=16)
+            ax.set_xlabel(r"Detrainment rate s$^{-1}$",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
             ax.set_ylim(0,ymax)
 
             ax = axb[1,0]
-            ax.set_xlabel(r"Detrainment rate s$^{-1}$",fontsize=16)
+            ax.set_xlabel(r"Entrainment rate s$^{-1}$",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlim(0,entrmax)
             ax.set_ylim(0,ymax)
 
             ax = axb[1,1]
             ax.set_xlabel(r"Side Entrainment rate s$^{-1}$",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlim(0,entrmax)
             ax.set_ylim(0,ymax)
 
             ax = axb[2,0]
-            ax.set_xlabel(r"Moist static energy kJ kg$^{-1}$",fontsize=16)
+            ax.set_xlabel(r"Entrainment rate m$^{-1}$",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlim(0,entrmax)
             ax.set_ylim(0,ymax)
-            
+
             ax = axb[2,1]
-            ax.set_xlabel(r"Moist static energy change kJ kg$^{-1}$",\
-                          fontsize=16)
+            ax.set_xlabel(r"Side Entrainment rate m$^{-1}$",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlim(0,entrmax)
             ax.set_ylim(0,ymax)
 
             new_fig = False
@@ -158,19 +172,23 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             incloud = np.logical_and( \
                             incloud >= mean_prop['cloud_trigger_time'][iobj],\
                             incloud <  mean_prop['cloud_dissipate_time'][iobj])
-            print(len(incloud))
+#            print(len(incloud))
 #            print(incloud)
             m = (mean_prop['cloud'][:,iobj,nvars+4] > 0)
 #            print(len(m))
             z = (mean_prop['cloud'][:,iobj,nvars+3]-0.5)*tr.deltaz
             m1 = np.logical_and(m, incloud)
             
+# w   qv
+# th  qcl         
             for j,v in enumerate(["w","th","q_vapour","q_cloud_liquid_mass"]):    
                 ax = axa[(j)%2,(j)//2]
                 line = ax.plot(mean_prop['cloud'][:,iobj,tr.var(v)][m], z[m])
                 ax.plot(mean_prop['cloud'][:,iobj,tr.var(v)][m1], z[m1], \
-                        color = line[0].get_color(), linewidth=4)
+                        color = line[0].get_color(), linewidth=4, \
+                         label='{}'.format(iobj))
 
+# theta_l
             ax = axa[2,0]
             piref_z = np.interp(z,zn,tr.piref)
             thl = mean_prop['cloud'][:,iobj,tr.var("th")] - \
@@ -179,9 +197,9 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
               / piref_z
     #        print thl, data[:,var("th"),i],data[:,var("q_vapour"),i]
             line = ax.plot(thl[m],z[m])
-            ax.plot(thl[m1],z[m1], \
+            ax.plot(thl[m1],z[m1], label='{}'.format(iobj), \
                     color = line[0].get_color(), linewidth=4)
-
+# qt
             ax = axa[2,1]
             qt = mean_prop['cloud'][:,iobj,tr.var("q_vapour")] + \
                  mean_prop['cloud'][:,iobj,tr.var("q_cloud_liquid_mass")]
@@ -189,65 +207,15 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             line = ax.plot( qt[m],z[m])
             ax.plot( qt[m1],z[m1], label='{}'.format(iobj), \
                     color = line[0].get_color(), linewidth=4)
-                      
-            ax = axb[0,0]
-            mass = mean_prop['cloud'][:,iobj,nvars+4]*volume/1E9
-            line = ax.plot(mass[m], z[m])
-            ax.plot(mass[m1], z[m1], label='{}'.format(iobj), \
-                    color = line[0].get_color(), linewidth=4)
 
-            ax = axb[0,1]
-            n_cloud_points = mean_prop['cloud'][1:,iobj,nvars+4]
-            n_new_cloud_points = mean_prop['entr'][1:,iobj,nvars+4] + \
-                                 mean_prop['entr_bot'][1:,iobj,nvars+4]
-            m2 = np.logical_and(n_cloud_points > 0 , n_new_cloud_points > 0 )            
-            m2 = np.logical_and(m2, incloud[1:])
-                     
-            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz 
-            entr_rate = n_new_cloud_points[m2] / \
-               ( n_cloud_points[m2] - n_new_cloud_points[m2] / 2.0) / \
-                (tr.times[1:][m2]-tr.times[:-1][m2])
-                
-            ax.plot(entr_rate[entr_rate>0], z1[entr_rate>0], \
-                         linestyle='' ,marker='.', \
-                         label='{}'.format(iobj))
-
-            ax = axb[1,0]
-            n_cloud_points = mean_prop['cloud'][1:,iobj,nvars+4]
-            n_new_not_cloud_points = mean_prop['detr'][1:,iobj,nvars+4]
-            m2 = np.logical_and(n_cloud_points > 0 , n_new_not_cloud_points > 0 )
-            m2 = np.logical_and(m2, incloud[1:])
-            
-            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz 
-            entr_rate = n_new_not_cloud_points[m2] / \
-               ( n_cloud_points[m2] + n_new_not_cloud_points[m2] / 2.0) / \
-                (tr.times[1:][m2]-tr.times[0:-1][m2])
-            ax.plot(entr_rate[entr_rate>0], z1[entr_rate>0], \
-                         linestyle='' ,marker='.', \
-                         label='{}'.format(iobj))
-
-            
-            ax = axb[1,1]
-            n_cloud_points = mean_prop['cloud'][1:,iobj,nvars+4]
-            n_new_cloud_points = mean_prop['entr_bot'][1:,iobj,nvars+4]
-            m2 = np.logical_and(n_cloud_points > 0 , n_new_cloud_points > 0 )
-            m2 = np.logical_and(m2, incloud[1:])
-            
-            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz 
-            entr_rate = n_new_cloud_points[m2] / \
-               ( n_cloud_points[m2] - n_new_cloud_points[m2] / 2.0) / \
-                (tr.times[1:][m2]-tr.times[0:-1][m2])
-            ax.plot(entr_rate[entr_rate>0], z1[entr_rate>0], \
-                         linestyle='' ,marker='.', \
-                         label='{}'.format(iobj))
-
-            ax = axb[2,0]
+# mse
+            ax = axa[0,2]
             mse = mean_prop['cloud'][:,iobj,nvars] / 1000.0
             line = ax.plot(mse[m], z[m])
             ax.plot(mse[m1], z[m1], label='{}'.format(iobj), \
                     color = line[0].get_color(), linewidth=4)
-
-            ax = axb[2,1]
+# mse loss
+            ax = axa[1,2]
             m2 = (mean_prop['cloud'][1:,iobj,nvars+4] >0)
             z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz
             
@@ -270,7 +238,7 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             n_cloud_points = mean_prop['cloud'][1:,iobj,nvars+4][m2] + \
                              mean_prop['detr'][1:,iobj,nvars+4][m2]
                              
-            print(len(m2),len(incloud[1:]))
+#            print(len(m2),len(incloud[1:]))
             m3 = np.logical_and(m2, incloud[1:])[m2]
                               
             mse_loss = mse_loss / n_cloud_points / 1000.0
@@ -282,9 +250,79 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
 #            print("MSE entr ",mse_entr/n_cloud_points/1000.0)
 #            print("MSE prev ",mse_prev/n_cloud_points/1000.0)
             
-            line = ax.plot(mse_loss, z1,  label='{}'.format(iobj))
+            line = ax.plot(mse_loss, z1)
             ax.plot(mse_loss[m3], z1[m3],\
+                    color = line[0].get_color(), linewidth=4, \
+                         label='{}'.format(iobj))
+
+############################################################################
+# Cloud volume                      
+            ax = axb[0,0]
+            mass = mean_prop['cloud'][:,iobj,nvars+4]*volume/1E9
+            line = ax.plot(mass[m], z[m])
+            ax.plot(mass[m1], z[m1], label='{}'.format(iobj), \
                     color = line[0].get_color(), linewidth=4)
+# Detrainment rate
+            ax = axb[0,1]
+            n_cloud_points = mean_prop['cloud'][1:,iobj,nvars+4]
+            n_new_not_cloud_points = mean_prop['detr'][1:,iobj,nvars+4]
+            m2 = np.logical_and(n_cloud_points > 0 , n_new_not_cloud_points > 0 )
+            m2 = np.logical_and(m2, incloud[1:])
+            
+            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz 
+            detr_rate = n_new_not_cloud_points[m2] / \
+               ( n_cloud_points[m2] + n_new_not_cloud_points[m2] / 2.0) / \
+                (tr.times[1:][m2]-tr.times[0:-1][m2])
+            ax.plot(detr_rate[detr_rate>0], z1[detr_rate>0], \
+                         linestyle='' ,marker='.', \
+                         label='{}'.format(iobj))
+
+
+# Entrainment rate (time)
+            ax = axb[1,0]
+            n_cloud_points = mean_prop['cloud'][1:,iobj,nvars+4]
+            n_new_cloud_points = mean_prop['entr'][1:,iobj,nvars+4] + \
+                                 mean_prop['entr_bot'][1:,iobj,nvars+4]
+            m2 = np.logical_and(n_cloud_points > 0 , n_new_cloud_points > 0 )            
+            m2 = np.logical_and(m2, incloud[1:])
+                     
+            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz 
+            entr_rate = n_new_cloud_points[m2] / \
+               ( n_cloud_points[m2] - n_new_cloud_points[m2] / 2.0) / \
+                (tr.times[1:][m2]-tr.times[:-1][m2])
+                
+            ax.plot(entr_rate[entr_rate>0], z1[entr_rate>0], \
+                         linestyle='' ,marker='.', \
+                         label='{}'.format(iobj))
+            
+# Entrainment rate (space)
+            ax = axb[2,0]
+            entr_rate_z = entr_rate / mean_prop['cloud'][1:,iobj,tr.var('w')][m2]
+            ax.plot(entr_rate_z[entr_rate_z>0], z1[entr_rate_z>0], \
+                         linestyle='' ,marker='.', \
+                         label='{}'.format(iobj))
+            
+# Side Entrainment rate 
+            ax = axb[1,1]
+            n_cloud_points = mean_prop['cloud'][1:,iobj,nvars+4]
+            n_new_cloud_points = mean_prop['entr'][1:,iobj,nvars+4]
+            m2 = np.logical_and(n_cloud_points > 0 , n_new_cloud_points > 0 )
+            m2 = np.logical_and(m2, incloud[1:])
+            
+            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz 
+            entr_rate = n_new_cloud_points[m2] / \
+               ( n_cloud_points[m2] - n_new_cloud_points[m2] / 2.0) / \
+                (tr.times[1:][m2]-tr.times[0:-1][m2])
+            ax.plot(entr_rate[entr_rate>0], z1[entr_rate>0], \
+                         linestyle='' ,marker='.', \
+                         label='{}'.format(iobj))
+# Side Entrainment rate 
+            ax = axb[2,1]
+            entr_rate_z = entr_rate / mean_prop['cloud'][1:,iobj,tr.var('w')][m2]
+            ax.plot(entr_rate_z[entr_rate_z>0], z1[entr_rate_z>0], \
+                         linestyle='' ,marker='.', \
+                         label='{}'.format(iobj))
+
            
             obj_plotted +=1
             if ((obj_plotted % obj_per_plt) == 0) or \
@@ -292,14 +330,14 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
                 new_fig = True
 
                 plt.figure(fig1.number)
-                plt.legend()
+                axa[0,0].legend()
                 plt.tight_layout()
                 plt.savefig(fn+\
                             '_Cloud_mean_traj_p1_{:02d}_v{:01d}.png'.\
                             format(figs, mean_prop['version']))
 
                 plt.figure(fig2.number)
-                plt.legend()
+                axb[0,0].legend()
                 plt.tight_layout()
                 plt.savefig(fn+\
                             '_Cloud_mean_traj_p2_{:02d}_v{:01d}.png'.\
@@ -817,12 +855,13 @@ def plot_traj_family_animation(traj_family, match_index, \
     for iobj in select:
 #    for iobj in range(0,traj.nobjects):
 #        if np.isin(iobj,select) :
+        
         line, = ax.plot([], [], linestyle='' ,marker='o', \
                                markersize = no_cloud_size)
         line_cl, = ax.plot([], [], linestyle='' ,marker='o', \
                                markersize = cloud_size, \
                                color = line.get_color(),
-                               label='{}'.format(iobj))
+                               label='{}'.format([ref,iobj]))
         line_list.append([line,line_cl])
         if with_boxes :
             box, = ax.plot([],[],color = line.get_color())

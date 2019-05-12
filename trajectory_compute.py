@@ -1365,8 +1365,8 @@ def forward_trajectory_step(file, variable_list, trajectory, data_val, \
     err = 1.0
     niter = 0 
     max_iter = 30
-    errtol_iter = 1E-3
-    errtol = 5E-2
+    errtol_iter = 1E-4
+    errtol = 5E-3
     relax_param = 0.5
     not_converged = True
     correction_cycle = False 
@@ -1814,6 +1814,8 @@ def print_boxes(traj) :
     return 
 
 def box_overlap_with_wrap(b_test, b_set, nx, ny) :
+    # Wrap not yet implemented
+    
     t1 = np.logical_and( \
         b_test[0,0] >= b_set[...,0,0] , b_test[0,0] <= b_set[...,1,0])
     t2 = np.logical_and( \
