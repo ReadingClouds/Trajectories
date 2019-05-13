@@ -125,14 +125,7 @@ traj_list = tfm.family
 #    plt.hist(len_sup)
 #    plt.title('Threshold = {:2.0f}'.format(th*100))
 #    plt.show()
-th = 0.5
-sup, len_sup = tfm.find_super_objects(overlap_thresh = th)
-plt.hist(len_sup, bins = np.arange(0.5,16.5), density=True)
-plt.title('Threshold = {:2.0f}%'.format(th*100))
-plt.xlabel('Super-object length (min)')
-plt.ylabel('Fraction of super objects')
-plt.savefig(dir+'Super_object_length.png')
-plt.show()    
+  
 
 mem_list = [(85,40,40),(0,39,41),(92,39,41),(0,38,42),(1,38,42)]
 #mem_list = [(85,40,40),(92,39,41)]
@@ -158,11 +151,15 @@ sel_list   = np.array([14, 44, 72, 74, 79, 85, 92])
 #sel_list   = np.array([72])
 
 
+if True :
+    th = 0.5
+    sup, len_sup = tfm.find_super_objects(overlap_thresh = th)
+
 #plot_traj_pos(traj_m, ref_file-start_file, save=False) 
 #plot_traj_pos(traj_m, ref_file-start_file+1, save=False) 
 
 #data_mean, traj_m_centroid = compute_traj_centroids(traj_m)
-#input("Press Enter to continue...")
+input("Press Enter to continue...")
 # Plot all clouds
 if True :
     plot_traj_animation(traj_m, save_anim=False, with_boxes=False, \
@@ -204,7 +201,7 @@ if False :
 #print_centroids(traj_centroid, data_mean, traj_m.nobjects, traj_m.times, \
 #                list(traj_m.variable_list))
 
-#input("Press Enter to continue...")
+input("Press Enter then continue Powerpoint...")
 
 
 if False :
@@ -229,10 +226,13 @@ if False :
     plot_trajectory_mean_history(traj_m, mean_prop, fn, select = sel_list) 
 
 if True :
-    mean_prop2 = traj_m.cloud_properties(version = 2)
+    mean_prop2 = traj_m.cloud_properties(version = 3)
+#    print(mean_prop2["cloud_trigger_time"])
+#    print(mean_prop2["cloud_dissipate_time"])
     
 #    print(mean_prop2['cloud_trigger_time'])
 #    print(mean_prop2['cloud_dissipate_time'])
+if False :
     cloud_lifetime = mean_prop2['cloud_dissipate_time'] - \
                      mean_prop2['cloud_trigger_time']
     
@@ -241,6 +241,8 @@ if True :
     plt.ylabel('Fraction of clouds')
     plt.savefig(dir+'Cloud_lifetime.png')
     plt.show()
+    
+input("Press Enter to continue...")
       
 if True :
     for cloud in sel_list :
@@ -252,11 +254,14 @@ if True :
                     galilean = np.array([-8.5,0]), \
                     plot_class = mean_prop2['class'],\
                     version = mean_prop2['version'])
+        
+input("Press Enter then continue Powerpoint...")        
 # Plot max_list clouds mean history
      
       
 if False :
     plot_trajectory_mean_history(traj_m, mean_prop2, fn, select = sel_list) 
+
 
 #max_list=np.array([9,18,21,22,24,36,38,43,49,52,63,69,70,77,83,87,88,96])
 #max_list=np.array([20,23,34,35,37,42,48,51,69,76,82,83,86])
@@ -280,6 +285,7 @@ if False :
                     no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
                     with_boxes = False, galilean = np.array([-8.5,0]))
 
+input("Press Enter to continue...")
  
 if True :
     plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
@@ -290,6 +296,17 @@ if True :
                     format(last_ref_file), with_boxes = False, \
                     galilean = np.array([-8.5,0]))
     
+    
+if False :
+    plt.hist(len_sup, bins = np.arange(0.5,16.5), density=True)
+    plt.title('Threshold = {:2.0f}%'.format(th*100))
+    plt.xlabel('Super-object length (min)')
+    plt.ylabel('Fraction of super objects')
+    plt.savefig(dir+'Super_object_length.png')
+    plt.show()  
+    
+    
+
 sel_list   = np.array([72])
 th=0.1
 if True :
@@ -298,16 +315,18 @@ if True :
                     fps = 10, legend = True, plot_field = True, \
                     dir_override=dir, \
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
-                    title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
+                    title = 'Reference Time {0} Cloud {1} Eulerian Gal. Trans'.\
                     format(last_ref_file, cloud), \
                     galilean = np.array([-8.5,0]))
+        input("Press Enter then continue Powerpoint...")
+        input("Press Enter to continue...")
         for tback in [10, 20] :
             plot_traj_family_animation(tfm, tback, overlap_thresh = th, \
                     save_anim=False, \
                     select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = False, \
                     dir_override=dir, \
-                    title = 'Reference Times {0},{1} Cloud {2} Galilean Trans'.\
+                    title = 'Reference Times {0},{1} Cloud {2} Gal. Trans'.\
                     format(last_ref_file, last_ref_file-tback,  cloud), \
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
                     with_boxes = False, galilean = np.array([-8.5,0]))
@@ -315,10 +334,10 @@ if True :
         for tback in [-1] :
             plot_traj_family_animation(tfm, tback, overlap_thresh = th, \
                     save_anim=False, \
-                    select = np.array([cloud]), \
+                    select = np.array([cloud]), super_obj = sup, \
                     fps = 10, legend = True, plot_field = False, \
                     dir_override=dir, \
-                    title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
+                    title = 'Reference Time {0} Cloud {1} Super Object Gal. Trans '.\
                     format(last_ref_file,  cloud), \
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
                     with_boxes=False, galilean = np.array([-8.5,0]))
@@ -326,10 +345,10 @@ if True :
         for tback in [-1] :
             plot_traj_family_animation(tfm, tback, overlap_thresh = th, \
                     save_anim=False, \
-                    select = np.array([cloud]), super_obj = sup, \
+                    select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = False, \
                     dir_override=dir, \
-                    title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
+                    title = 'Reference Time {0} Cloud {1} Linked Objects Gal. Trans'.\
                     format(last_ref_file,  cloud), \
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
                     with_boxes=False, galilean = np.array([-8.5,0]))
