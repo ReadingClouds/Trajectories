@@ -64,6 +64,7 @@ def plot_trajectory_history(tr, select_obj, fn) :
     
     fig1 = plt.figure(figsize=(10,6))
 #    fig1.clf
+
     
     ax1 = fig1.add_subplot(111, projection='3d')
     
@@ -488,7 +489,8 @@ def box_xyz(b):
     return x, y, z
 
 
-def plot_traj_animation(traj, save_anim=False, legend = False, select = None, \
+def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
+                        legend = False, select = None, \
                         galilean = None, plot_field = False, \
                         dir_override = None, \
                         title = None, \
@@ -702,7 +704,7 @@ def plot_traj_animation(traj, save_anim=False, legend = False, select = None, \
     # call the animator.  blit=True means only re-draw the parts that have changed.
     anim = animation.FuncAnimation(fig, animate, init_func=init,
                                    frames=ntraj, interval=1000./fps, blit=False)
-    if save_anim : anim.save('traj_anim.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
+    if save_anim : anim.save(anim_name+'.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
     plt.show()
     return
 
@@ -764,7 +766,8 @@ def plot_traj_family_members(traj_family,selection_list, galilean = None, \
 
 def plot_traj_family_animation(traj_family, match_index, \
                         overlap_thresh = 0.02, \
-                        save_anim=False, legend = False, \
+                        save_anim=False,  anim_name='traj_anim', \
+                        legend = False, \
                         title = None, \
                         select = None,  super_obj = None, \
                         galilean = None, plot_field = False,
@@ -1197,7 +1200,7 @@ def plot_traj_family_animation(traj_family, match_index, \
     # call the animator.  blit=True means only re-draw the parts that have changed.
     anim = animation.FuncAnimation(fig, animate, init_func=init,
                                    frames=nframes, interval=1000./fps, blit=False)
-    if save_anim : anim.save('traj_anim.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
+    if save_anim : anim.save(anim_name+'.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
     plt.show()
     return
 

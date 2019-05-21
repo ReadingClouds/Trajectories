@@ -23,12 +23,13 @@ def file_key(file):
 #dir = '/projects/paracon/appc/MONC/r4664_CA_traj/diagnostic_files/r5/'
 #dir = '/projects/paracon/appc/MONC/prev/r4664_CA_traj/diagnostic_files/'
 #dir = '/projects/paracon/appc/MONC/r4664_CA_traj/diagnostic_files/r6/'
-dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r6/'
+#dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r6/'
 #dir = 'C:/Users/xm904103/OneDrive - University of Reading/traj_data/r6/'
 #dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r6/'
 dn = 11
 #dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r11/'
-dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
+#dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
+dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r{:02d}/'.format(dn)
 files = glob.glob(dir+"diagnostics_3d_ts_*.nc")
 files.sort(key=file_key)
 
@@ -162,13 +163,14 @@ if True :
 input("Press Enter to continue...")
 # Plot all clouds
 if True :
-    plot_traj_animation(traj_m, save_anim=False, with_boxes=False, \
+    plot_traj_animation(traj_m, save_anim=True, anim_name='traj_all_clouds', \
+                        with_boxes=False, \
                         title = 'Reference Time {}'.format(last_ref_file))
 
 #input("Press Enter to continue...")
 # Plot all clouds with galilean transform
 if True :
-    plot_traj_animation(traj_m, save_anim=False, \
+    plot_traj_animation(traj_m, save_anim=True, anim_name='traj_all_clouds_gal', \
         title = 'Reference Time {} Galilean Tranformed'.format(last_ref_file), \
         galilean = np.array([-8.5,0]))
 
@@ -179,7 +181,8 @@ if False :
 
 # Plot max_list clouds with galilean transform
 if True :
-    plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
+    plot_traj_animation(traj_m, save_anim=True,  anim_name='traj_sel_clouds_gal', \
+        select = sel_list, \
         no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
         title = 'Reference Time {} Galilean Tranformed'.format(last_ref_file), \
         with_boxes = False, galilean = np.array([-8.5,0]) )
@@ -246,7 +249,8 @@ input("Press Enter to continue...")
       
 if True :
     for cloud in sel_list :
-        plot_traj_animation(traj_m, save_anim=False, \
+        plot_traj_animation(traj_m, save_anim=True, \
+                    anim_name='traj_cloud_{:03d}_class'.format(cloud), \
                     select = np.array([cloud]), fps = 10,  \
                     no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
                     title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
@@ -288,7 +292,9 @@ if False :
 input("Press Enter to continue...")
  
 if True :
-    plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
+    plot_traj_animation(traj_m, save_anim=True, \
+                    anim_name='traj_cloud_sel_field', \
+                    select = sel_list, \
                     legend = True, plot_field = True, \
                     dir_override=dir, \
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
@@ -311,7 +317,9 @@ sel_list   = np.array([72])
 th=0.1
 if True :
     for cloud in sel_list :
-        plot_traj_animation(traj_m, save_anim=False, select = np.array([cloud]), \
+        plot_traj_animation(traj_m, save_anim=True, \
+                    anim_name='traj_cloud_{:03d}_field'.format(cloud), \
+                    select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = True, \
                     dir_override=dir, \
                     no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
@@ -322,7 +330,8 @@ if True :
         input("Press Enter to continue...")
         for tback in [10, 20] :
             plot_traj_family_animation(tfm, tback, overlap_thresh = th, \
-                    save_anim=False, \
+                    save_anim=True, \
+                    anim_name='traj_cloud_{:03d}_linked_{:02d}'.format(cloud,tback), \
                     select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = False, \
                     dir_override=dir, \
@@ -333,7 +342,8 @@ if True :
 
         for tback in [-1] :
             plot_traj_family_animation(tfm, tback, overlap_thresh = th, \
-                    save_anim=False, \
+                    save_anim=True, \
+                    anim_name='traj_cloud_{:03d}_super'.format(cloud), \
                     select = np.array([cloud]), super_obj = sup, \
                     fps = 10, legend = True, plot_field = False, \
                     dir_override=dir, \
@@ -344,7 +354,8 @@ if True :
 
         for tback in [-1] :
             plot_traj_family_animation(tfm, tback, overlap_thresh = th, \
-                    save_anim=False, \
+                    save_anim=True, \
+                    anim_name='traj_cloud_{:03d}_super_linked'.format(cloud), \
                     select = np.array([cloud]), \
                     fps = 10, legend = True, plot_field = False, \
                     dir_override=dir, \
