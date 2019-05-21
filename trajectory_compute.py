@@ -86,7 +86,9 @@ class trajectory_family :
         Returns :
 		
             List with one member for each trajectory set with an earlier 
-            reference time than ref. By default, this is all the sets apart 
+            reference time than ref. 
+            
+            By default, this is all the sets apart 
             from the last. Let us say t_off is the backwards offset from the
             reference time, with t_off=0 for the time immediately before the
             reference time.
@@ -120,34 +122,43 @@ class trajectory_family :
             # matching_objects[t_off] will be those objects in match_traj 
             # which match traj at any time.
             matching_objects = list([])
+#            print('ref, t_off',ref, t_off)
             # Iterate backwards over all set times from ref to start. 
             for it_back in range(0,traj.ref_file+1) :
                 # Time to make comparison
                 ref_time = traj.ref_file-it_back
+                # Note match_traj.ref_file in general will equal traj.ref_file 
                 # Time in match_traj that matches ref_time
-                # Note: match_traj.ref_file should be ref-(t_off+1)
-                #       so match_time = ref - it_back
-                match_time = match_traj.ref_file + t_off - it_back +1
+                 #       so match_time = ref - it_back
+                match_time = match_traj.ref_file + (t_off + 1)- it_back 
 #                print("Matching at reference trajectory time {}".format(it_back))
                 matching_object_at_time = list([])
                 # Iterate over objects in ref.
+ #               print('ref_time, match_time',ref_time, match_time)
+#                input("Press enter")
                 for iobj in select :
-                    corr_box = np.array([],dtype=int)
+#                    corr_box = np.array([],dtype=int)
                     # Only look at clouds
+#                    print('iobj',iobj)
                     if traj.num_cloud[ref_time ,iobj] > 0 :
                         b_test = traj.cloud_box[ref_time, iobj,...]
+#                        print("b_test",b_test)
 #                        if iobj == 0 : print("Matching time {}".format(match_time))
                         # Find boxes in match_traj at match_time that overlap
                         # cloud box for iobj at the same time.
                         if (match_time >= 0) & \
                           (match_time < np.shape(match_traj.cloud_box)[0]) :
                             b_set  = match_traj.cloud_box[match_time,...]
+#                            print(b_set[0:4])
                             corr_box = box_overlap_with_wrap(b_test, b_set, \
                                 traj.nx, traj.ny)
+#                            print("corr_box",corr_box,b_set[corr_box,...])
                             valid = (match_traj.num_cloud[match_time, corr_box]>0)
+#                            print("valid", valid)
+#                            print('box 1',match_traj.cloud_box[match_time,1])
                             corr_box = corr_box[valid]
-#                            if iobj == 0 :
-#                                print(iobj,b_test, corr_box, b_set[corr_box,...])
+#                            if iobj == 85 :
+#                                print(iobj,match_time,b_test, corr_box, b_set[corr_box,...])
 #                                input("Press enter")
                     matching_object_at_time.append(corr_box)
                 matching_objects.append(matching_object_at_time)
@@ -168,11 +179,13 @@ class trajectory_family :
         if select is None : select = np.arange(0, self.family[ref].nobjects, \
                                            dtype = int)
         mol = self.matching_object_list(ref = ref, select = select)
+#        for t_off in range(0, 4) :
         for t_off in range(0, len(mol)) :
             matching_objects = mol[t_off]
             for i in range(0, len(matching_objects[0])) :
                 iobj = select[i]
                 for it_back in range(0, len(matching_objects)) :
+#                for it_back in range(0, 4) :
                     for obj in matching_objects[it_back][i] :
                         if np.size(obj) > 0 :
                             print("t_off: {0} iobj: {1} it_back: {2} obj: {3}".\
@@ -180,60 +193,74 @@ class trajectory_family :
         return
     
     def matching_object_list_summary(self, ref = None, select = None, \
-                                     overlap_thresh = 0.02) :
+                                     overlap_thresh=0.02) :
         """
         Method to classify matching objects.
         
         Args : 
-            ref = None  : Which trajectory set in family to use to find 
-                          matching objects.
-                          Default is the last set.
+            ref=None  : Which trajectory set in family to use to find 
+                        matching objects.
+                        Default is the last set.
+            overlap_thresh=0.02 Threshold for overlap to be sufficient 
+            for inclusion.
                           
         Returns :
             List with one member for each trajectory set with an earlier 
-            reference than ref. By default, this is all the sets apart from 
-            the last.
+            reference than ref. 
+            
+            By default, this is all the sets apart from the last.
+            
             Each member is a list with one member for each object in ref,
             containing a list of objects in the earlier set that match the
             object in ref AT ANY TIME.
+            
             Each of these is classified 'Linked' if the object is in the 
             max_at_ref list at the earler reference time, otherwise 'Same'.
 			
         @author: Peter Clark
 		
         """
+        
         if ref is None : ref = len(self.family) - 1
-        if select is None : select = np.arange(0, self.family[ref].nobjects, \
-                                               dtype = int )
-        mol = self.matching_object_list(ref = ref)
+        traj = self.family[ref]
+        if select is None : select = np.arange(0, traj.nobjects, dtype = int )
+        
+        mol = self.matching_object_list(ref = ref, select=select)
         mols = list([])
         # Iterate backwards from first set before ref.
         for t_off, matching_objects in enumerate(mol) :
             match_list = list([])
-            match_time = ref-(t_off+1)
-            for iobj in select :
+#            match_time = ref-(t_off+1)
+                # Note match_traj.ref_file in general will equal traj.ref_file 
+                # Time in match_traj that matches ref_time
+                 #       so match_time = ref - it_back
+            for i, iobj in enumerate(select) :
                 objlist = list([])
                 otypelist = list([])
                 interlist = list([])
                 for it_back in range(0, len(matching_objects)) :
-                    for obj in matching_objects[it_back][iobj] :
+                    match_traj = self.family[ref-(t_off+1)]
+                    ref_time = traj.ref_file-it_back
+                    match_time = match_traj.ref_file + (t_off + 1)- it_back 
+#                    print('times',ref_time,match_time)
+                    for obj in matching_objects[it_back][i] :
                         if np.size(obj) > 0 :
                             if obj not in objlist : 
                                 
-                                inter = self.refine_object_overlap(t_off, \
+                                if (match_time >= 0) & \
+                                        (match_time < len(self.family)) :
+                                    inter = self.refine_object_overlap(t_off, \
                                             it_back, iobj, obj, ref = ref)
                                 
-                                if inter > overlap_thresh :
+                                    if inter > overlap_thresh :
                                 
-                                    otype = 'Same'
-                                    if (match_time >= 0) & \
-                                        (match_time < len(self.family)) :
+                                        otype = 'Same'
                                         if obj in \
-                                        self.family[match_time].max_at_ref :
-                                            otype = 'Linked'
-                                    objlist.append(obj)
-                                    otypelist.append(otype)
-                                    interlist.append(int(inter*100+0.5))
+                                            match_traj.max_at_ref :
+                                                otype = 'Linked'
+                                        objlist.append(obj)
+                                        otypelist.append(otype)
+                                        interlist.append(int(inter*100+0.5))
                 match_list.append(list(zip(objlist,otypelist,interlist)))
             mols.append(match_list)
         return mols
@@ -276,12 +303,14 @@ class trajectory_family :
             ref = None  : Which trajectory set in family to use to find 
                           matching objects.
                           Default is the last set.
+            overlap_thresh=0.02 Threshold for overlap to be sufficient 
+            for inclusion.
                           
         Returns :
             List with one member for each object in max_at_ref list in ref.
-            Each member is a list of pairs containing the t_off and 
-            object id of objects in the max_at_ref list of the family at 
-            ref-(t_off+1) classified as 'Linked'.
+            Each member is a an array of triplets containing the time,
+            object id and percentage ovelap with next of objects in the 
+            max_at_ref list of the family at time classified as 'Linked'.
 			
         @author: Peter Clark
 		
@@ -295,12 +324,13 @@ class trajectory_family :
         linked_objects = list([])
         for i in range(len(select)) :
             linked_obj = list([])
+            linked_obj.append([ref, select[i], 100])
             for t_off in range(0, len(mols)) :
                 matching_objects = mols[t_off][i]
                 for mo, mot, mint in matching_objects : 
                     if mot == 'Linked' :
-                        linked_obj.append([t_off, mo])
-            linked_objects.append(linked_obj)
+                        linked_obj.append([ref-t_off-1, mo, mint])
+            linked_objects.append(np.array(linked_obj))
         return linked_objects
     
     def print_linked_objects(self, ref = None, select = None, \
@@ -322,11 +352,110 @@ class trajectory_family :
         for iobj, linked_obj in zip(select, \
                                     linked_objects) :
             rep =""
-            for t_off, mo in linked_obj : 
-                rep += "({}, {})".format(t_off, mo)
+ #           for t_off, mo in linked_obj : 
+            for i in range(np.shape(linked_obj)[0]) :
+                t_off, mo, mint = linked_obj[i,:]  
+                rep += "[{}, {}, {}]".format(t_off, mo, mint)
             print("iobj: {0} objects: {1} ".format(iobj, rep))
         return
+    
+    def find_super_objects(self, ref = None, \
+        overlap_thresh = 0.02) :
+        """
+        Method to find all objects linked contiguously to objects in max_at_ref list in ref.
+        
+        Args : 
+            ref = None  : Which trajectory set in family to use to find 
+                          matching objects.
+                          Default is the last set.
+            overlap_thresh=0.02 Threshold for overlap to be sufficient 
+            for inclusion.
+                          
+        Returns :
+            List with one member for each object in max_at_ref list in ref.
+            Each member is an array of triplets containing the time,
+            object id and percentage ovelap with next of objects in the 
+            max_at_ref list of the family at time classified as 'Linked'.
+			
+        @author: Peter Clark
+		
+        """
+		
+        
+        def step_obj_back(ref, objs) :
+            found_super_objs = list([])
+            mol = self.matching_object_list(ref = ref, select=objs)
+            t_off = 0
+            matching_objects = mol[t_off]
+            match_time = ref-(t_off+1)
+            for i,iobj in enumerate(objs) :
+                objlist = list([(ref,iobj,100)])
+                it_back = 0
+#                print(iobj)
+#                print(ref,match_time, matching_objects[it_back][i])
+                for obj in matching_objects[it_back][i] :
+                    if np.size(obj) > 0 :
+                                
+                        inter = self.refine_object_overlap(t_off, \
+                                    it_back, iobj, obj, ref = ref)
+#                        print(obj,inter)        
+                        if inter > overlap_thresh :
+                            if obj in self.family[ref-(t_off+1)].max_at_ref :
+                                objlist.append((match_time,obj,\
+                                                int(inter*100+0.5)))
+#                                print(objlist)
             
+                found_super_objs.append(objlist)
+            return found_super_objs
+        print("Finding super-objects")
+        if ref is None : ref = len(self.family) - 1
+        select = self.family[ref].max_at_ref
+        super_objects = list([])
+        incomplete_objects = list([])
+        incomplete_object_ids = np.array([],dtype=int)
+        for newref in range(ref,0,-1) :
+            sup_obj = step_obj_back(newref, select)
+            next_level_objs = self.family[newref-1].max_at_ref
+#            incomplete_objflags = np.zeros(len(next_level_objs), dtype=bool)
+            new_incomplete_objects = list([])
+            new_incomplete_object_ids = list([])
+#            print(next_level_objs)
+            for i, obj in enumerate(sup_obj) :
+                # Four options
+                # 1. New object length 1.
+                # 2. Termination of previous object.
+                # 3. New object continued at next level.
+                # 4. Continuation of previous object.
+                if len(obj) == 1 :
+                    if obj[0][1] in incomplete_object_ids :
+                        # Terminate incomplete object.
+                        j = np.where(obj[0][1] == incomplete_object_ids)[0][0]
+                        super_objects.append(np.array(incomplete_objects[j]))
+                    else :
+                        super_objects.append(np.array(obj))
+                else :
+#                    incomplete_objflags[i] = True
+                    if obj[0][1] in incomplete_object_ids :
+                        j = np.where(obj[0][1] == incomplete_object_ids)[0][0]
+                        incomplete_objects[j].append(obj[1])
+                        new_incomplete_objects.append(incomplete_objects[j]) 
+                    else :
+                        new_incomplete_objects.append(obj) 
+                        
+                    new_incomplete_object_ids.append(\
+                                new_incomplete_objects[-1][-1][1])
+            incomplete_object_ids = np.array(new_incomplete_object_ids)           
+            incomplete_objects = new_incomplete_objects
+#            print(incomplete_object_ids) 
+            select = next_level_objs        
+#            print(select)
+        for obj in incomplete_objects : super_objects.append(np.array(obj))  
+        len_sup=[]
+        for s in super_objects : len_sup.append(len(s))
+        len_sup = np.array(len_sup)
+                         
+        return super_objects, len_sup
+           
     def refine_object_overlap(self, t_off, time, obj, mobj, ref = None) :
         if ref == None : ref = len(self.family) - 1
 #        print(t_off, time, obj, mobj)
@@ -337,6 +466,7 @@ class trajectory_family :
             tr_time = traj.ref_file-time
 #            print("Time in {} is {}, {}".format(ref, tr_time, traj.times[tr_time]))
             obj_ptrs = (traj.labels == obj)
+#            print('extr',ref, time, tr_time)
             qcl = traj.data[tr_time, obj_ptrs, traj.var("q_cloud_liquid_mass")]
 #            print(np.shape(qcl))
             mask = (qcl >= traj.thresh)
@@ -347,8 +477,13 @@ class trajectory_family :
 #            for i in range(2) : print(np.min(tr[:,i]),np.max(tr[:,i]))
             tr1D = np.unique(tr[:,0] + traj.nx * (tr[:,1] + traj.ny * tr[:,2]))
             return tr1D
+#        traj = self.family[ref]
+#        match_traj = self.family[ref-(t_off+1)]
+#        ref_time = traj.ref_file-it_back
+#        match_time = match_traj.ref_file + (t_off + 1)- it_back 
     
-        tr1D = extract_obj_as1Dint(self.family, ref, time, obj)
+        tr1D  = extract_obj_as1Dint(self.family, ref,           \
+                                    time, obj)
         trm1D = extract_obj_as1Dint(self.family, ref-(t_off+1), \
                                     time-(t_off+1) , mobj)
                 
@@ -449,6 +584,11 @@ class trajectories :
         when_max_qcl = np.where(max_qcl)
         self.max_at_ref = when_max_qcl[1][when_max_qcl[0] == self.ref_file]
         return
+        
+    def var(self, v) :
+        for ii, vr in enumerate(list(self.variable_list)) :
+            if vr==v : break
+        return ii
     
     def select_object(self, iobj) :
         in_object = (self.labels == iobj)
@@ -471,17 +611,23 @@ class trajectories :
         # Number of points
         r4 = nvars+4
         
-        mean_cloud_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
-        mean_entr_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
-        mean_entr_bot_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
-        mean_detr_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
-        traj_class = np.zeros_like(self.data[:,:,0],dtype=int)
+        if version < 3 :
+            mean_cloud_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
+            mean_entr_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
+            mean_entr_bot_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
+            mean_detr_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
+            mean_bl_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
+        elif version == 3 :
+            n_class = 9
+            mean_prop = np.zeros([self.ntimes, self.nobjects, total_nvars, 10])
+        
+        traj_class = np.zeros_like(self.data[:,:,0], dtype=int)
         
         min_cloud_base = np.zeros(self.nobjects)
         first_cloud_base = np.zeros(self.nobjects)
         cloud_top = np.zeros(self.nobjects)
-        cloud_trigger_time = np.zeros(self.nobjects)
-        cloud_dissipate_time = np.ones(self.nobjects)*self.ntimes
+        cloud_trigger_time = np.zeros(self.nobjects, dtype=int)
+        cloud_dissipate_time = np.ones(self.nobjects, dtype=int)*self.ntimes
         
         tr_z = (self.trajectory[:,:,2]-0.5)*self.deltaz
         zn = (np.arange(0,np.size(self.piref))-0.5)*self.deltaz
@@ -490,7 +636,8 @@ class trajectories :
         moist_static_energy = Cp * self.data[:, :, self.var("th")] * piref_z + \
                               grav * tr_z + \
                               L_vap * self.data[:, :, self.var("q_vapour")]
-#        print("Computed MSE")
+                             
+#        print("Computed MSE",np.min(moist_static_energy),np.max(moist_static_energy))
                                       
         def set_props(prop, time, obj, mask, where_mask) :
             prop[time, obj, r1] = np.sum(data[time, mask,:], axis=0)
@@ -507,13 +654,14 @@ class trajectories :
             NEW_CLOUD_FROM_BOTTOM = 5
             NEW_CLOUD_FROM_SIDE = 6
             DETR_CLOUD = 7        
-        elif version == 2 :
+        elif version == 2 or version == 3:
             PRE_CLOUD_ENTR_FROM_BL = 1
             PRE_CLOUD_ENTR_FROM_ABOVE_BL = 2
             PREVIOUS_CLOUD = 3
             CLOUD = 4
             ENTR_FROM_BL = 5
             ENTR_FROM_ABOVE_BL = 6
+#            ENTR_PREV_CLOUD = 7
             DETR_CLOUD = 7 
             SUBSEQUENT_CLOUD = 8
         else :
@@ -543,6 +691,7 @@ class trajectories :
                 bl = ((tr[0,:,2]-0.5)*self.deltaz < min_cloud_base[iobj])
                 class_set = where_obj_ptrs[np.where(bl)[0]]
                 traj_class[:, class_set] = PRE_CLOUD_IN_BL 
+                
                 class_set = where_obj_ptrs[np.where(~bl)[0]]
                 traj_class[:, class_set] = PRE_CLOUD_ABOVE_BL 
                 
@@ -719,6 +868,7 @@ class trajectories :
                                               obj_z[0, :] < \
                                               min_cloud_base[iobj])  
                             where_newcl_from_bl = np.where(newcl_from_bl)[0]
+                            
                             newcl_from_above_bl = np.logical_and( \
                                                     new_cloud,\
                                                     obj_z[0, :] >= \
@@ -937,50 +1087,333 @@ class trajectories :
                         
                         # Find point that will be cloud at next step.
                         
+            elif version == 3 :
+                
+                in_main_cloud = True
+                
+                for it in range(self.ref_file,-1,-1) :
+                    if debug_mean : print("it = {}".format(it))
+
+                    cloud_bottom = self.cloud_box[it, iobj, 0, 2]
+                    
+                    cloud = mask[it,:]
+                    where_cloud = np.where(cloud)[0]
+                    
+                    not_cloud = np.logical_not(cloud)
+                    where_not_cloud = np.where(not_cloud)[0]
+                    
+                    if debug_mean : 
+                        print('it', it, np.shape(where_cloud))
+                        print(qcl[it,mask[it,:]])
+                    
+                    if np.size(where_cloud) > 0 :  
+                        # There are cloudy points
+                        if debug_mean : 
+#                        if True :
+                            print('Mean cloud properties at this level.')
+                            print(mean_cloud_prop[it, iobj, :])    
+                            
+                        # Find new cloudy points  
+                        if it > 0 :
+                            new_cloud = np.logical_and(cloud, \
+                                                np.logical_not(mask[it-1,:]) )
+                            where_newcloud = np.where(new_cloud)[0]
+                            not_new_cloud = np.logical_and(cloud, mask[it-1,:])
+                            where_not_newcloud = np.where(not_new_cloud)[0]
+#                            print(np.size(where_newcloud),np.size(where_not_newcloud))
+                            if debug_mean :
+                                print(new_cloud)
+                                print(qcl[it-1,new_cloud],qcl[it,new_cloud])
+                        else :
+                            where_newcloud = np.array([])
+#                            not_newcloud = cloud
+                            not_new_cloud = cloud
+                            where_not_newcloud = where_cloud
+                            
+                        if np.size(where_newcloud) > 0 : # Entrainment
+                            if debug_mean : print('Entraining air')
+                            
+                            newcl_from_bl = np.logical_and( \
+                                              new_cloud,\
+                                              obj_z[0, :] < \
+                                              min_cloud_base[iobj])  
+                            where_newcl_from_bl = np.where(newcl_from_bl)[0]
+                            class_set_from_bl = where_obj_ptrs[ \
+                                              where_newcl_from_bl]
+                            
+                            newcl_from_above_bl = np.logical_and( \
+                                                    new_cloud,\
+                                                    obj_z[0, :] >= \
+                                                    min_cloud_base[iobj])  
+                            where_newcl_from_above_bl = np.where( \
+                                                        newcl_from_above_bl)[0]
+
+                            class_set_from_above_bl = where_obj_ptrs[ \
+                                                    where_newcl_from_above_bl]
+                            traj_class[0:it, class_set_from_bl] = \
+                                        PRE_CLOUD_ENTR_FROM_BL 
+                            traj_class[it, class_set_from_bl] = \
+                                        ENTR_FROM_BL 
+                                        
+                            traj_class[0:it, class_set_from_above_bl] = \
+                                        PRE_CLOUD_ENTR_FROM_ABOVE_BL
+                            traj_class[it, class_set_from_above_bl] = \
+                                        ENTR_FROM_ABOVE_BL
+
+                            if debug_mean : 
+                                print("From BL",class_set_from_bl)
+                                print("From above BL",class_set_from_above_bl)
+                                input("Press Enter to continue...")
+                            
+                        # Set traj_class flag for those points in cloud.              
+                        if np.size(where_not_newcloud) > 0 : # Entrainment
+                            if debug_mean : 
+                                print("Setting Cloud",it,\
+                                      np.size(where_not_newcloud))
+                            class_set = where_obj_ptrs[where_not_newcloud]
+                        
+                            if in_main_cloud :
+                                # Still in cloud contiguous with reference time.
+                                traj_class[it, class_set] = CLOUD
+                            else :
+                                # Must be cloud points that were present before.
+                                traj_class[it, class_set] = PREVIOUS_CLOUD
+                    else :
+                        if in_main_cloud : cloud_trigger_time[iobj] = it+1
+                        in_main_cloud = False
+                        
+                    # Now what about entraining air?
+                    if np.size(where_not_cloud) > 0 : 
+                        
+                        if it == self.ref_file :
+                            print("Problem - reference not all cloud",iobj)
+                        
+                        # Find point that will be cloud at next step.
+                                                
+                        if debug_mean : 
+                            print(qcl[it,new_cloud],qcl[it+1,new_cloud])
+                                                                
+                        # Find points that have ceased to be cloudy     
+                        if it > 0 :
+                            detr_cloud =np.logical_and(not_cloud, mask[it-1,:])
+                            where_detrained = np.where(detr_cloud)[0]
+                            if debug_mean : 
+                                print(detr_cloud)
+                                print(qcl[it-1,detr_cloud],qcl[it,detr_cloud])
+                                    
+                            if np.size(where_detrained) > 0 : # Detrainment
+                                if debug_mean : print('Detraining air')
+                                    
+                                class_set = where_obj_ptrs[where_detrained] 
+                                traj_class[it, class_set] = DETR_CLOUD 
+                                if debug_mean : 
+                                    input("Press Enter to continue...")     
+                                    
+                in_main_cloud = True
+                after_cloud_dissipated = False  
+
+                for it in range(self.ref_file+1,self.end_file+1) :
+                    if debug_mean : print("it = {}".format(it))
+                    cloud_bottom = self.cloud_box[it, iobj, 0, 2]
+                    
+                    cloud = mask[it,:]
+                    where_cloud = np.where(cloud)[0]
+                    
+                    not_cloud = np.logical_not(cloud)
+                    where_not_cloud = np.where(not_cloud)[0]
+                    
+                    if debug_mean : 
+                        print('it', it, np.shape(where_cloud))
+                        print(qcl[it,mask[it,:]])
+                    
+                    if np.size(where_cloud) > 0 :  
+                        # There are cloudy points
+                        if debug_mean : 
+                            print('Mean cloud properties at this level.')
+                            print(mean_cloud_prop[it, iobj, :])    
+                        # Find new cloudy points  
+                        new_cloud = np.logical_and(cloud, \
+                                            np.logical_not(mask[it-1,:]) )
+                        where_newcloud = np.where(new_cloud)[0]
+                        
+                        not_new_cloud = np.logical_and(cloud, mask[it-1,:])
+                        where_not_newcloud = np.where(not_new_cloud)[0]
+#                            print(np.size(where_newcloud),np.size(where_not_newcloud))
+                        if debug_mean :
+                            print(new_cloud)
+                            print(qcl[it-1,new_cloud],qcl[it,new_cloud])
+                            
+                        if np.size(where_newcloud) > 0 : # Entrainment
+                            if debug_mean : print('Entraining air')
+                            
+                            class_set = where_obj_ptrs[where_newcloud]
+                                       
+                            traj_class[it-1, class_set] = \
+                                        PRE_CLOUD_ENTR_FROM_ABOVE_BL
+                            traj_class[it, class_set] = \
+                                        ENTR_FROM_ABOVE_BL
+
+                            if debug_mean : 
+#                                print("From BL",class_set_from_bl)
+                                print("From above BL",class_set)
+                                input("Press Enter to continue...") 
+
+                            
+                        # Set traj_class flag for those points in cloud.              
+                        if np.size(where_not_newcloud) > 0 : # Entrainment
+                            if debug_mean : print("Setting Cloud",it,np.size(where_not_newcloud))
+                            class_set = where_obj_ptrs[where_not_newcloud]
+                        
+                            if in_main_cloud :
+                                # Still in cloud contiguous with reference time.
+                                traj_class[it, class_set] = CLOUD
+                            else :
+                                # Must be cloud points that were present before.
+                                traj_class[it, class_set] = SUBSEQUENT_CLOUD                           
+
+                    else :
+                        if in_main_cloud and not after_cloud_dissipated :
+                            # At cloud top.
+                            cloud_dissipate_time[iobj] = it
+                            cloud_top[iobj] = (np.max(tr[it-1,mask[it-1,:],2])-0.5) \
+                                                *self.deltaz
+                        class_set = where_obj_ptrs[where_not_cloud]                       
+                        traj_class[it, class_set] = DETR_CLOUD                           
+                        in_main_cloud = False
+                        after_cloud_dissipated = True  
+                        
+                    # Now what about detraining and detraining air?
+                    if np.size(where_not_cloud) > 0 : 
+                        class_set = where_obj_ptrs[where_not_cloud]
+                        traj_class[it, class_set] = DETR_CLOUD
+
+                        # Find points that have ceased to be cloudy                     
+#                        detr_cloud =np.logical_and(not_cloud, mask[it-1,:])
+                        
+#                        if debug_mean : 
+#                            print(detr_cloud)
+#                            print(qcl[it-1,detr_cloud],qcl[it,detr_cloud])
+                                    
+#                        where_detrained = np.where(detr_cloud)[0]
+#                        if np.size(where_detrained) > 0 : # Detrainment
+#                            if debug_mean : print('Detraining air')
+                                
+#                            class_set = where_obj_ptrs[where_detrained] 
+#                            traj_class[it:, class_set] = DETR_CLOUD 
+                        
+                        # Find point that will be cloud at next step.
+############################################################################
+                        # Compute mean properties of cloudy points. 
+
+#                obj_ptrs = (self.labels == iobj)
+#                where_obj_ptrs = np.where(obj_ptrs)[0]
+                for it in range(0, self.end_file+1) :
+                    for iclass in range(0,n_class) :
+                        
+                        trcl = traj_class[it, obj_ptrs]
+                        lmask = (trcl == iclass)  
+#                        print(np.shape(lmask), \
+#                              np.shape(data[it,...]))
+                        where_mask = np.where(lmask)[0]
+                        if np.size(where_mask) > 0 :
+                            mean_prop[it, iobj, r1, iclass] = \
+                                np.sum(data[it, lmask, :], axis=0)  
+                            msem = mse[it, lmask]                        
+#                            print(np.shape(msem), np.max(msem), np.min(msem))
+                            mean_prop[it, iobj, r2, iclass] = \
+                                np.sum(mse[it, lmask], axis=0)    
+                            mean_prop[it, iobj, r3, iclass] = \
+                                np.sum(tr[it, lmask,:], axis=0)
+                            mean_prop[it, iobj, r4, iclass] = \
+                                np.size(where_mask)
                     
             else :
                 print("Illegal Version")
                 return 
-        
-        m = (mean_cloud_prop[:,:,r4]>0)    
-        for ii in range(nvars+4) : 
-            mean_cloud_prop[:,:,ii][m] = mean_cloud_prop[:,:,ii][m] \
-              /mean_cloud_prop[:,:,r4][m]
-              
-        m = (mean_entr_prop[:,:,r4]>0)    
-        for ii in range(nvars+4) : 
-            mean_entr_prop[:,:,ii][m] = mean_entr_prop[:,:,ii][m] \
-              /mean_entr_prop[:,:,r4][m]
-              
-        m = (mean_entr_bot_prop[:,:,r4]>0)    
-        for ii in range(nvars+4) : 
-            mean_entr_bot_prop[:,:,ii][m] = mean_entr_bot_prop[:,:,ii][m] \
-              /mean_entr_bot_prop[:,:,r4][m]
-              
-        m = (mean_detr_prop[:,:,r4]>0)    
-        for ii in range(nvars+4) : 
-            mean_detr_prop[:,:,ii][m] = mean_detr_prop[:,:,ii][m] \
-              /mean_detr_prop[:,:,r4][m]
-              
-        mean_properties = {"cloud":mean_cloud_prop, \
-                           "entr":mean_entr_prop, \
-                           "entr_bot":mean_entr_bot_prop, \
-                           "detr":mean_detr_prop, \
-                           "class":traj_class, \
-                           "first cloud base": first_cloud_base, \
-                           "min cloud base":min_cloud_base, \
-                           "cloud top":cloud_top, \
-                           "cloud_trigger_time":cloud_trigger_time, \
-                           "cloud_dissipate_time":cloud_dissipate_time, \
-                           "version":version, \
-                           }
+            
+        if version < 3 :
+            m = (mean_cloud_prop[:,:,r4]>0)    
+            for ii in range(nvars+4) : 
+                mean_cloud_prop[:,:,ii][m] = mean_cloud_prop[:,:,ii][m] \
+                  /mean_cloud_prop[:,:,r4][m]
+                  
+            m = (mean_entr_prop[:,:,r4]>0)    
+            for ii in range(nvars+4) : 
+                mean_entr_prop[:,:,ii][m] = mean_entr_prop[:,:,ii][m] \
+                  /mean_entr_prop[:,:,r4][m]
+                  
+            m = (mean_entr_bot_prop[:,:,r4]>0)    
+            for ii in range(nvars+4) : 
+                mean_entr_bot_prop[:,:,ii][m] = mean_entr_bot_prop[:,:,ii][m] \
+                  /mean_entr_bot_prop[:,:,r4][m]
+                  
+            m = (mean_detr_prop[:,:,r4]>0)    
+            for ii in range(nvars+4) : 
+                mean_detr_prop[:,:,ii][m] = mean_detr_prop[:,:,ii][m] \
+                  /mean_detr_prop[:,:,r4][m]
+                  
+            mean_properties = {"cloud":mean_cloud_prop, \
+                               "entr":mean_entr_prop, \
+                               "entr_bot":mean_entr_bot_prop, \
+                               "detr":mean_detr_prop, \
+                               "class":traj_class, \
+                               "first cloud base": first_cloud_base, \
+                               "min cloud base":min_cloud_base, \
+                               "cloud top":cloud_top, \
+                               "cloud_trigger_time":cloud_trigger_time, \
+                               "cloud_dissipate_time":cloud_dissipate_time, \
+                               "version":version, \
+                               }
+        elif version == 3:
+            
+            nplt = 72
+            for it in range(np.shape(mean_prop)[0]) :
+                s = '{:3d}'.format(it)
+                for iclass in range(0,n_class) :
+                    s = s+'{:4d} '.format(mean_prop[it, nplt, r4, iclass].astype(int))
+                s = s+'{:6d} '.format(np.sum(mean_prop[it, nplt, r4, :].astype(int)))
+                print(s)
+                
+            for it in range(np.shape(mean_prop)[0]) :
+                s = '{:3d}'.format(it)
+                for iclass in range(0,n_class) :
+                    s = s+'{:10f} '.format(mean_prop[it, nplt, nvars, iclass]/1E6)
+                s = s+'{:12f} '.format(np.sum(mean_prop[it, nplt, nvars, :])/1E6)
+                print(s)
+            
+            for iclass in range(0,n_class) :
+                m = (mean_prop[:, :, r4, iclass]>0)   
+                for ii in range(nvars+4) : 
+                    mean_prop[:, :, ii, iclass][m] /= \
+                        mean_prop[:, :, r4, iclass][m]
+                        
+#            PRE_CLOUD_ENTR_FROM_BL = 1
+#            PRE_CLOUD_ENTR_FROM_ABOVE_BL = 2
+#            PREVIOUS_CLOUD = 3
+#            CLOUD = 4
+#            ENTR_FROM_BL = 5
+#            ENTR_FROM_ABOVE_BL = 6
+#            DETR_CLOUD = 7 
+#            SUBSEQUENT_CLOUD = 8
+            mean_properties = {"unclassified":mean_prop[:,:,:, 0], \
+                               "pre_cloud_bl":mean_prop[:,:,:, PRE_CLOUD_ENTR_FROM_BL], \
+                               "pre_cloud_above_bl":mean_prop[:,:,:, PRE_CLOUD_ENTR_FROM_ABOVE_BL], \
+                               "previous_cloud":mean_prop[:,:,:, PREVIOUS_CLOUD], \
+                               "cloud":mean_prop[:,:,:, CLOUD], \
+                               "entr":mean_prop[:,:,:, ENTR_FROM_ABOVE_BL], \
+                               "entr_bot":mean_prop[:,:,:, ENTR_FROM_BL], \
+                               "detr":mean_prop[:,:,:, DETR_CLOUD], \
+                               "subsequent_cloud":mean_prop[:,:,:, SUBSEQUENT_CLOUD], \
+                               "class":traj_class, \
+                               "first cloud base": first_cloud_base, \
+                               "min cloud base":min_cloud_base, \
+                               "cloud top":cloud_top, \
+                               "cloud_trigger_time":cloud_trigger_time, \
+                               "cloud_dissipate_time":cloud_dissipate_time, \
+                               "version":version, \
+                               }
 
         return mean_properties
-        
-    def var(self, v) :
-        for ii, vr in enumerate(list(self.variable_list)) :
-            if vr==v : break
-        return ii
                       
     def __str__(self):
         rep = "Trajectories centred on {0}\n".format(self.files[self.ref_file])
@@ -994,6 +1427,18 @@ class trajectories :
         rep = "Trajectory Reference time: {0}, Times:{1}, Points:{2}, Objects:{3}\n".format(\
           self.times[self.ref_file],self.ntimes,self.npoints, self.nobjects)
         return rep
+
+def get_sup_obj(sup, t, o) :
+    slist = list()
+    for s in sup :
+        l = (s[:,0] == t)
+        st = s[l,:]
+        if len(st) >0 :
+            st1 = st[st[:,1]==o]
+            if len(st1) > 0 : 
+#                print(s,st,st1)
+                slist.append(s)
+    return slist
     
 def compute_trajectories(files, start_file, ref_file, end_file, \
                          variable_list, thref, thresh=1.0E-5) :
@@ -1218,8 +1663,8 @@ def forward_trajectory_step(file, variable_list, trajectory, data_val, \
     err = 1.0
     niter = 0 
     max_iter = 30
-    errtol_iter = 1E-3
-    errtol = 5E-2
+    errtol_iter = 1E-4
+    errtol = 5E-3
     relax_param = 0.5
     not_converged = True
     correction_cycle = False 
@@ -1667,16 +2112,30 @@ def print_boxes(traj) :
     return 
 
 def box_overlap_with_wrap(b_test, b_set, nx, ny) :
-    x_overlap = np.logical_or( np.logical_and( \
-        b_test[0,0] >= b_set[...,0,0] , b_test[0,0] <= b_set[...,1,0]), \
-                               np.logical_and( \
-        b_test[1,0] >= b_set[...,0,0] , b_test[1,0] <= b_set[...,1,0]) ) 
-    x_ind = np.where(x_overlap)[0]
+    # Wrap not yet implemented
     
-    y_overlap = np.logical_or( np.logical_and( \
-        b_test[0,1] >= b_set[x_ind,0,1] , b_test[0,1] <= b_set[x_ind,1,1]), \
-                               np.logical_and( \
-        b_test[1,1] >= b_set[x_ind,0,1] , b_test[1,1] <= b_set[x_ind,1,1]) )
+    t1 = np.logical_and( \
+        b_test[0,0] >= b_set[...,0,0] , b_test[0,0] <= b_set[...,1,0])
+    t2 = np.logical_and( \
+        b_test[1,0] >= b_set[...,0,0] , b_test[1,0] <= b_set[...,1,0])
+    t3 = np.logical_and( \
+        b_test[0,0] <= b_set[...,0,0] , b_test[1,0] >= b_set[...,1,0])
+    t4 = np.logical_and( \
+        b_test[0,0] >= b_set[...,0,0] , b_test[1,0] <= b_set[...,1,0])
+    x_overlap =np.logical_or(np.logical_or( t1, t2), np.logical_or( t3, t4) )
+
+#    print(x_overlap)
+    x_ind = np.where(x_overlap)[0]
+#    print(x_ind)
+    t1 = np.logical_and( \
+        b_test[0,1] >= b_set[x_ind,0,1] , b_test[0,1] <= b_set[x_ind,1,1])
+    t2 = np.logical_and( \
+        b_test[1,1] >= b_set[x_ind,0,1] , b_test[1,1] <= b_set[x_ind,1,1])
+    t3 = np.logical_and( \
+        b_test[0,1] <= b_set[x_ind,0,1] , b_test[1,1] >= b_set[x_ind,1,1])
+    t4 = np.logical_and( \
+        b_test[0,1] >= b_set[x_ind,0,1] , b_test[1,1] <= b_set[x_ind,1,1])
+    y_overlap = np.logical_or(np.logical_or( t1, t2), np.logical_or( t3, t4) )
     
     y_ind = np.where(y_overlap)[0]
     

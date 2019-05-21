@@ -64,6 +64,7 @@ def plot_trajectory_history(tr, select_obj, fn) :
     
     fig1 = plt.figure(figsize=(10,6))
 #    fig1.clf
+
     
     ax1 = fig1.add_subplot(111, projection='3d')
     
@@ -84,6 +85,8 @@ def plot_trajectory_history(tr, select_obj, fn) :
 def plot_trajectory_mean_history(tr, mean_prop, fn, \
                                  select = None, obj_per_plt = 10) :  
     nvars = np.shape(tr.data)[2]
+    npts_ptr = nvars+4
+
     nobj = np.shape(mean_prop['cloud'])[1]
     if select is None : select = np.arange(0,nobj)    
     zn = (np.arange(0,np.size(tr.piref))-0.5)*tr.deltaz
@@ -95,7 +98,7 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
         
         ymax = np.ceil(np.max(mean_prop['cloud top'])/100)*100
         if new_fig :
-            fig1, axa = plt.subplots(3, 2, figsize=(8,10), sharey=True)
+            fig1, axa = plt.subplots(3, 3, figsize=(10,10), sharey=True)
                         
             for j,v in enumerate(["w","th","q_vapour","q_cloud_liquid_mass"]):
     
@@ -113,38 +116,52 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             ax.set_xlabel(r"$q_t$ kg/kg",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
             ax.set_ylim(0,ymax)
+
+            ax = axa[0,2]
+            ax.set_xlabel(r"Moist static energy kJ kg$^{-1}$",fontsize=16)
+            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_ylim(0,ymax)
+            
+            ax = axa[1,2]
+            ax.set_xlabel(r"Moist static energy change kJ kg$^{-1}$",\
+                          fontsize=16)
+            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_ylim(0,ymax)
             
             fig2, axb = plt.subplots(3, 2, figsize=(8,10), sharey=True)
-            
+            entrmax=0.01
             ax = axb[0,0]
             ax.set_xlabel(r"Volume km$^3$",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
             ax.set_ylim(0,ymax)
 
             ax = axb[0,1]
-            ax.set_xlabel(r"Entrainment rate s$^{-1}$",fontsize=16)
+            ax.set_xlabel(r"Detrainment rate s$^{-1}$",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
             ax.set_ylim(0,ymax)
 
             ax = axb[1,0]
-            ax.set_xlabel(r"Detrainment rate s$^{-1}$",fontsize=16)
+            ax.set_xlabel(r"Entrainment rate s$^{-1}$",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlim(0,entrmax)
             ax.set_ylim(0,ymax)
 
             ax = axb[1,1]
             ax.set_xlabel(r"Side Entrainment rate s$^{-1}$",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlim(0,entrmax)
             ax.set_ylim(0,ymax)
 
             ax = axb[2,0]
-            ax.set_xlabel(r"Moist static energy kJ kg$^{-1}$",fontsize=16)
+            ax.set_xlabel(r"Entrainment rate m$^{-1}$",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlim(0,entrmax)
             ax.set_ylim(0,ymax)
-            
+
             ax = axb[2,1]
-            ax.set_xlabel(r"Moist static energy change kJ kg$^{-1}$",\
-                          fontsize=16)
+            ax.set_xlabel(r"Side Entrainment rate m$^{-1}$",fontsize=16)
             ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlim(0,entrmax)
             ax.set_ylim(0,ymax)
 
             new_fig = False
@@ -153,101 +170,161 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
         volume = tr.deltax*tr.deltay*tr.deltaz
             
         if np.isin(iobj,select) :
-            m = (mean_prop['cloud'][:,iobj,nvars+4] >0)
-            z = (mean_prop['cloud'][:,iobj,nvars+3][m]-0.5)*tr.deltaz
+            incloud = np.arange(len(mean_prop['cloud'][:,iobj,npts_ptr]), \
+                                dtype=int)
+            incloud = np.logical_and( \
+                            incloud >= mean_prop['cloud_trigger_time'][iobj],\
+                            incloud <  mean_prop['cloud_dissipate_time'][iobj])
+            precloud = np.arange(len(mean_prop['cloud'][:,iobj,npts_ptr]), \
+                                dtype=int)
+            precloud = (precloud < mean_prop['cloud_dissipate_time'][iobj])
+            m = (mean_prop['cloud'][:,iobj,npts_ptr] > 0)
+            m1 = np.logical_and(m, incloud)
+            nplt = 72
+            if iobj == nplt :
+                print(mean_prop["cloud_trigger_time"][iobj])
+                print(mean_prop["cloud_dissipate_time"][iobj])
+                print(m1)
+#            print(len(incloud))
+#            print(incloud)
+#            m = np.logical_or((mean_prop['cloud'][:,iobj,npts_ptr] > 0), \
+#                            (mean_prop['previous_cloud'][:,iobj,npts_ptr] > 0))
+#            print(len(m))
+            z = (mean_prop['cloud'][:,iobj,nvars+3]-0.5)*tr.deltaz
             
+            mbl = (mean_prop['pre_cloud_bl'][:,iobj,npts_ptr] > 0)
+            mbl = np.logical_and(mbl, precloud)
+            zbl = (mean_prop['pre_cloud_bl'][:,iobj,nvars+3]-0.5)*tr.deltaz
+            mbl = np.logical_and(mbl, zbl<= mean_prop["min cloud base"][iobj])
+            
+            if iobj == nplt :
+                print(mean_prop["first cloud base"][iobj])
+                print(mean_prop["min cloud base"][iobj])
+                print(mbl)
+                print(zbl[mbl])
+# w   qv
+# th  qcl         
             for j,v in enumerate(["w","th","q_vapour","q_cloud_liquid_mass"]):    
                 ax = axa[(j)%2,(j)//2]
-                ax.plot(mean_prop['cloud'][:,iobj,tr.var(v)][m], z)
+                line = ax.plot(mean_prop['pre_cloud_bl']\
+                               [:,iobj,tr.var(v)][mbl], zbl[mbl])
+                ax.plot(mean_prop['cloud'][:,iobj,tr.var(v)][m1], z[m1], \
+                        color = line[0].get_color(), linewidth=4, \
+                         label='{}'.format(iobj))
 
+# theta_l
             ax = axa[2,0]
             piref_z = np.interp(z,zn,tr.piref)
-            thl = mean_prop['cloud'][:,iobj,tr.var("th")][m] - \
+            thl = mean_prop['cloud'][:,iobj,tr.var("th")] - \
               L_over_cp * \
-              mean_prop['cloud'][:,iobj,tr.var("q_cloud_liquid_mass")][m] \
+              mean_prop['cloud'][:,iobj,tr.var("q_cloud_liquid_mass")] \
               / piref_z
+              
+            thl_bl = mean_prop['pre_cloud_bl'][:,iobj,tr.var("th")] - \
+              L_over_cp * \
+              mean_prop['pre_cloud_bl'][:,iobj,tr.var("q_cloud_liquid_mass")] \
+              / piref_z
+              
+              
     #        print thl, data[:,var("th"),i],data[:,var("q_vapour"),i]
-            ax.plot(thl,z)
+            line = ax.plot(thl_bl[mbl],zbl[mbl])
+            ax.plot(thl[m1],z[m1], label='{}'.format(iobj), \
+                    color = line[0].get_color(), linewidth=4)
+# qt
             ax = axa[2,1]
-            qt = mean_prop['cloud'][:,iobj,tr.var("q_vapour")][m] + \
-                 mean_prop['cloud'][:,iobj,tr.var("q_cloud_liquid_mass")][m]
+            qt = mean_prop['cloud'][:,iobj,tr.var("q_vapour")] + \
+                 mean_prop['cloud'][:,iobj,tr.var("q_cloud_liquid_mass")]
+                 
+            qt_bl = mean_prop['pre_cloud_bl'][:,iobj,tr.var("q_vapour")] + \
+                 mean_prop['pre_cloud_bl'][:,iobj,tr.var("q_cloud_liquid_mass")]
     #        print qt,data[:,var("q_vapour"),i],data[:,var("q_cloud_liquid_mass"),i]
-            ax.plot( qt,z, label='{}'.format(iobj))
+            line = ax.plot( qt_bl[mbl],zbl[mbl])
+            ax.plot( qt[m1],z[m1], label='{}'.format(iobj), \
+                    color = line[0].get_color(), linewidth=4)
 
-            ax = axb[0,0]
-            mass = mean_prop['cloud'][:,iobj,nvars+4][m]*volume/1E9
-            ax.plot(mass, z, label='{}'.format(iobj))
-
-            ax = axb[0,1]
-            n_cloud_points = mean_prop['cloud'][1:,iobj,nvars+4]
-            n_new_cloud_points = mean_prop['entr'][1:,iobj,nvars+4] + \
-                                 mean_prop['entr_bot'][1:,iobj,nvars+4]
-            m1 = np.logical_and(n_cloud_points > 0 , n_new_cloud_points > 0 )
+# mse
+            ax = axa[0,2]
+            mse = mean_prop['cloud'][:,iobj,nvars] / 1000.0
+            mse_bl = mean_prop['pre_cloud_bl'][:,iobj,nvars] / 1000.0
+            line = ax.plot(mse_bl[mbl], zbl[mbl])
+            ax.plot(mse[m1], z[m1], label='{}'.format(iobj), \
+                    color = line[0].get_color(), linewidth=4)
+# mse loss
+            ax = axa[1,2]
+            m2 = (mean_prop['cloud'][1:,iobj,npts_ptr] >10)
+            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz
+#           now = cloud + entr + entr_bot + detr ( + bl + above bl)
+#           pre = cloud_pre + entr_pre + entr_bot_pre + bl + above_bl
             
-            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m1]-0.5)*tr.deltaz 
-            entr_rate = n_new_cloud_points[m1] / \
-               ( n_cloud_points[m1] - n_new_cloud_points[m1] / 2.0) / \
-                (tr.times[1:][m1]-tr.times[0:-1][m1])
-                
-            ax.plot(entr_rate[entr_rate>0], z1[entr_rate>0], \
-                         linestyle='' ,marker='.', \
-                         label='{}'.format(iobj))
-
-            ax = axb[1,0]
-            n_cloud_points = mean_prop['cloud'][1:,iobj,nvars+4]
-            n_new_not_cloud_points = mean_prop['detr'][1:,iobj,nvars+4]
-            m1 = np.logical_and(n_cloud_points > 0 , n_new_not_cloud_points > 0 )
-            
-            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m1]-0.5)*tr.deltaz 
-            entr_rate = n_new_not_cloud_points[m1] / \
-               ( n_cloud_points[m1] + n_new_not_cloud_points[m1] / 2.0) / \
-                (tr.times[1:][m1]-tr.times[0:-1][m1])
-            ax.plot(entr_rate[entr_rate>0], z1[entr_rate>0], \
-                         linestyle='' ,marker='.', \
-                         label='{}'.format(iobj))
-
-            
-            ax = axb[1,1]
-            n_cloud_points = mean_prop['cloud'][1:,iobj,nvars+4]
-            n_new_cloud_points = mean_prop['entr_bot'][1:,iobj,nvars+4]
-            m1 = np.logical_and(n_cloud_points > 0 , n_new_cloud_points > 0 )
-            
-            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m1]-0.5)*tr.deltaz 
-            entr_rate = n_new_cloud_points[m1] / \
-               ( n_cloud_points[m1] - n_new_cloud_points[m1] / 2.0) / \
-                (tr.times[1:][m1]-tr.times[0:-1][m1])
-            ax.plot(entr_rate[entr_rate>0], z1[entr_rate>0], \
-                         linestyle='' ,marker='.', \
-                         label='{}'.format(iobj))
-
-            ax = axb[2,0]
-            mse = mean_prop['cloud'][:,iobj,nvars][m] / 1000.0
-            ax.plot(mse, z, label='{}'.format(iobj))
-
-            ax = axb[2,1]
-            m1 = (mean_prop['cloud'][1:,iobj,nvars+4] >0)
-            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m1]-0.5)*tr.deltaz
-            
-            mse_now  = mean_prop['cloud'][1:,iobj,nvars][m1] * \
-                       mean_prop['cloud'][1:,iobj,nvars+4][m1]
+            mse_now  = mean_prop['cloud'][1:,iobj,nvars][m2] * \
+                       mean_prop['cloud'][1:,iobj,npts_ptr][m2]
                        
-            mse_prev = mean_prop['cloud'][0:-1,iobj,nvars][m1] * \
-                       mean_prop['cloud'][0:-1,iobj,nvars+4][m1]
-                       
-            mse_entr = mean_prop['entr'][1:,iobj,nvars][m1] * \
-                       mean_prop['entr'][1:,iobj,nvars+4][m1] + \
-                       mean_prop['entr_bot'][1:,iobj,nvars][m1] * \
-                       mean_prop['entr_bot'][1:,iobj,nvars+4][m1]
-                       
-            mse_detr = mean_prop['detr'][1:,iobj,nvars][m1] * \
-                       mean_prop['detr'][1:,iobj,nvars+4][m1] 
-                       
-            mse_loss = mse_now + mse_detr - mse_entr - mse_prev  
+            if iobj == nplt : print('now',mse_now)
             
-            n_cloud_points = mean_prop['cloud'][1:,iobj,nvars+4][m1] + \
-                             mean_prop['detr'][1:,iobj,nvars+4][m1]
+            mse_entr = mean_prop['entr'][1:,iobj,nvars][m2] * \
+                       mean_prop['entr'][1:,iobj,npts_ptr][m2] 
+                       
+            if iobj == nplt : print('entr',mse_entr)
+            
+            mse_entr_bot = mean_prop['entr_bot'][1:,iobj,nvars][m2] * \
+                           mean_prop['entr_bot'][1:,iobj,npts_ptr][m2]
+                       
+            if iobj == nplt : print('entr_bot', mse_entr_bot)
+            
+            mse_detr = mean_prop['detr'][1:,iobj,nvars][m2] * \
+                       mean_prop['detr'][1:,iobj,npts_ptr][m2] - \
+                       mean_prop['detr'][:-1,iobj,nvars][m2] * \
+                       mean_prop['detr'][:-1,iobj,npts_ptr][m2]
+                       
+            if iobj == nplt : print('detr', mse_detr)
+            
+            mse_prev = mean_prop['cloud'][:-1,iobj,nvars][m2] * \
+                       mean_prop['cloud'][:-1,iobj,npts_ptr][m2] +\
+                       mean_prop['entr'][:-1,iobj,nvars][m2] * \
+                       mean_prop['entr'][:-1,iobj,npts_ptr][m2] + \
+                       mean_prop['entr_bot'][:-1,iobj,nvars][m2] * \
+                       mean_prop['entr_bot'][:-1,iobj,npts_ptr][m2]
+                       
+            if iobj == nplt : print('prev',mse_prev)
+                       
+            mse_entr_pre = mean_prop['pre_cloud_above_bl'][:-1,iobj,nvars][m2] * \
+                           mean_prop['pre_cloud_above_bl'][:-1,iobj,npts_ptr][m2]- \
+                           mean_prop['pre_cloud_above_bl'][1:,iobj,nvars][m2] * \
+                           mean_prop['pre_cloud_above_bl'][1:,iobj,npts_ptr][m2]
+                           
+            if iobj == nplt : print('entre_pre', mse_entr_pre)
+                           
+                                   
+            mse_entr_pre_bot = mean_prop['pre_cloud_bl'][:-1,iobj,nvars][m2] * \
+                               mean_prop['pre_cloud_bl'][:-1,iobj,npts_ptr][m2] - \
+                               mean_prop['pre_cloud_bl'][1:,iobj,nvars][m2] * \
+                               mean_prop['pre_cloud_bl'][1:,iobj,npts_ptr][m2]
+                               
+            if iobj == nplt : print('entr_bot_pre', mse_entr_pre_bot)
+            
+            mse_total_now = mse_now + mse_entr + mse_entr_bot + mse_detr
+            
+            if iobj == nplt : print('mse_total_now', mse_total_now)
+            
+            mse_total_pre = mse_prev + mse_entr_pre + mse_entr_pre_bot
+            
+            if iobj == nplt : print('mse_total_pre', mse_total_pre)
+                                                                          
+            mse_loss = mse_total_now - mse_total_pre 
+            
+            if iobj == nplt : print('loss', mse_loss)
+            
+            n_cloud_points = mean_prop['cloud'][1:,iobj,npts_ptr][m2] + \
+                             mean_prop['entr'][1:,iobj,npts_ptr][m2] + \
+                             mean_prop['entr_bot'][1:,iobj,npts_ptr][m2] + \
+                             mean_prop['detr'][1:,iobj,npts_ptr][m2] - \
+                             mean_prop['detr'][:-1,iobj,npts_ptr][m2]
                              
+#            print(len(m2),len(incloud[1:]))
+            m3 = np.logical_and(m2, incloud[1:])[m2]
+                              
             mse_loss = mse_loss / n_cloud_points / 1000.0
+            
             
 #            print("MSE budget ",iobj,n_cloud_points)
 #            print("MSE now ",mse_now/n_cloud_points/1000.0)
@@ -255,22 +332,99 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
 #            print("MSE entr ",mse_entr/n_cloud_points/1000.0)
 #            print("MSE prev ",mse_prev/n_cloud_points/1000.0)
             
-            ax.plot(mse_loss, z1, label='{}'.format(iobj))
+#            line = ax.plot(mse_loss, z1)
+            ax.plot(mse_loss[m3], z1[m3],\
+                    linewidth=4, \
+                    label='{}'.format(iobj))
+
+############################################################################
+# Cloud volume                      
+            ax = axb[0,0]
+            mass = mean_prop['cloud'][:,iobj,npts_ptr]*volume/1E9
+            line = ax.plot(mass[m], z[m])
+            ax.plot(mass[m1], z[m1], label='{}'.format(iobj), \
+                    color = line[0].get_color(), linewidth=4)
+# Detrainment rate
+            ax = axb[0,1]
+            n_cloud_points = mean_prop['cloud'][1:,iobj,npts_ptr]
+            n_new_not_cloud_points = mean_prop['detr'][1:,iobj,npts_ptr] - \
+                                     mean_prop['detr'][:-1,iobj,npts_ptr]
+            m2 = np.logical_and(n_cloud_points > 0 , n_new_not_cloud_points > 0 )
+            m2 = np.logical_and(m2, incloud[1:])
             
+            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz 
+            detr_rate = n_new_not_cloud_points[m2] / \
+               ( n_cloud_points[m2] + n_new_not_cloud_points[m2] / 2.0) / \
+                (tr.times[1:][m2]-tr.times[0:-1][m2])
+            ax.plot(detr_rate[detr_rate>0], z1[detr_rate>0], \
+                         linestyle='' ,marker='.', \
+                         label='{}'.format(iobj))
+
+
+# Entrainment rate (time)
+            ax = axb[1,0]
+            n_cloud_points = mean_prop['cloud'][1:,iobj,npts_ptr]
+            n_new_cloud_points = mean_prop['entr'][1:,iobj,npts_ptr] + \
+                                 mean_prop['entr_bot'][1:,iobj,npts_ptr]
+            m2 = np.logical_and(n_cloud_points > 0 , n_new_cloud_points > 0 )            
+            m2 = np.logical_and(m2, incloud[1:])
+                     
+            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz 
+            
+#            print(n_cloud_points[m2],n_new_cloud_points[m2], \
+#                  n_cloud_points[m2] - n_new_cloud_points[m2] / 2.0)
+#            print(tr.times[1:][m2]-tr.times[:-1][m2])
+            entr_rate = n_new_cloud_points[m2] / \
+               ( n_cloud_points[m2] + n_new_cloud_points[m2] / 2.0) / \
+                (tr.times[1:][m2]-tr.times[:-1][m2])
+                
+            ax.plot(entr_rate[entr_rate>0], z1[entr_rate>0], \
+                         linestyle='' ,marker='.', \
+                         label='{}'.format(iobj))
+            
+# Entrainment rate (space)
+            ax = axb[2,0]
+            entr_rate_z = entr_rate / mean_prop['cloud'][1:,iobj,tr.var('w')][m2]
+            ax.plot(entr_rate_z[entr_rate_z>0], z1[entr_rate_z>0], \
+                         linestyle='' ,marker='.', \
+                         label='{}'.format(iobj))
+            
+# Side Entrainment rate 
+            ax = axb[1,1]
+            n_cloud_points = mean_prop['cloud'][1:,iobj,npts_ptr]
+            n_new_cloud_points = mean_prop['entr'][1:,iobj,npts_ptr]
+            m2 = np.logical_and(n_cloud_points > 0 , n_new_cloud_points > 0 )
+            m2 = np.logical_and(m2, incloud[1:])
+            
+            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz 
+            entr_rate = n_new_cloud_points[m2] / \
+               ( n_cloud_points[m2] + n_new_cloud_points[m2] / 2.0) / \
+                (tr.times[1:][m2]-tr.times[0:-1][m2])
+            ax.plot(entr_rate[entr_rate>0], z1[entr_rate>0], \
+                         linestyle='' ,marker='.', \
+                         label='{}'.format(iobj))
+# Side Entrainment rate  (space)
+            ax = axb[2,1]
+            entr_rate_z = entr_rate / mean_prop['cloud'][1:,iobj,tr.var('w')][m2]
+            ax.plot(entr_rate_z[entr_rate_z>0], z1[entr_rate_z>0], \
+                         linestyle='' ,marker='.', \
+                         label='{}'.format(iobj))
+
+           
             obj_plotted +=1
             if ((obj_plotted % obj_per_plt) == 0) or \
                ( obj_plotted == np.size(select) ) :
                 new_fig = True
 
                 plt.figure(fig1.number)
-                plt.legend()
+                axa[0,0].legend()
                 plt.tight_layout()
                 plt.savefig(fn+\
                             '_Cloud_mean_traj_p1_{:02d}_v{:01d}.png'.\
                             format(figs, mean_prop['version']))
 
                 plt.figure(fig2.number)
-                plt.legend()
+                axb[0,0].legend()
                 plt.tight_layout()
                 plt.savefig(fn+\
                             '_Cloud_mean_traj_p2_{:02d}_v{:01d}.png'.\
@@ -335,7 +489,8 @@ def box_xyz(b):
     return x, y, z
 
 
-def plot_traj_animation(traj, save_anim=False, legend = False, select = None, \
+def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
+                        legend = False, select = None, \
                         galilean = None, plot_field = False, \
                         dir_override = None, \
                         title = None, \
@@ -358,7 +513,7 @@ def plot_traj_animation(traj, save_anim=False, legend = False, select = None, \
             ["NEW_CLOUD_FROM_SIDE","m"], \
             ["DETR_CLOUD","y"], \
             ])
-    elif version == 2 :
+    elif version == 2 or version == 3 :
         class_key = list([\
             ["Not set", "0.3"] , \
             ["PRE_CLOUD_ENTR_FROM_BL","r"], \
@@ -367,6 +522,7 @@ def plot_traj_animation(traj, save_anim=False, legend = False, select = None, \
             ["CLOUD","k"], \
             ["ENTRAINED_FROM_BL","c"], \
             ["ENTRAINED_FROM_ABOVE_BL","m"], \
+#            ["ENTR_PREVIOUS_CLOUD","0.8"], \
             ["DETR_CLOUD","y"], \
             ["SUBS_CLOUD","0.6"], \
             ])
@@ -548,21 +704,79 @@ def plot_traj_animation(traj, save_anim=False, legend = False, select = None, \
     # call the animator.  blit=True means only re-draw the parts that have changed.
     anim = animation.FuncAnimation(fig, animate, init_func=init,
                                    frames=ntraj, interval=1000./fps, blit=False)
-    if save_anim : anim.save('traj_anim.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
+    if save_anim : anim.save(anim_name+'.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
+    plt.show()
+    return
+
+def plot_traj_family_members(traj_family,selection_list, galilean = None, \
+                             with_boxes = False, asint = True, \
+                             no_cloud_size = 0.2, cloud_size = 2.0) :
+    fig = plt.figure(figsize=(10,6))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    for selection in selection_list :
+        iobj, ref, time = selection
+        abs_time = ref+time-80
+        tr_time = time
+        tr = traj_family.family[ref]
+        osel = (tr.labels == iobj)
+        timestep = tr.times[1]-tr.times[0]
+        x = tr.trajectory[tr_time,osel,0]
+        y = tr.trajectory[tr_time,osel,1]
+        z = tr.trajectory[tr_time,osel,2]
+        ax.set_zlim(0, tr.zcoord[-1])
+        if galilean is not None :
+            x, y = gal_trans(x, y,  galilean, abs_time, timestep, tr, ax)  
+
+#        print(np.min(x),np.max(x))                      
+#        print(np.min(y),np.max(y))                      
+#        print(np.min(z),np.max(z))                      
+
+        if asint :
+            x = (x + 0.5).astype(int)
+            y = (y + 0.5).astype(int)
+            z = (z + 0.5).astype(int)
+        qcl = tr.data[tr_time, osel, tr.var("q_cloud_liquid_mass")]
+        in_cl = (qcl > tr.thresh) 
+        not_in_cl = ~in_cl 
+        
+#        print(np.shape(x),np.shape(y),np.shape(y))
+#        print(np.shape(x[not_in_cl]),np.shape(y[not_in_cl]),np.shape(y[not_in_cl]))
+        
+        line, = ax.plot(x[not_in_cl], y[not_in_cl], linestyle='' ,marker='o', \
+                               markersize = no_cloud_size)
+        line.set_3d_properties(z[not_in_cl])
+        line_cl, = ax.plot(x[in_cl], y[in_cl], linestyle='' ,marker='o', \
+                               markersize = cloud_size, \
+                               color = line.get_color(),
+                               label='{}'.format(selection))
+        line_cl.set_3d_properties(z[in_cl])
+        if with_boxes :
+            b = tr.cloud_box[tr_time,iobj,:,:]
+            x, y, z = box_xyz(b)
+            if galilean is not None :
+                x, y = gal_trans(x, y, galilean, abs_time, timestep, tr, ax)                        
+
+            box, = ax.plot(x,y,color = line.get_color())
+            box.set_3d_properties(z)
+    plt.legend()
     plt.show()
     return
 
 def plot_traj_family_animation(traj_family, match_index, \
                         overlap_thresh = 0.02, \
-                        save_anim=False, legend = False, \
+                        save_anim=False,  anim_name='traj_anim', \
+                        legend = False, \
                         title = None, \
-                        select = None, \
+                        select = None,  super_obj = None, \
                         galilean = None, plot_field = False,
                         dir_override = None, \
                         no_cloud_size = 0.2, cloud_size = 2.0, \
                         field_size = 0.5, fps = 10, with_boxes = False) :
     
     traj = traj_family.family[-1]
+    ref = len(traj_family.family) - 1
     nobj = traj.nobjects
 #    print(traj)
     if match_index >= 0 :
@@ -583,19 +797,25 @@ def plot_traj_family_animation(traj_family, match_index, \
         else :
             ref_obj = select
         plot_linked = True
-        linked_objs = traj_family.find_linked_objects(select = ref_obj , \
-                                      overlap_thresh = overlap_thresh)
-#        print(linked_objs)
         max_t = 0
-#        for iobj in range(0,traj.nobjects):
-#            if np.isin(iobj,ref_obj) :
-        for obj in linked_objs :
-#                mobj_ptr=np.where(ref_obj == iobj)[0][0]
-#        for mo in linked_objs :
-            for t,o in obj :
-#                    print(iobj,t,o)
-                max_t = np.max([max_t,t])
+        if super_obj is None :
+            linked_objs = traj_family.find_linked_objects(ref=ref, \
+                                    select = ref_obj , \
+                                    overlap_thresh = overlap_thresh)
+#            print(linked_objs)
+            for obj in linked_objs :
+                for t,o,mint in obj :
+                    max_t = np.max([max_t,ref-t])
+        else :
+            linked_objs = list([])
+            for r in ref_obj :
+                for s in super_obj :
+                    if r in s[s[:,0]==ref,1] : 
+#                            print(s)
+                            linked_objs.append(s)
+                            max_t = np.max(ref-s[:,0])
         nframes = traj.ntimes+max_t+1
+#        print('linked_objs\n',linked_objs)
 #        print(max_t, nframes)
 #    print(match_traj)
 #    print("Match index {}".format(match_index))
@@ -637,8 +857,8 @@ def plot_traj_family_animation(traj_family, match_index, \
 #        if np.isin(iobj,select) :
 #        print("Adding {} to traj_list".format(iobj))
         traj_list.append((traj.trajectory[:,traj.labels == iobj,...], \
-                              traj.data[:,traj.labels == iobj,...], 
-                              traj.cloud_box[:,iobj,...]) )
+                                traj.data[:,traj.labels == iobj,...], 
+                           traj.cloud_box[:,iobj,...]) )
     
         match_list = list([])
 
@@ -652,17 +872,23 @@ def plot_traj_family_animation(traj_family, match_index, \
                 mobj_ptr=np.where(ref_obj == iobj)[0][0]
 #                print(mobj_ptr)
 #                input("Press enter")
-        
-                for match_obj in linked_objs[mobj_ptr] :
-#                    print("Linked object {}".format(match_obj))
-                    match_traj = traj_family.family[-(1+match_obj[0]+1)]
+                
+                linked_obj_list = linked_objs[mobj_ptr][1:,:]
+#                    if super_obj is not None :
+#                    linked_obj_list = linked_obj_list
+#                        print('Super')
+                for i in range(np.shape(linked_obj_list)[0]) :
+                    match_obj = linked_obj_list[i,:]
+#                        print("Linked object {}".format(match_obj))
+                    match_traj = traj_family.family[match_obj[0]]
+#                        print("Match traj", match_traj)
                     mobj = match_obj[1]
                     match_list.append((match_traj.trajectory\
-                          [:, match_traj.labels == mobj, ...], \
-                                           match_traj.data\
-                          [:, match_traj.labels == mobj, ...], \
-                                           match_traj.cloud_box \
-                          [:, mobj,...]) )
+                      [:, match_traj.labels == mobj, ...], \
+                                       match_traj.data\
+                      [:, match_traj.labels == mobj, ...], \
+                                       match_traj.cloud_box \
+                      [:, mobj,...]) )                    
                     
         else :
                 
@@ -689,7 +915,7 @@ def plot_traj_family_animation(traj_family, match_index, \
         match_traj_list_list.append(match_list)
             
         nplt += 1
-            
+#    print(len(match_traj_list_list[0]))
 #    print(match_traj_list_list)
 #    input("Press enter")
 
@@ -719,12 +945,13 @@ def plot_traj_family_animation(traj_family, match_index, \
     for iobj in select:
 #    for iobj in range(0,traj.nobjects):
 #        if np.isin(iobj,select) :
+        
         line, = ax.plot([], [], linestyle='' ,marker='o', \
                                markersize = no_cloud_size)
         line_cl, = ax.plot([], [], linestyle='' ,marker='o', \
                                markersize = cloud_size, \
                                color = line.get_color(),
-                               label='{}'.format(iobj))
+                               label='{}'.format([ref,iobj]))
         line_list.append([line,line_cl])
         if with_boxes :
             box, = ax.plot([],[],color = line.get_color())
@@ -740,8 +967,11 @@ def plot_traj_family_animation(traj_family, match_index, \
             if np.isin(iobj, ref_obj) :
                     
                 mobj_ptr=np.where(ref_obj == iobj)[0][0]
-                   
-                for match_obj in linked_objs[mobj_ptr] :
+                linked_obj_list = linked_objs[mobj_ptr][1:,:]
+                
+                for i in range(np.shape(linked_obj_list)[0]) :
+                    match_obj = linked_obj_list[i,:].copy()
+#                    print('{}'.format(match_obj))
                     line, = ax.plot([], [], linestyle='' ,marker='o', \
                                            markersize = no_cloud_size)
                     line_cl, = ax.plot([], [], linestyle='' ,marker='o', \
@@ -752,6 +982,7 @@ def plot_traj_family_animation(traj_family, match_index, \
                     if with_boxes :
                         box, = ax.plot([],[],color = line.get_color())
                         match_box_list.append(box)
+                    
         else :
                 
 #                print(match_objs[match_index-1][iobj])
@@ -784,6 +1015,7 @@ def plot_traj_family_animation(traj_family, match_index, \
     
 #    print(line_list)            
 #    print(match_line_list_list)
+#    print(len(match_line_list_list[0]))
 #    input("Press enter")
     
     # initialization function: plot the background of each frame
@@ -811,6 +1043,7 @@ def plot_traj_family_animation(traj_family, match_index, \
                     box.set_data([], [])
                 
             nplt +=1
+#            input("Press enter")
         return
     
     def set_line_data(tr, it, t_off, ln) :
@@ -858,7 +1091,6 @@ def plot_traj_family_animation(traj_family, match_index, \
     def animate(i):
         # i is frame no.
         # i == 0 at start of ref-match_index trajectories
-#        if plot_linked :
         j = i - max_t - 1
 #        else :
 #           j = i - match_index 
@@ -905,26 +1137,36 @@ def plot_traj_family_animation(traj_family, match_index, \
 #                input("Press enter")
               
             if plot_linked :
+                
                 if np.isin(iobj,ref_obj) :
-                    mobj_ptr=np.where(ref_obj == iobj)[0][0]
+                    
+                    mobj_ptr=np.where(ref_obj == iobj)[0][0] 
+                    
+                    linked_obj_list = linked_objs[mobj_ptr][1:,:]
+                                            
+#                        print(len(match_line_list_list[nplt]))
+#                        print(len(match_traj_list_list[nplt]))
+#                        print(len(linked_obj_list[:,0]))
                     for (match_line_list, m_traj, match_obj ) in \
                         zip(match_line_list_list[nplt], \
                             match_traj_list_list[nplt], \
-                            linked_objs[mobj_ptr]) :
-#                               input("Press enter")
-                        match_index = match_obj[0]+1
-                        set_line_data(m_traj, j, match_index, match_line_list)
-#                            input("Press enter")
+                            linked_obj_list[:,0]) :
+                        match_index = ref-match_obj
+#                            print("match_index",match_index)
+                        set_line_data(m_traj, j, match_index, \
+                                      match_line_list)
                                
                     if with_boxes :
-                        set_box_data(traj_list[nplt], j, 0, box_list[nplt])
+                        set_box_data(traj_list[nplt], j, 0, \
+                                     box_list[nplt])
                         for (box, m_traj, match_obj) in \
                             zip(match_box_list_list[nplt], \
                                 match_traj_list_list[nplt], \
-                                linked_objs[iobj]) :
+                                linked_obj_list[:,0]) :
         #                        print(box, m_traj)
-                            match_index = match_obj[0]+1
+                            match_index = ref-match_obj
                             set_box_data(m_traj, j, match_index, box)
+                            
             else :
                     
 #                    print(len(match_line_list_list[nplt]), \
@@ -934,7 +1176,6 @@ def plot_traj_family_animation(traj_family, match_index, \
                         match_traj_list_list[nplt]) :
 #                        print(m_traj)
 #                        print("Match line list", match_line_list)
-#                        input("Press enter")
     
                     set_line_data(m_traj, j, match_index, match_line_list)
 #                        input("Press enter")
@@ -946,7 +1187,7 @@ def plot_traj_family_animation(traj_family, match_index, \
     #                        print(box, m_traj)
                         set_box_data(m_traj, j, match_index, box)
                         
-                nplt +=1
+            nplt +=1
 #        plt.title('Time index {:03d}'.format(ntraj-j-1))
 
         return 
@@ -959,7 +1200,7 @@ def plot_traj_family_animation(traj_family, match_index, \
     # call the animator.  blit=True means only re-draw the parts that have changed.
     anim = animation.FuncAnimation(fig, animate, init_func=init,
                                    frames=nframes, interval=1000./fps, blit=False)
-    if save_anim : anim.save('traj_anim.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
+    if save_anim : anim.save(anim_name+'.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
     plt.show()
     return
 
