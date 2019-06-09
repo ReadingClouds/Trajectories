@@ -22,75 +22,6 @@ cyclic_xy = True
 #use_bilin = False
 use_bilin = True
 
-def file_key(file):
-    f1 = file.split('_')[-1]
-    f2 = f1.split('.')[0]
-    return float(f2)
-
-def find_time_in_files(files, ref_time, nodt = False) :
-    """
-        Function to find file containing data at required time.
-        Assumes file names are of form *_tt.0* where tt is model output time.
-        
-        Args : 
-            files     : ordered list of files
-            ref_time  : required time.
-            nodt      : if True do not look for next time to ge tdelta_t
-            
-        Returns :
-            ref_file  : Index of file containing required time in files.
-            it        : Index of time in dataset. 
-            delta_t   : Interval between data.
-            
-        @author: Peter Clark
-		
-    """
-    
-    file_times = np.zeros(len(files))
-    for i, file in enumerate(files) : file_times[i] = file_key(file)
-    ref_file = np.where(file_times >= ref_time)[0][0]
-#    print(files[ref_file])
-    dataset=Dataset(files[ref_file])
-    theta=dataset.variables["th"]
-#    print(theta)
-#    print(theta.dimensions[0])
-    times=dataset.variables[theta.dimensions[0]][...]
-#    print(times)
-    
-    if len(times) == 1 :
-        it = 0
-        if times[it] != ref_time :
-            print('Could not find time {} in file {}'.\
-                  format(ref_time,files[ref_file]))
-            dataset.close()
-            return None, ref_file, it, 0
-        else :
-#            print('Looking in next file')
-            if nodt :
-                delta_t = 0
-            else :
-                dataset_next=Dataset(files[ref_file+1])
-                theta=dataset.variables["th"]
-                times_next=dataset_next.variables[theta.dimensions[0]][...]
-    #            print(times_next)
-                delta_t = times_next[0] - times[0]
-                dataset_next.close()
-    else :
-        it = np.where(times == ref_time)[0]
-        if len(it) == 0 :
-            print('Could not find time {} in file {}'.\
-                  format(ref_time,files[ref_file]))
-            dataset.close()
-            return None, ref_file, it, 0
-        else :
-            it = it[0]
-            if it == (len(times)-1) :
-                delta_t = times[it] - times[it-1]
-            else :
-                delta_t = times[it+1] - times[it]
-    dataset.close()
-    return ref_file, it, delta_t.astype(int)
-
 class trajectory_family : 
     """
     Class defining a family of back trajectories.
@@ -102,7 +33,7 @@ class trajectory_family :
     """
 	
     def __init__(self, files, ref_prof_file, \
-                 first_ref_time, last_ref_time, \
+                 first_ref_file, last_ref_file, \
                  back_len, forward_len, \
                  deltax, deltay, deltaz, variable_list=None, \
                  thresh=1.0E-5) : 
@@ -115,10 +46,10 @@ class trajectory_family :
             files              : ordered list of files used to generate 
                                  trajectories
             ref_prof_file      : name of file containing reference profile.
-            first_ref_time     : Time of reference.
-            last_ref_time      : Time of reference.
-            back_len           : Time to go back from ref.
-            forward_len        : Time to go forward from ref.
+            first_ref_file     : Index of first file to use as reference.
+            last_ref_file      : Index of last file to use as reference.
+            back_len           : How many output timesteps to go back from ref.
+            forward_len        : How many output timesteps to go forward.
             deltax             : Model x grid spacing in m.
             deltay             : Model y grid spacing in m.
             deltaz             : Model z grid spacing in m. 
@@ -129,30 +60,14 @@ class trajectory_family :
         @author: Peter Clark
 			
         """
-
+		
         self.family = list([])
-        
-        first_ref_file, it, delta_t = find_time_in_files(files, \
-                                                    first_ref_time)
-        dataset=Dataset(files[first_ref_file])
-#        print(first_ref_file, it, delta_t)
-        if delta_t > 0.0 :                  
-            dataset.close()
-            print(\
-            'Starting trajectory family calculation at time {} in file {}'.\
-            format(first_ref_time,files[first_ref_file]))
-            print('Time step is {}'.format(delta_t))
-        else :
-            return
-        
-        for ref in np.arange(first_ref_time, last_ref_time+delta_t, delta_t):
-            print('Trajectories for reference time {}'.format(ref))
-            start_time = ref - back_len
-            end_time = ref + forward_len            
-            traj = trajectories(files, ref_prof_file, \
-                                start_time, ref, end_time, \
-                                deltax, deltay, deltaz, thresh=thresh, \
-                                variable_list=variable_list) 
+        for ref in range(first_ref_file, last_ref_file+1):
+            start_file = ref - back_len
+            end_file = ref + forward_len            
+            traj = trajectories(files, ref_prof_file, start_file, ref, end_file, \
+                        deltax, deltay, deltaz, thresh=thresh, \
+                        variable_list=variable_list) 
             self.family.append(traj)
 #            input("Press a key")
         return
@@ -208,13 +123,13 @@ class trajectory_family :
             matching_objects = list([])
 #            print('ref, t_off',ref, t_off)
             # Iterate backwards over all set times from ref to start. 
-            for it_back in range(0,traj.ref+1) :
+            for it_back in range(0,traj.ref_file+1) :
                 # Time to make comparison
-                ref_time = traj.ref-it_back
-                # Note match_traj.ref in general will equal traj.ref 
+                ref_time = traj.ref_file-it_back
+                # Note match_traj.ref_file in general will equal traj.ref_file 
                 # Time in match_traj that matches ref_time
                  #       so match_time = ref - it_back
-                match_time = match_traj.ref + (t_off + 1)- it_back 
+                match_time = match_traj.ref_file + (t_off + 1)- it_back 
 #                print("Matching at reference trajectory time {}".format(it_back))
                 matching_object_at_time = list([])
                 # Iterate over objects in ref.
@@ -315,7 +230,7 @@ class trajectory_family :
         for t_off, matching_objects in enumerate(mol) :
             match_list = list([])
 #            match_time = ref-(t_off+1)
-                # Note match_traj.ref in general will equal traj.ref 
+                # Note match_traj.ref_file in general will equal traj.ref_file 
                 # Time in match_traj that matches ref_time
                  #       so match_time = ref - it_back
             for i, iobj in enumerate(select) :
@@ -324,8 +239,8 @@ class trajectory_family :
                 interlist = list([])
                 for it_back in range(0, len(matching_objects)) :
                     match_traj = self.family[ref-(t_off+1)]
-                    ref_time = traj.ref-it_back
-                    match_time = match_traj.ref + (t_off + 1)- it_back 
+                    ref_time = traj.ref_file-it_back
+                    match_time = match_traj.ref_file + (t_off + 1)- it_back 
 #                    print('times',ref_time,match_time)
                     for obj in matching_objects[it_back][i] :
                         if np.size(obj) > 0 :
@@ -562,7 +477,7 @@ class trajectory_family :
         
         def extract_obj_as1Dint(fam, ref, time, obj) :
             traj = fam[ref]
-            tr_time = traj.ref-time
+            tr_time = traj.ref_file-time
 #            print("Time in {} is {}, {}".format(ref, tr_time, traj.times[tr_time]))
             obj_ptrs = (traj.labels == obj)
 #            print('extr',ref, time, tr_time)
@@ -578,8 +493,8 @@ class trajectory_family :
             return tr1D
 #        traj = self.family[ref]
 #        match_traj = self.family[ref-(t_off+1)]
-#        ref_time = traj.ref-it_back
-#        match_time = match_traj.ref + (t_off + 1)- it_back 
+#        ref_time = traj.ref_file-it_back
+#        match_time = match_traj.ref_file + (t_off + 1)- it_back 
     
         tr1D  = extract_obj_as1Dint(self.family, ref,           \
                                     time, obj)
@@ -613,9 +528,8 @@ class trajectories :
 	
     """
 
-    def __init__(self, files, ref_prof_file, start_time, ref, end_time, \
-                 deltax, deltay, deltaz,
-                 variable_list=None, \
+    def __init__(self, files, ref_prof_file, start_file_no, ref_file_no, \
+                 end_file_no, deltax, deltay, deltaz, variable_list=None, \
                  thresh=1.0E-5) : 
         """
         Create an instance of a set of trajectories with a given reference.
@@ -626,9 +540,8 @@ class trajectories :
             files              : ordered list of files used to generate 
                                  trajectories
             ref_prof_file      : name of file containing reference profile.
-            start_time         : Time for origin of back trajectories.
-            ref                : Reference time of trajectories.
-            end_time           : Time for end of forward trajectories.
+            start_file_no      : Index of file for origin of back trajectories.
+            end_file_no        : Index of file for end of forward trajectories.
             deltax             : Model x grid spacing in m.
             deltay             : Model y grid spacing in m.
             deltaz             : Model z grid spacing in m. 
@@ -656,15 +569,15 @@ class trajectories :
         self.pref = dataset_ref.variables['prefn'][-1,...]
         self.thref = dataset_ref.variables['thref'][-1,...]
         self.piref = (self.pref[:]/1.0E5)**(287.058/1005.0)
+
         self.data, trajectory, self.traj_error, self.times, self.labels, \
-        self.nobjects, self.xcoord, self.ycoord, self.zcoord, self.deltat, \
-        self.thresh = \
-        compute_trajectories(files, start_time, ref, end_time, \
+        self.nobjects, self.xcoord, self.ycoord, self.zcoord, self.thresh = \
+        compute_trajectories(files, start_file_no, ref_file_no, end_file_no, \
                              variable_list.keys(), self.thref, thresh=thresh) 
          
-        self.files = files
-        self.ref   = (ref-start_time)//self.deltat
-        self.end   = (end_time-start_time)//self.deltat
+        self.files = files[start_file_no:end_file_no+1]
+        self.ref_file = ref_file_no-start_file_no
+        self.end_file = end_file_no-start_file_no
         self.ntimes = np.shape(trajectory)[0]
         self.npoints = np.shape(trajectory)[1]
         self.deltax = deltax
@@ -683,7 +596,7 @@ class trajectories :
          == np.max(self.data_mean[:,:,self.var("q_cloud_liquid_mass")],\
                    axis=0))
         when_max_qcl = np.where(max_qcl)
-        self.max_at_ref = when_max_qcl[1][when_max_qcl[0] == self.ref]
+        self.max_at_ref = when_max_qcl[1][when_max_qcl[0] == self.ref_file]
         return
         
     def var(self, v) :
@@ -770,14 +683,16 @@ class trajectories :
         # Number of points
         r4 = nvars+4
         
-        if version == 1 :
+        if version < 3 :
+            mean_cloud_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
+            mean_entr_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
+            mean_entr_bot_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
+            mean_detr_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
+            mean_bl_prop = np.zeros([self.ntimes, self.nobjects, total_nvars])
+        elif version == 3 :
             n_class = 9
-            mean_prop = np.zeros([self.ntimes, self.nobjects, total_nvars, \
-                                  n_class+1])
-        else :
-            print("Illegal Version")
-            return 
-                    
+            mean_prop = np.zeros([self.ntimes, self.nobjects, total_nvars, 10])
+        
         traj_class = np.zeros_like(self.data[:,:,0], dtype=int)
         
         min_cloud_base = np.zeros(self.nobjects)
@@ -804,6 +719,14 @@ class trajectories :
             return prop
         
         if version == 1 :
+            PRE_CLOUD_IN_BL = 1
+            PRE_CLOUD_ABOVE_BL = 2
+            IN_CLOUD_AT_START = 3
+            FIRST_CLOUD = 4
+            NEW_CLOUD_FROM_BOTTOM = 5
+            NEW_CLOUD_FROM_SIDE = 6
+            DETR_CLOUD = 7        
+        elif version == 2 or version == 3:
             PRE_CLOUD_ENTR_FROM_BL = 1
             PRE_CLOUD_ENTR_FROM_ABOVE_BL = 2
             PREVIOUS_CLOUD = 3
@@ -837,10 +760,410 @@ class trajectories :
             if debug_mean : print('Version ',version)
 
             if version == 1 :
+                bl = ((tr[0,:,2]-0.5)*self.deltaz < min_cloud_base[iobj])
+                class_set = where_obj_ptrs[np.where(bl)[0]]
+                traj_class[:, class_set] = PRE_CLOUD_IN_BL 
+                
+                class_set = where_obj_ptrs[np.where(~bl)[0]]
+                traj_class[:, class_set] = PRE_CLOUD_ABOVE_BL 
+                
+                after_cloud_formed = False        
+                after_cloud_dissipated = False  
+                
+                for it in range(self.ntimes) :
+                    if debug_mean : print("it = {}".format(it))
+                    cloud_bottom = self.cloud_box[it, iobj, 0, 2] 
+                    cloud = mask[it,:]
+                    where_cloud = np.where(cloud)[0]
+                    
+                    if debug_mean : print('it', it, np.shape(where_cloud))
+                    if debug_mean : print(qcl[it,mask[it,:]])
+                    if debug_mean : print('Mean cloud properties at this level.')
+                    
+                    if np.size(where_cloud) > 0 :
+        
+        # Compute mean properties of cloudy points at this time.            
+                        mean_cloud_prop = set_props(mean_cloud_prop, it, iobj, \
+                                                cloud, where_cloud)
+    
+                        if debug_mean : print(mean_cloud_prop[it, iobj, :])
+        
+        # Set traj_class flag for those points in cloud at this time.              
+                        class_set = where_obj_ptrs[np.where(cloud)[0]]
+                        
+    #                    print("Shape class_set ",np.shape(class_set))
+                        
+                        if it == 0 :
+        #                    print("Setting in cloud at start for iobj={0} at time it={1}".format(iobj,it))
+                            traj_class[it:, class_set] = IN_CLOUD_AT_START
+                            first_cloud_base[iobj] = \
+                              (np.min(tr[it,cloud,2])-0.5)*self.deltaz
+                            if debug_mean : print('Cloud base',first_cloud_base[iobj])
+    #                        input("Press Enter to continue...")
+                        else : # it > 0
+                    
+    #                        input("Press Enter to continue...")
+        # Detect first points to be in cloud.                
+                            if not after_cloud_formed :
+        #                        print("Setting first cloud for iobj={0} at time it={1}".format(iobj,it))
+                                first_cloud_base[iobj] = \
+                                  (np.min(tr[it,cloud,2])-0.5)*self.deltaz
+                                if debug_mean : print('Cloud base',\
+                                                      first_cloud_base[iobj])
+                                
+                                traj_class[it:, class_set] = FIRST_CLOUD
+    #                            input("Press Enter to continue...")
+                            else : # above cloud base
+        
+        # Find new cloudy points                    
+                                new_cloud = np.logical_and(cloud, \
+                                                np.logical_not(mask[it-1,:]) )
+        #                    if debug_mean : print(new_cloud)
+                                if debug_mean : 
+                                    print(qcl[it-1,new_cloud],qcl[it,new_cloud])
+                                    
+                                where_newcloud = np.where(new_cloud)[0]
+                                if np.size(where_newcloud) > 0 : # Entrainment
+                                    if debug_mean : print('Entraining air')
+                                    
+                                    mean_entr_prop = set_props(mean_entr_prop, \
+                                                it, iobj, new_cloud, \
+                                                where_newcloud)
+                                    
+                                    class_set = where_obj_ptrs[where_newcloud] 
+    #                                print("Shape class_set ", np.shape(class_set))
+                                    from_bl = (traj_class[it, class_set] == \
+                                               PRE_CLOUD_IN_BL)
+    #                                print("Shape from_bl",np.shape(from_bl))
+                                    from_above_bl = (traj_class[it, class_set] == \
+                                                     PRE_CLOUD_ABOVE_BL)
+                                    traj_class[it:, class_set[from_bl]] = \
+                                        NEW_CLOUD_FROM_BOTTOM 
+                                    traj_class[it:, class_set[from_above_bl]] = \
+                                        NEW_CLOUD_FROM_SIDE
+    #                                input("Press Enter to continue...") 
+                                    
+        # Find points that have ceased to be cloudy                     
+                                detr_cloud =np.logical_and(np.logical_not(cloud), \
+                                                       mask[it-1,:])
+        #                       if debug_mean : print(detr_cloud)
+                                if debug_mean : 
+                                    print(qcl[it-1,detr_cloud],qcl[it,detr_cloud])
+                                    
+                                where_detrained = np.where(detr_cloud)[0]
+                                if np.size(where_detrained) > 0 : # Detrainment
+                                    if debug_mean : print('Detraining air')
+                                    
+                                    mean_detr_prop = set_props(mean_detr_prop, \
+                                                it, iobj, detr_cloud, \
+                                                where_detrained)
+                                      
+                                    class_set = where_obj_ptrs[where_detrained] 
+                                    traj_class[it:, class_set] = DETR_CLOUD 
+    #                            input("Press Enter to continue...")             
+                        after_cloud_formed = True
+                    else : # No cloud at this time
+                        if after_cloud_formed and not after_cloud_dissipated :
+        # At cloud top.
+        #                    print('At cloud top it={}'.format(it))
+                            cloud_top[iobj] = (np.max(tr[it-1,mask[it-1,:],2])-0.5) \
+                                                *self.deltaz
+                            if debug_mean : print('Cloud top',cloud_top[iobj])
+                            
+                            detr_cloud = mask[it-1,:]
+                            
+                            where_detrained = np.where(detr_cloud)[0]
+        # Should not need to test if any points
+        #                    if np.size(where_detrained) > 0 : # Detrainment
+                            if debug_mean : print('Detraining remaining air')
+                            mean_detr_prop = set_props(mean_detr_prop, \
+                                                it, iobj, detr_cloud, \
+                                                where_detrained)
+    
+                            class_set = where_obj_ptrs[where_detrained] 
+        #                    traj_class[it:, class_set] = DETR_CLOUD 
+                            after_cloud_dissipated = True
+    #                        input("Press Enter to continue...")
+            elif version == 2 :
                 
                 in_main_cloud = True
                 
-                for it in range(self.ref,-1,-1) :
+                for it in range(self.ref_file,-1,-1) :
+                    if debug_mean : print("it = {}".format(it))
+
+                    cloud_bottom = self.cloud_box[it, iobj, 0, 2]
+                    
+                    cloud = mask[it,:]
+                    where_cloud = np.where(cloud)[0]
+                    
+                    not_cloud = np.logical_not(cloud)
+                    where_not_cloud = np.where(not_cloud)[0]
+#                    if it == self.ref_file :
+#                        print(np.size(cloud),np.size(where_cloud))
+#                        print(np.size(not_cloud),np.size(where_not_cloud))
+                    
+                    if debug_mean : 
+                        print('it', it, np.shape(where_cloud))
+                        print(qcl[it,mask[it,:]])
+                    
+                    if np.size(where_cloud) > 0 :  
+                        # There are cloudy points
+                        # Compute mean properties of cloudy points.            
+                        mean_cloud_prop = set_props(mean_cloud_prop, it, iobj,\
+                                                    cloud, where_cloud)    
+                        if debug_mean : 
+#                        if True :
+                            print('Mean cloud properties at this level.')
+                            print(mean_cloud_prop[it, iobj, :])    
+                            
+                        # Find new cloudy points  
+                        if it > 0 :
+                            new_cloud = np.logical_and(cloud, \
+                                                np.logical_not(mask[it-1,:]) )
+                            where_newcloud = np.where(new_cloud)[0]
+                            not_new_cloud = np.logical_and(cloud, mask[it-1,:])
+                            where_not_newcloud = np.where(not_new_cloud)[0]
+#                            print(np.size(where_newcloud),np.size(where_not_newcloud))
+                            if debug_mean :
+                                print(new_cloud)
+                                print(qcl[it-1,new_cloud],qcl[it,new_cloud])
+                        else :
+                            where_newcloud = np.array([])
+#                            not_newcloud = cloud
+                            where_not_newcloud = where_cloud
+                            
+                        if np.size(where_newcloud) > 0 : # Entrainment
+                            if debug_mean : print('Entraining air')
+                            
+                            newcl_from_bl = np.logical_and( \
+                                              new_cloud,\
+                                              obj_z[0, :] < \
+                                              min_cloud_base[iobj])  
+                            where_newcl_from_bl = np.where(newcl_from_bl)[0]
+                            
+                            newcl_from_above_bl = np.logical_and( \
+                                                    new_cloud,\
+                                                    obj_z[0, :] >= \
+                                                    min_cloud_base[iobj])  
+                            where_newcl_from_above_bl = np.where( \
+                                                        newcl_from_above_bl)[0]
+
+                            class_set_from_bl = where_obj_ptrs[ \
+                                              where_newcl_from_bl]
+                            traj_class[0:it, class_set_from_bl] = \
+                                        PRE_CLOUD_ENTR_FROM_BL 
+                            traj_class[it, class_set_from_bl] = \
+                                        ENTR_FROM_BL 
+                            class_set_from_above_bl = where_obj_ptrs[ \
+                                                    where_newcl_from_above_bl]
+                            traj_class[0:it, class_set_from_above_bl] = \
+                                        PRE_CLOUD_ENTR_FROM_ABOVE_BL
+                            traj_class[it, class_set_from_above_bl] = \
+                                        ENTR_FROM_ABOVE_BL
+
+                            if debug_mean : 
+                                print("From BL",class_set_from_bl)
+                                print("From above BL",class_set_from_above_bl)
+                                input("Press Enter to continue...")
+                            if np.size(where_newcl_from_bl) > 0 :
+                                mean_entr_bot_prop = set_props( \
+                                        mean_entr_bot_prop, \
+                                        it, iobj, newcl_from_bl, \
+                                        where_newcl_from_bl)
+                            
+                            if np.size(where_newcl_from_above_bl) > 0 :
+                                mean_entr_prop = set_props( \
+                                        mean_entr_prop, \
+                                        it, iobj, newcl_from_above_bl, \
+                                        where_newcl_from_above_bl)
+
+                            
+                        # Set traj_class flag for those points in cloud.              
+                        if np.size(where_not_newcloud) > 0 : # Entrainment
+                            if debug_mean : print("Setting Cloud",it,np.size(where_not_newcloud))
+                            class_set = where_obj_ptrs[where_not_newcloud]
+                        
+                            if in_main_cloud :
+                                # Still in cloud contiguous with reference time.
+                                traj_class[it:, class_set] = CLOUD
+                            else :
+                                # Must be cloud points that were present before.
+                                traj_class[it:, class_set] = PREVIOUS_CLOUD
+                    else :
+                        if in_main_cloud : cloud_trigger_time[iobj] = it
+                        in_main_cloud = False
+                        
+                    # Now what about entraining air?
+                    if np.size(where_not_cloud) > 0 : 
+                        
+                        if it == self.ref_file :
+                            print("Problem - reference not all cloud",iobj)
+                        
+                        # Find point that will be cloud at next step.
+                        
+#                        new_cloud = np.logical_and(not_cloud, mask[it+1,:] )
+#                        where_newcloud = np.where(new_cloud)[0]
+                        
+                        if debug_mean : 
+                            print(qcl[it,new_cloud],qcl[it+1,new_cloud])
+                            
+#                        if np.size(where_newcloud) > 0 : # Entrainment
+                            
+                                    
+                        # Find points that have ceased to be cloudy     
+                        if it > 0 :
+                            detr_cloud =np.logical_and(not_cloud, mask[it-1,:])
+                            where_detrained = np.where(detr_cloud)[0]
+                            if debug_mean : 
+                                print(detr_cloud)
+                                print(qcl[it-1,detr_cloud],qcl[it,detr_cloud])
+                                    
+                            if np.size(where_detrained) > 0 : # Detrainment
+                                if debug_mean : print('Detraining air')
+                                    
+                                mean_detr_prop = set_props(mean_detr_prop, \
+                                                it, iobj, detr_cloud, \
+                                                where_detrained)
+                                      
+                                class_set = where_obj_ptrs[where_detrained] 
+                                traj_class[it, class_set] = DETR_CLOUD 
+                                if debug_mean : 
+                                    input("Press Enter to continue...")     
+                                    
+                in_main_cloud = True
+                after_cloud_dissipated = False  
+
+                for it in range(self.ref_file+1,self.end_file+1) :
+                    if debug_mean : print("it = {}".format(it))
+                    cloud_bottom = self.cloud_box[it, iobj, 0, 2]
+                    
+                    cloud = mask[it,:]
+                    where_cloud = np.where(cloud)[0]
+                    
+                    not_cloud = np.logical_not(cloud)
+                    where_not_cloud = np.where(not_cloud)[0]
+                    
+                    if debug_mean : 
+                        print('it', it, np.shape(where_cloud))
+                        print(qcl[it,mask[it,:]])
+                    
+                    if np.size(where_cloud) > 0 :  
+                        # There are cloudy points
+                        # Compute mean properties of cloudy points.            
+                        mean_cloud_prop = set_props(mean_cloud_prop, it, iobj,\
+                                                    cloud, where_cloud)    
+                        if debug_mean : 
+                            print('Mean cloud properties at this level.')
+                            print(mean_cloud_prop[it, iobj, :])    
+                        # Find new cloudy points  
+                        new_cloud = np.logical_and(cloud, \
+                                            np.logical_not(mask[it-1,:]) )
+                        where_newcloud = np.where(new_cloud)[0]
+                        not_new_cloud = np.logical_and(cloud, mask[it-1,:])
+                        where_not_newcloud = np.where(not_new_cloud)[0]
+#                            print(np.size(where_newcloud),np.size(where_not_newcloud))
+                        if debug_mean :
+                            print(new_cloud)
+                            print(qcl[it-1,new_cloud],qcl[it,new_cloud])
+                            
+                        if np.size(where_newcloud) > 0 : # Entrainment
+                            if debug_mean : print('Entraining air')
+                            
+                            newcl_from_bl = np.logical_and( \
+                                              new_cloud,\
+                                              obj_z[0, :] < \
+                                              min_cloud_base[iobj])  
+                            where_newcl_from_bl = np.where(newcl_from_bl)[0]
+                            newcl_from_above_bl = np.logical_and( \
+                                                    new_cloud,\
+                                                    obj_z[0, :] >= \
+                                                    min_cloud_base[iobj])  
+                            where_newcl_from_above_bl = np.where( \
+                                                        newcl_from_above_bl)[0]
+
+                            class_set_from_bl = where_obj_ptrs[where_newcl_from_bl]
+                            traj_class[it-1, class_set_from_bl] = \
+                                        PRE_CLOUD_ENTR_FROM_BL 
+                            traj_class[it, class_set_from_bl] = \
+                                        ENTR_FROM_BL 
+                            class_set_from_above_bl = where_obj_ptrs[where_newcl_from_above_bl]
+                            traj_class[it-1, class_set_from_above_bl] = \
+                                        PRE_CLOUD_ENTR_FROM_ABOVE_BL
+                            traj_class[it, class_set_from_above_bl] = \
+                                        ENTR_FROM_ABOVE_BL
+
+                            if debug_mean : 
+                                print("From BL",class_set_from_bl)
+                                print("From above BL",class_set_from_above_bl)
+                                input("Press Enter to continue...") 
+                            if np.size(where_newcl_from_bl) > 0 :
+                                mean_entr_bot_prop = set_props( \
+                                        mean_entr_bot_prop, \
+                                        it, iobj, newcl_from_bl, \
+                                        where_newcl_from_bl)
+                            
+                            if np.size(where_newcl_from_above_bl) > 0 :
+                                mean_entr_prop = set_props( \
+                                        mean_entr_prop, \
+                                        it, iobj, newcl_from_above_bl, \
+                                        where_newcl_from_above_bl)
+
+                            
+                        # Set traj_class flag for those points in cloud.              
+                        if np.size(where_not_newcloud) > 0 : # Entrainment
+                            if debug_mean : print("Setting Cloud",it,np.size(where_not_newcloud))
+                            class_set = where_obj_ptrs[where_not_newcloud]
+                        
+                            if in_main_cloud :
+                                # Still in cloud contiguous with reference time.
+                                traj_class[it:, class_set] = CLOUD
+                            else :
+                                # Must be cloud points that were present before.
+                                traj_class[it:, class_set] = SUBSEQUENT_CLOUD                           
+                        # Set traj_class flag for those points in cloud.              
+#                        class_set = where_obj_ptrs[where_cloud]
+#                        
+#                        if in_main_cloud :
+#                            # Still in cloud contiguous with reference time.
+#                            traj_class[it:, class_set] = CLOUD
+#                        else :
+#                            # Must be cloud points that were present before.
+#                            traj_class[it:, class_set] =
+                    else :
+                        if in_main_cloud and not after_cloud_dissipated :
+                            # At cloud top.
+                            cloud_dissipate_time[iobj] = it
+                            cloud_top[iobj] = (np.max(tr[it-1,mask[it-1,:],2])-0.5) \
+                                                *self.deltaz
+                        in_main_cloud = False
+                        after_cloud_dissipated = True                    
+                    # Now what about detraining and detraining air?
+                    if np.size(where_not_cloud) > 0 : 
+                        # Find points that have ceased to be cloudy                     
+                        detr_cloud =np.logical_and(not_cloud, mask[it-1,:])
+                        
+                        if debug_mean : 
+                            print(detr_cloud)
+                            print(qcl[it-1,detr_cloud],qcl[it,detr_cloud])
+                                    
+                        where_detrained = np.where(detr_cloud)[0]
+                        if np.size(where_detrained) > 0 : # Detrainment
+                            if debug_mean : print('Detraining air')
+                                
+                            mean_detr_prop = set_props(mean_detr_prop, \
+                                            it, iobj, detr_cloud, \
+                                            where_detrained)
+                                  
+                            class_set = where_obj_ptrs[where_detrained] 
+                            traj_class[it:, class_set] = DETR_CLOUD 
+                        
+                        # Find point that will be cloud at next step.
+                        
+            elif version == 3 :
+                
+                in_main_cloud = True
+                
+                for it in range(self.ref_file,-1,-1) :
                     if debug_mean : print("it = {}".format(it))
 
                     cloud_bottom = self.cloud_box[it, iobj, 0, 2]
@@ -856,7 +1179,12 @@ class trajectories :
                         print(qcl[it,mask[it,:]])
                     
                     if np.size(where_cloud) > 0 :  
-                        # There are cloudy points                            
+                        # There are cloudy points
+                        if debug_mean : 
+#                        if True :
+                            print('Mean cloud properties at this level.')
+                            print(mean_cloud_prop[it, iobj, :])    
+                            
                         # Find new cloudy points  
                         if it > 0 :
                             new_cloud = np.logical_and(cloud, \
@@ -929,7 +1257,7 @@ class trajectories :
                     # Now what about entraining air?
                     if np.size(where_not_cloud) > 0 : 
                         
-                        if it == self.ref :
+                        if it == self.ref_file :
                             print("Problem - reference not all cloud",iobj)
                         
                         # Find point that will be cloud at next step.
@@ -956,7 +1284,7 @@ class trajectories :
                 in_main_cloud = True
                 after_cloud_dissipated = False  
 
-                for it in range(self.ref+1,self.end+1) :
+                for it in range(self.ref_file+1,self.end_file+1) :
                     if debug_mean : print("it = {}".format(it))
                     cloud_bottom = self.cloud_box[it, iobj, 0, 2]
                     
@@ -972,6 +1300,9 @@ class trajectories :
                     
                     if np.size(where_cloud) > 0 :  
                         # There are cloudy points
+                        if debug_mean : 
+                            print('Mean cloud properties at this level.')
+                            print(mean_cloud_prop[it, iobj, :])    
                         # Find new cloudy points  
                         new_cloud = np.logical_and(cloud, \
                                             np.logical_not(mask[it-1,:]) )
@@ -1048,7 +1379,7 @@ class trajectories :
 
 #                obj_ptrs = (self.labels == iobj)
 #                where_obj_ptrs = np.where(obj_ptrs)[0]
-                for it in range(0, self.end+1) :
+                for it in range(0, self.end_file+1) :
                     for iclass in range(0,n_class) :
                         
                         trcl = traj_class[it, obj_ptrs]
@@ -1059,6 +1390,8 @@ class trajectories :
                         if np.size(where_mask) > 0 :
                             mean_prop[it, iobj, r1, iclass] = \
                                 np.sum(data[it, lmask, :], axis=0)  
+                            msem = mse[it, lmask]                        
+#                            print(np.shape(msem), np.max(msem), np.min(msem))
                             mean_prop[it, iobj, r2, iclass] = \
                                 np.sum(mse[it, lmask], axis=0)    
                             mean_prop[it, iobj, r3, iclass] = \
@@ -1070,7 +1403,40 @@ class trajectories :
                 print("Illegal Version")
                 return 
             
-        if version == 1 :
+        if version < 3 :
+            m = (mean_cloud_prop[:,:,r4]>0)    
+            for ii in range(nvars+4) : 
+                mean_cloud_prop[:,:,ii][m] = mean_cloud_prop[:,:,ii][m] \
+                  /mean_cloud_prop[:,:,r4][m]
+                  
+            m = (mean_entr_prop[:,:,r4]>0)    
+            for ii in range(nvars+4) : 
+                mean_entr_prop[:,:,ii][m] = mean_entr_prop[:,:,ii][m] \
+                  /mean_entr_prop[:,:,r4][m]
+                  
+            m = (mean_entr_bot_prop[:,:,r4]>0)    
+            for ii in range(nvars+4) : 
+                mean_entr_bot_prop[:,:,ii][m] = mean_entr_bot_prop[:,:,ii][m] \
+                  /mean_entr_bot_prop[:,:,r4][m]
+                  
+            m = (mean_detr_prop[:,:,r4]>0)    
+            for ii in range(nvars+4) : 
+                mean_detr_prop[:,:,ii][m] = mean_detr_prop[:,:,ii][m] \
+                  /mean_detr_prop[:,:,r4][m]
+                  
+            mean_properties = {"cloud":mean_cloud_prop, \
+                               "entr":mean_entr_prop, \
+                               "entr_bot":mean_entr_bot_prop, \
+                               "detr":mean_detr_prop, \
+                               "class":traj_class, \
+                               "first cloud base": first_cloud_base, \
+                               "min cloud base":min_cloud_base, \
+                               "cloud top":cloud_top, \
+                               "cloud_trigger_time":cloud_trigger_time, \
+                               "cloud_dissipate_time":cloud_dissipate_time, \
+                               "version":version, \
+                               }
+        elif version == 3:
             
             nplt = 72
             for it in range(np.shape(mean_prop)[0]) :
@@ -1122,8 +1488,8 @@ class trajectories :
         return mean_properties
                       
     def __str__(self):
-        rep = "Trajectories centred on reference Time : {}\n".\
-        format(self.times[self.ref])
+        rep = "Trajectories centred on {0}\n".format(self.files[self.ref_file])
+        rep += "Reference Time : {}\n".format(self.times[self.ref_file])
         rep += "Times : {}\n".format(self.ntimes)
         rep += "Points : {}\n".format(self.npoints)
         rep += "Objects : {}\n".format(self.nobjects)
@@ -1131,7 +1497,7 @@ class trajectories :
            
     def __repr__(self):
         rep = "Trajectory Reference time: {0}, Times:{1}, Points:{2}, Objects:{3}\n".format(\
-          self.times[self.ref],self.ntimes,self.npoints, self.nobjects)
+          self.times[self.ref_file],self.ntimes,self.npoints, self.nobjects)
         return rep
 
 def get_sup_obj(sup, t, o) :
@@ -1146,107 +1512,26 @@ def get_sup_obj(sup, t, o) :
                 slist.append(s)
     return slist
     
-def compute_trajectories(files, start_time, ref_time, end_time, \
+def compute_trajectories(files, start_file, ref_file, end_file, \
                          variable_list, thref, thresh=1.0E-5) :
-    """
-    Function to compute forward and back trajectories plus associated data.
-		
     
-    Args : 
-        files      : Ordered list of netcdf files containing 3D MONC output.
-        start_time : Time corresponding to end of back trajectory.
-        ref_time   : Time at which reference objects (clouds) are defined.
-        end_time   : Time corresponding to end of forward trajectory.
-        variable_list: List of variables to interpolate to trajectory points.
-        thref      : theta_ref profile.
-        thresh=1.0E-5 : Cloud liquid water threshold for clouds.
-                      
-    Returns :	
-        data_val   : Array [nt, m, n] where nt is total number of times, 
-                     m the number of trajectory points at a gievn time and
-                     n is the number of variables in variable_list.
-        trajectory : Array [nt, m, 3] where the last index gives x,y,z 
-        traj_error : Array [nt, m, 3] with estimated error in trajectory.
-        traj_times : Array [nt] with times corresponding to trajectory.
-        labels     : Array [m] labelling points with labels 0 to nobjects-1. 
-        nobjects   : Number of objects (clouds).
-        xcoord     : xcoordinate of model space.
-        ycoord     : ycoordinate of model space.
-        zcoord     : zcoordinate of model space.
-        thresh     : Cloud liquid water threshold for clouds.
-			
-    @author: Peter Clark
-		
-    """
-    
-    print('Computing trajectories from {} to {} with reference {}.'.\
-          format(start_time, end_time, ref_time))
-    
-    ref_file_number, ref_time_index, delta_t = find_time_in_files(\
-                                                        files, ref_time)
-    dataset=Dataset(files[ref_file_number])
-    theta = dataset.variables["th"]
-    ref_times = dataset.variables[theta.dimensions[0]][...]
-    print('Starting in file {} at time {}.'.\
-          format(files[ref_file_number], ref_times[ ref_time_index] ))
-    file_number = ref_file_number
-    time_index = ref_time_index
-    times = ref_times
-#    print(time_index)
-#    input("Press enter")
     trajectory, data_val, traj_error, traj_times, labels, nobjects, \
       xcoord, ycoord, zcoord, thresh \
-      = trajectory_init(dataset, time_index, variable_list, thref, \
+      = back_trajectory_init(files[ref_file], variable_list, thref, \
                              thresh=thresh)
-#    input("Press enter")
-    
-    while (traj_times[0] > start_time) and (file_number >= 0) :
-        time_index -= 1
-        if time_index >= 0 :
-            print('Time index: {}'.format(time_index))
-            trajectory, data_val, traj_error, traj_times = \
-                back_trajectory_step(dataset, time_index, variable_list, \
-                               trajectory, data_val, traj_error, traj_times, \
+      
+    for ifile in range(ref_file-1,start_file-1,-1) :
+        print('File {}'.format(ifile))
+        trajectory, data_val, traj_error, traj_times = \
+          back_trajectory_step(files[ifile], variable_list, trajectory, \
+                               data_val, traj_error, traj_times, \
                                xcoord, ycoord, zcoord, thref)
-        else :
-            file_number -= 1
-            if file_number < 0 :
-                print('Ran out of data.')
-            else :                
-                dataset.close()
-                print('File {}'.format(file_number))
-                dataset = Dataset(files[file_number])
-                theta = dataset.variables["th"]
-                times = dataset.variables[theta.dimensions[0]][...]
-                time_index = len(times)
-    dataset.close()
-
-# Back to reference time for forward trajectories.
-    file_number = ref_file_number
-    time_index = ref_time_index
-    times = ref_times
-    dataset = Dataset(files[ref_file_number])
-         
-    while (traj_times[-1] < end_time) and (file_number >= 0) :
-        time_index += 1
-        if time_index < len(times) :
-            print('Time index: {}'.format(time_index))
-            trajectory, data_val, traj_error, traj_times = \
-                forward_trajectory_step(dataset, time_index, variable_list, \
-                               trajectory, data_val,  traj_error, traj_times, \
+    for ifile in range(ref_file+1,end_file+1) :
+        print('File {}'.format(ifile))
+        trajectory, data_val, traj_error, traj_times = \
+          forward_trajectory_step(files[ifile], variable_list, trajectory, \
+                               data_val,  traj_error, traj_times, \
                                xcoord, ycoord, zcoord, thref)
-        else :
-            file_number += 1
-            if file_number == len(files) :
-                print('Ran out of data.')
-            else :                
-                dataset.close()
-                print('File {}'.format(file_number))
-                dataset = Dataset(files[file_number])
-                theta = dataset.variables["th"]
-                times = dataset.variables[theta.dimensions[0]][...]
-                time_index = -1
-    dataset.close()
           
     print('data_val: {} {} {}'.format( len(data_val), len(data_val[0]), \
           np.size(data_val[0][0]) ) )
@@ -1271,14 +1556,13 @@ def compute_trajectories(files, start_time, ref_time, end_time, \
     traj_times = np.reshape(np.vstack(traj_times),-1)
     
     return data_val, trajectory, traj_error, traj_times, labels, nobjects, \
-      xcoord, ycoord, zcoord, delta_t, thresh
+      xcoord, ycoord, zcoord, thresh
 
 def whichbox(xvec, x ) :
     '''
     Find the (vector of) indices ix such that, for each x, 
     xvec[ix]<=x<xvec[ix+1]
     '''
-    
     ix = np.searchsorted(xvec, x, side='left')-1    
     ix[ix > (len(xvec)-1)] = len(xvec)-1
     ix[ix < 0] = 0
@@ -1291,7 +1575,6 @@ def tri_lin_interp(data, pos, xcoord, ycoord, zcoord) :
     data is a list of 3D arrays [xcoord. ycoord, zcoord]
     return list of 1D array of values of data interpolated to x,y,z.
     '''
-    
     nx = len(xcoord)
     ny = len(ycoord)
     nz = len(zcoord)
@@ -1328,22 +1611,6 @@ def tri_lin_interp(data, pos, xcoord, ycoord, zcoord) :
     return output
 
 def value_at_reset_time(data, traj_pos, xcoord, ycoord, zcoord):
-    """
-        Function to interpolate data to traj_pos.
-		
-        
-        Args : 
-            data      : list of data array.
-            traj_pos  : array[n,3] of n 3D positions.
-            xcoord, ycoord, zcoord: 1D arrays giving coordinate spaces of data.
-                          
-        Returns :	
-            output    : list of arrays containing interpolated data.
-			
-        @author: Peter Clark
-		
-    """
-    
     if use_bilin :
         output = tri_lin_interp(data, traj_pos, xcoord, ycoord, zcoord )
     else:
@@ -1356,162 +1623,85 @@ def value_at_reset_time(data, traj_pos, xcoord, ycoord, zcoord):
             output.append(out)
     return output
     
-def load_traj_step_data(dataset, it, variable_list, thref) :
-    """
-        Function to read trajectory variables and additional data from file 
-        for interpolation to trajectory.
-        
-        Args : 
-            dataset        : netcdf file handle.
-            it             : time index in netcdf file.
-            variable_list  : List of variable names.
-            thref          : Array with reference theta profile.
-                          
-        Returns :	
-            output    : list of arrays containing interpolated data.
-			
-        @author: Peter Clark
-		
-    """
+def load_traj_step_data(file, variable_list, thref) :
+    dataset = Dataset(file)  
     
     if cyclic_xy :
-        xr = dataset.variables['CA_xrtraj'][it,...]
-        xi = dataset.variables['CA_xitraj'][it,...]
+        xr = dataset.variables['CA_xrtraj'][0,...]
+        xi = dataset.variables['CA_xitraj'][0,...]
 
-        yr = dataset.variables['CA_yrtraj'][it,...]
-        yi = dataset.variables['CA_yitraj'][it,...]
+        yr = dataset.variables['CA_yrtraj'][0,...]
+        yi = dataset.variables['CA_yitraj'][0,...]
     
-        zpos = dataset.variables['CA_ztraj'][it,...]
+        zpos = dataset.variables['CA_ztraj'][0,...]
         data_list = [xr, xi, yr, yi, zpos]      
         
     else :
-        # Non-cyclic option may well not work anymore!
-        xpos = dataset.variables['CA_xtraj'][it,...]
-        ypos = dataset.variables['CA_ytraj'][it,...]
-        zpos = dataset.variables['CA_ztraj'][it,...]  
+        xpos = dataset.variables['CA_xtraj'][0,...]
+        ypos = dataset.variables['CA_ytraj'][0,...]
+        zpos = dataset.variables['CA_ztraj'][0,...]  
         data_list = [xpos, ypos, zpos]
+#    print np.min(zpos),np.max(zpos)
         
     for variable in variable_list :
 #        print 'Reading ', variable
         data = dataset.variables[variable]
         if variable == "q_cloud_liquid_mass" :
             times  = dataset.variables[data.dimensions[0]]
-        data = data[it,...]
+        data = data[0,...]
         if variable == 'th' :
             data = data+thref[...]
 
         data_list.append(data)   
         
-    return data_list, times[it]  
+    return data_list, times  
     
 def phase(vr, vi, n) :
-    """
-        Function to convert real and imaginary points to location on grid 
-        size n.
-        
-        Args : 
-            vr, vi  : real and imaginary parts of complex location.
-            n       : grid size
-                          
-        Returns :	
-            vpos    : real position in [0,n)
-			
-        @author: Peter Clark
-		
-    """
-    
     vr = np.asarray(vr)       
     vi = np.asarray(vi)       
     vpos = np.asarray(((np.arctan2(vi,vr))/(2.0*np.pi)) * n )
-    vpos[vpos<0] += n
+    vpos[vpos<0] = vpos[vpos<0] + n
     return vpos
     
-def back_trajectory_step(dataset, time_index, variable_list, trajectory, \
-                         data_val, traj_error, traj_times, xcoord, ycoord, \
-                         zcoord, thref) :
-    """
-        Function to execute backward timestep of set of trajectories.
-        
-        Args : 
-            dataset        : netcdf file handle.
-            time_index     : time index in netcdf file.
-            variable_list  : list of variable names.
-            trajectory     : trajectories so far. trajectory[0] is position 
-                             of earliest point.
-            data_val       : associated data so far.
-            traj_error     : estimated trajectory errors to far. 
-            traj_times     : trajectory times so far.
-            xcoord, ycoord, zcoord: 1D arrays giving coordinate spaces of data.
-            thref : array with reference theta profile.
-                          
-        Returns :	
-            trajectory, data_val, traj_error, traj_times : Inputs updated to
-            new location.
-			
-        @author: Peter Clark
-		
-    """
-        
-    data_list, time =load_traj_step_data(dataset, time_index, variable_list, \
-                                          thref)
-    print("Processing data at time {}".format(time))
+def back_trajectory_step(file, variable_list, trajectory, data_val, \
+                         traj_error, traj_times, xcoord, ycoord, \
+                         zcoord, thref):
+    data_list, times =load_traj_step_data(file, variable_list, thref)
+    print("Processing file {} at time {}".format(file,times[0]))
     traj_pos = trajectory[0]
 #    print "traj_pos ", np.shape(traj_pos), traj_pos[:,0:5]
     out = value_at_reset_time(data_list, traj_pos, xcoord, ycoord, zcoord)
 #    print np.shape(out)
     if cyclic_xy :
         n_pvar = 5
+    else:
+        n_pvar = 3
+    if cyclic_xy :
         (nx, ny, nz) = np.shape(data_list[0])
         xpos = phase(out[0],out[1],nx)
         ypos = phase(out[2],out[3],ny)     
         traj_pos = np.array([xpos,ypos,out[4]]).T
     else :
-        n_pvar = 3
         traj_pos = np.array([out[0],out[1],out[2]]).T
 
     data_val.insert(0, np.vstack(out[n_pvar:]).T)       
     trajectory.insert(0, traj_pos)  
     traj_error.insert(0, np.zeros_like(traj_pos))
-    traj_times.insert(0, time)
+    traj_times.insert(0, times[0])
 
     return trajectory, data_val, traj_error, traj_times
     
-def forward_trajectory_step(dataset, time_index, variable_list, trajectory, \
-                            data_val, traj_error, traj_times, xcoord, ycoord, \
+def forward_trajectory_step(file, variable_list, trajectory, data_val, \
+                            traj_error, traj_times, xcoord, ycoord, \
                             zcoord, thref):    
-    """
-        Function to execute forward timestep of set of trajectories.
-        
-        Args : 
-            dataset        : netcdf file handle.
-            time_index     : time index in netcdf file.
-            variable_list  : list of variable names.
-            trajectory     : trajectories so far. trajectory[-1] is position 
-                             of latest point.
-            data_val       : associated data so far.
-            traj_error     : estimated trajectory errors to far. 
-            traj_times     : trajectory times so far.
-            xcoord, ycoord, zcoord: 1D arrays giving coordinate spaces of data.
-            thref : array with reference theta profile.
-                          
-        Returns :	
-            trajectory, data_val, traj_error, traj_times : Inputs updated to
-            new location.
-			
-        @author: Peter Clark
-		
-    """
-    
     if cyclic_xy :
         n_pvar = 5
     else:
         n_pvar = 3
-        
-    data_list, time =load_traj_step_data(dataset, time_index, variable_list, \
-                                          thref)
-    print("Processing data at time {}".format(time))
+    data_list, times = load_traj_step_data(file, variable_list, thref)
     
     (nx, ny, nz) = np.shape(data_list[0])
+    print("Processing file {} at time {}".format(file,times[0]))
     traj_pos = trajectory[-1]
     traj_pos_next_est = 2*trajectory[0]-trajectory[1]
   
@@ -1707,27 +1897,12 @@ def forward_trajectory_step(dataset, time_index, variable_list, trajectory, \
     data_val.append(np.vstack(out[n_pvar:]).T)       
     trajectory.append(traj_pos_next_est) 
     traj_error.append(diff)
-    traj_times.append(time)
+    traj_times.append(times[0])
 #    print 'trajectory:',len(trajectory[:-1]), len(trajectory[0]), np.size(trajectory[0][0])
 #    print 'traj_error:',len(traj_error[:-1]), len(traj_error[0]), np.size(traj_error[0][0])
     return trajectory, data_val, traj_error, traj_times
        
 def label_3D_cyclic(mask) :
-    """
-        Function to label 3D objects taking account of cyclic boundary 
-        in x and y. Uses ndimage(label) as primary engine.
-        
-        Args : 
-            mask : 3D logical array with object mask (i.e. objects are 
-            contiguous True).                          
-        Returns :	
-            labs  : Integer array[nx,ny,nz] of labels. -1 denotes unlabelled.                   
-            nobjs : number of distinct objects. Labels range from 0 to nobjs-1.
-			
-        @author: Peter Clark
-		
-    """
-    
 #    print np.shape(mask)        
     (nx, ny, nz) = np.shape(mask)
     labels, nobjects = ndimage.label(mask)
@@ -1811,30 +1986,9 @@ def label_3D_cyclic(mask) :
        
     return labels, nobjects
 
-def trajectory_init(dataset, it, variable_list, thref, thresh = 0.00001) :
-    """
-        Function to set up origin of back and forward trajectories.
-        
-        Args : 
-            dataset        : Netcdf file handle.
-            it             : Index of required time in file.     
-            variable_list  : List of variable names.
-            thref          : array with reference theta profile.
-        Returns :	
-            dataset        : current netcdf file handle
-            trajectory     : position of origin point.
-            data_val       : associated data so far.
-            traj_error     : estimated trajectory errors so far. 
-            traj_times     : trajectory times so far.
-            xcoord, ycoord, zcoord: 1D arrays giving coordinate spaces of data.
-            thresh     : Cloud liquid water threshold for clouds.
-      
-        @author: Peter Clark
-		
-    """
-    
-    data_list, time = load_traj_step_data(dataset, it, variable_list, thref)
-    print("Starting at time {}".format(time))
+def back_trajectory_init(file, variable_list, thref, thresh = 0.00001) :
+    data_list, times =load_traj_step_data(file, variable_list, thref)
+    print("Starting at file {} at time {}".format(file,times[0]))
 
 #    print data_list
     xcoord = np.arange(np.shape(data_list[-1])[0],dtype='float')
@@ -1903,33 +2057,15 @@ def trajectory_init(dataset, it, variable_list, thref, thresh = 0.00001) :
     traj_error = list([np.zeros_like(traj_pos)])
     trajectory.insert(0,traj_pos_new)
     traj_error.insert(0,np.zeros_like(traj_pos_new))
-    traj_times = list([time])
+    traj_times = list([times[0]])
 #    print 'init'
 #    print 'trajectory:',len(trajectory[:-1]), len(trajectory[0]), np.size(trajectory[0][0])
 #    print 'traj_error:',len(traj_error[:-1]), len(traj_error[0]), np.size(traj_error[0][0])
     
-    return trajectory, data_val, traj_error, traj_times, labels, \
-      nobjects, xcoord, ycoord, zcoord, thresh
+    return trajectory, data_val, traj_error, traj_times, labels, nobjects, \
+      xcoord, ycoord, zcoord, thresh
 
 def unsplit_object( pos, nx, ny ) :
-    """
-        Function to gather together points in object separated by cyclic 
-        boundaries. For example, if an object spans the 0/nx boundary, so some 
-        points are close to zero, some close to nx, they will be adjusted to 
-        either go from negative to positive, close to 0, or less than nx to 
-        greater than. The algorithm tries to group on the larges initial set.
-        Uses sklearn.cluster.KMeans as main engine.
-        
-        Args : 
-            pos      : grid positions of points in object.
-            nx, ny   : number of grid points in x and y directions.
-        Returns :	
-            pos      : adjusted grid positions of points in object.
-      
-        @author: Peter Clark
-		
-    """
-    
     global debug_unsplit
     if debug_unsplit : print('pos:', pos)
     n_clust = np.min([4,np.shape(pos)[0]])
@@ -1975,22 +2111,6 @@ def unsplit_object( pos, nx, ny ) :
     return pos
     
 def unsplit_objects(trajectory, labels, nobjects, nx, ny) :
-    """
-        Function to unsplit a set of objects at a set of times using 
-        unsplit_object on each.
-        
-        Args : 
-            trajectory     : Array[nt, np, 3] of trajectory points, with nt 
-                             times and np points.
-            labels         : labels of trajectory points.
-            nx, ny   : number of grid points in x and y directions.
-        Returns :	
-            trajectory     : Trajectory array with modified positions.
-      
-        @author: Peter Clark
-		
-    """
-    
     global debug_unsplit
 #    print np.shape(trajectory)
     print('Unsplitting Objects:')
@@ -2015,25 +2135,6 @@ def unsplit_objects(trajectory, labels, nobjects, nx, ny) :
     return trajectory
     
 def compute_traj_boxes(traj) :
-    """
-        Function to compute two rectangular boxes containing all and cloudy 
-        points for each trajectory object and time, plus soem associaetd data.
-        
-        Args : 
-            traj : trajectory object.
-            
-        Returns :	
-            data_mean     : mean of points (for each data variable) in cloud. 
-            num_cloud     : number of cloudy points.
-            traj_centroid : centroid of cloudy box.
-            traj_box      : box coordinates of each trajectory set.
-            cloud_box     : box coordinates for cloudy points in each 
-                            trajectory set.
-      
-        @author: Peter Clark
-		
-    """
-    
 #    print('Boxes', traj)
 #    print(np.shape(traj.trajectory))
 #    print(traj.nobjects)
@@ -2068,17 +2169,6 @@ def compute_traj_boxes(traj) :
    
     
 def print_boxes(traj) : 
-    """
-        Function to print information provided by compute_traj_boxes stored 
-        as attributes of traj.
-        
-        Args : 
-            traj : trajectory object.
-            
-        @author: Peter Clark
-		
-    """
-    
     varns = list(traj.variable_list)
     for iobj in range(traj.nobjects) :
         print('Object {:03d}'.format(iobj))
@@ -2094,20 +2184,6 @@ def print_boxes(traj) :
     return 
 
 def box_overlap_with_wrap(b_test, b_set, nx, ny) :
-    """
-        Function to compute whether rectangular boxes intersect.
-        
-        Args : 
-            b_test : box for testing array[8,3]
-            b_set  : set of boxes array[n,8,3]
-            
-        Returns :
-            indices of overlapping boxes
-            
-        @author: Peter Clark
-		
-    """
-    
     # Wrap not yet implemented
     
     t1 = np.logical_and( \

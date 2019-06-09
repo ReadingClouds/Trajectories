@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 #from netCDF4 import num2date, date2num
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import animation
-
+from trajectory_compute import file_key
 L_vap = 2.501E6
 Cp = 1005.0
 L_over_cp = L_vap / Cp
@@ -501,19 +501,20 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
 
     ntraj = traj.ntimes
     nobj = traj.nobjects
+    if dir_override is None :
+        files = traj.files
+    else :
+        files = list([])
+        for file in traj.files :
+            filename = os.path.basename(file).split('\\')[-1] 
+            files.append(dir_override+filename)
+    file_times = np.zeros(len(files))
+    for i, file in enumerate(files) : file_times[i] = file_key(file)
+
+#                print(filename)
+#    print(files)
     if select is None : select = np.arange(0, nobj)
     if version == 1 :
-        class_key = list([\
-            ["Not set", "0.3"] , \
-            ["PRE_CLOUD_IN_BL","r"], \
-            ["PRE_CLOUD_ABOVE_BL","g"], \
-            ["IN_CLOUD_AT_START","b"], \
-            ["FIRST_CLOUD","k"], \
-            ["NEW_CLOUD_FROM_BOTTOM","c"], \
-            ["NEW_CLOUD_FROM_SIDE","m"], \
-            ["DETR_CLOUD","y"], \
-            ])
-    elif version == 2 or version == 3 :
         class_key = list([\
             ["Not set", "0.3"] , \
             ["PRE_CLOUD_ENTR_FROM_BL","r"], \
@@ -522,7 +523,6 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
             ["CLOUD","k"], \
             ["ENTRAINED_FROM_BL","c"], \
             ["ENTRAINED_FROM_ABOVE_BL","m"], \
-#            ["ENTR_PREVIOUS_CLOUD","0.8"], \
             ["DETR_CLOUD","y"], \
             ["SUBS_CLOUD","0.6"], \
             ])
@@ -630,14 +630,20 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
         j = i 
     #    print 'Frame %d Time %d'%(i,j)
         if plot_field :
-            if dir_override is None :
-                dataset = Dataset(traj.files[j])
-            else :
-                filename = os.path.basename(traj.files[j]).split('\\')[-1] 
-#                print(filename)
-                dataset = Dataset(dir_override+filename)
+#            print('Plotting {}'.format(traj.times[j]))
+            file_number = np.where(file_times >= traj.times[j])[0][0]
+#            print(files[file_number])
+            dataset=Dataset(files[file_number])
             qcl_field = dataset.variables["q_cloud_liquid_mass"]
-            in_cl = (qcl_field[0,...] > traj.thresh)
+            qcl_times = dataset.variables[qcl_field.dimensions[0]][...]
+#            print(qcl_times)
+            if len(qcl_times) == 1 :
+                it = 0
+            else :
+                it = np.where(qcl_times == traj.times[j])[0][0]
+#            print(file_number,it)
+            in_cl = (qcl_field[it,...] > traj.thresh)
+            dataset.close()
             x = xg[in_cl]
             y = yg[in_cl]
             z = zg[in_cl]
@@ -778,6 +784,13 @@ def plot_traj_family_animation(traj_family, match_index, \
     traj = traj_family.family[-1]
     ref = len(traj_family.family) - 1
     nobj = traj.nobjects
+    if dir_override is None :
+        files = traj.files
+    else :
+        files = list([])
+        for file in traj.files :
+            filename = os.path.basename(file).split('\\')[-1] 
+            files.append(filename)
 #    print(traj)
     if match_index >= 0 :
         
@@ -1099,17 +1112,15 @@ def plot_traj_family_animation(traj_family, match_index, \
 #        print("Frame {0} {1}".format(i,j))
 #        input("Press enter")
         if plot_field :
+
             if j >= 0 :
-                filename = match_traj.files[j]
-            else :                
-                filename = match_traj.files[i]
-            if dir_override is not None :
-                filename = os.path.basename(filename).split('\\')[-1] 
-#                print(filename)
-                filename = dir_override + filename
-            dataset = Dataset(filename)    
+                dataset, file_number, it, delta_t = find_time_in_files(\
+                                                    files, traj.times[j])
+#                filename = match_traj.files[j]
+#            else :                
+#                filename = match_traj.files[i]
             qcl_field = dataset.variables["q_cloud_liquid_mass"]
-            in_cl = (qcl_field[0,...] > traj.thresh)
+            in_cl = (qcl_field[it,...] > traj.thresh)
             x = xg[in_cl]
             y = yg[in_cl]
             z = zg[in_cl]
