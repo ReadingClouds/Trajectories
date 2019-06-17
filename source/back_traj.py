@@ -51,8 +51,7 @@ def main():
                  'quartic', \
                  'quintic', \
                  ] 
-    #interp_order = 5
-    #interp_order = 3
+
     interp_order = 1
     iorder = '_'+order_labs[interp_order-1]
     fn = os.path.basename(files[0])[:-3]
@@ -83,7 +82,7 @@ def main():
         
     traj_list = tfm.family
     
-    tfm.print_matching_object_list()
+#    tfm.print_matching_object_list()
     tfm.print_matching_object_list_summary(overlap_thresh=0.1)
     
     tfm.print_linked_objects(overlap_thresh=0.1)
@@ -153,8 +152,8 @@ def main():
     if True :
         mean_prop = traj_m.cloud_properties(version = 1)
     
-        print(mean_prop2['cloud_trigger_time'])
-        print(mean_prop2['cloud_dissipate_time'])
+        print(mean_prop['cloud_trigger_time'])
+        print(mean_prop['cloud_dissipate_time'])
 
     if True :
         cloud_lifetime = mean_prop['cloud_dissipate_time'] - \
