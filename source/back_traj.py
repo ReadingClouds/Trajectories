@@ -22,7 +22,7 @@ def main():
         dt = 60
         first_ref_time = 50*dt
     #    first_ref_time = 89*dt
-    #   f irst_ref_file = 88
+    #    first_ref_file = 88
         last_ref_time =  90*dt
         tr_back_len = 40*dt
         tr_forward_len = 30*dt
@@ -36,8 +36,9 @@ def main():
         tr_forward_len = 15*dt
         ref = 20
     
-    get_traj = False
-    #get_traj = True
+#   Set to True to calculate trajectory family,False to read pre-calculated from pickle file.
+    #get_traj = False
+    get_traj = True
 
     debug_unsplit = False
     debug_label = False  
