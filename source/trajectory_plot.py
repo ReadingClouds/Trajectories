@@ -7,14 +7,32 @@ import matplotlib.pyplot as plt
 #from netCDF4 import num2date, date2num
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import animation
-
+from trajectory_compute import file_key
 L_vap = 2.501E6
 Cp = 1005.0
 L_over_cp = L_vap / Cp
 grav = 9.81
 
 def plot_trajectory_history(tr, select_obj, fn) :
+    """
+	Function to plot variables history of all trajectories in an object.
     
+	Args: 
+		tr                   : trajectory set object.
+		select_obj (integer) : ID of object to plot.
+		fn                   : root file name for save figures.
+    
+	Returns:
+		Nothing
+        
+        Plots:
+            "w","th","q_vapour","q_cloud_liquid_mass","theta_L","q_t" plus 3D
+            history of cloudy points.
+        	
+	@author: Peter Clark
+	
+    """
+
     mask = (tr.labels == select_obj)
     
     fig, axa = plt.subplots(3,2,figsize=(8,10))
@@ -57,15 +75,12 @@ def plot_trajectory_history(tr, select_obj, fn) :
     ax.set_xlabel(r"$q_t$ kg/kg",fontsize=16)
     ax.set_ylabel(r"$z$ m",fontsize=16)
     ax.set_title('Cloud %2.2d'%select_obj)
-    
-    #
+
     plt.tight_layout()
     plt.savefig(fn+'_Cloud_traj_%3.3d'%select_obj+'.png')
     
     fig1 = plt.figure(figsize=(10,6))
-#    fig1.clf
 
-    
     ax1 = fig1.add_subplot(111, projection='3d')
     
     ax1.set_xlim(tr.xcoord[0]-10, tr.xcoord[-1]+10)
@@ -83,13 +98,41 @@ def plot_trajectory_history(tr, select_obj, fn) :
     return
         
 def plot_trajectory_mean_history(tr, mean_prop, fn, \
-                                 select = None, obj_per_plt = 10) :  
+                                 select=None, obj_per_plt=10) :  
+    """
+	Function to plot variables mean history of cloudy points.
+    
+	Args: 
+		tr                   : trajectory set object.
+		mean_prop (dict)     : Mean properties provided by tr.mean_properties().
+		fn                   : root file name for save figures.
+		select (integer)     : ID of object to plot. Default plots all objects.
+		obj_per_plt(integer) : Number of objects to plot before starting new frame.
+    
+	Returns:
+		Nothing
+        
+        Plots:
+            "w","th","q_vapour","q_cloud_liquid_mass","theta_L","q_t","mse" 
+            plus mse loss and various entrainment and detrainment parameters.
+        	
+	@author: Peter Clark
+	
+    """
+    
     nvars = np.shape(tr.data)[2]
-    npts_ptr = nvars+4
-
+    z_ptr = nvars+3 # Index of variable in mean_prop which is height
+    npts_ptr = nvars+4 # Index of variable in mean_prop which is 
+                       # number of points averaged over
     nobj = np.shape(mean_prop['cloud'])[1]
-    if select is None : select = np.arange(0,nobj)    
+    
+    # Default is plot all objects.
+    if select is None : select = np.arange(0,nobj)  
+    
+    # True heights.
     zn = (np.arange(0,np.size(tr.piref))-0.5)*tr.deltaz
+    
+    # Start plotting!
     new_fig = True
     obj_plotted = 0
     iobj = 0
@@ -185,16 +228,12 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
                 print(mean_prop["cloud_trigger_time"][iobj])
                 print(mean_prop["cloud_dissipate_time"][iobj])
                 print(m1)
-#            print(len(incloud))
-#            print(incloud)
-#            m = np.logical_or((mean_prop['cloud'][:,iobj,npts_ptr] > 0), \
-#                            (mean_prop['previous_cloud'][:,iobj,npts_ptr] > 0))
-#            print(len(m))
-            z = (mean_prop['cloud'][:,iobj,nvars+3]-0.5)*tr.deltaz
+
+            z = (mean_prop['cloud'][:,iobj,z_ptr]-0.5)*tr.deltaz
             
             mbl = (mean_prop['pre_cloud_bl'][:,iobj,npts_ptr] > 0)
             mbl = np.logical_and(mbl, precloud)
-            zbl = (mean_prop['pre_cloud_bl'][:,iobj,nvars+3]-0.5)*tr.deltaz
+            zbl = (mean_prop['pre_cloud_bl'][:,iobj,z_ptr]-0.5)*tr.deltaz
             mbl = np.logical_and(mbl, zbl<= mean_prop["min cloud base"][iobj])
             
             if iobj == nplt :
@@ -224,8 +263,7 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
               L_over_cp * \
               mean_prop['pre_cloud_bl'][:,iobj,tr.var("q_cloud_liquid_mass")] \
               / piref_z
-              
-              
+                           
     #        print thl, data[:,var("th"),i],data[:,var("q_vapour"),i]
             line = ax.plot(thl_bl[mbl],zbl[mbl])
             ax.plot(thl[m1],z[m1], label='{}'.format(iobj), \
@@ -241,7 +279,6 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             line = ax.plot( qt_bl[mbl],zbl[mbl])
             ax.plot( qt[m1],z[m1], label='{}'.format(iobj), \
                     color = line[0].get_color(), linewidth=4)
-
 # mse
             ax = axa[0,2]
             mse = mean_prop['cloud'][:,iobj,nvars] / 1000.0
@@ -252,7 +289,7 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
 # mse loss
             ax = axa[1,2]
             m2 = (mean_prop['cloud'][1:,iobj,npts_ptr] >10)
-            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz
+            z1 = (mean_prop['cloud'][1:,iobj,z_ptr][m2]-0.5)*tr.deltaz
 #           now = cloud + entr + entr_bot + detr ( + bl + above bl)
 #           pre = cloud_pre + entr_pre + entr_bot_pre + bl + above_bl
             
@@ -325,13 +362,6 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
                               
             mse_loss = mse_loss / n_cloud_points / 1000.0
             
-            
-#            print("MSE budget ",iobj,n_cloud_points)
-#            print("MSE now ",mse_now/n_cloud_points/1000.0)
-#            print("MSE detr ",mse_detr/n_cloud_points/1000.0)
-#            print("MSE entr ",mse_entr/n_cloud_points/1000.0)
-#            print("MSE prev ",mse_prev/n_cloud_points/1000.0)
-            
 #            line = ax.plot(mse_loss, z1)
             ax.plot(mse_loss[m3], z1[m3],\
                     linewidth=4, \
@@ -352,14 +382,13 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             m2 = np.logical_and(n_cloud_points > 0 , n_new_not_cloud_points > 0 )
             m2 = np.logical_and(m2, incloud[1:])
             
-            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz 
+            z1 = (mean_prop['cloud'][1:,iobj,z_ptr][m2]-0.5)*tr.deltaz 
             detr_rate = n_new_not_cloud_points[m2] / \
                ( n_cloud_points[m2] + n_new_not_cloud_points[m2] / 2.0) / \
                 (tr.times[1:][m2]-tr.times[0:-1][m2])
             ax.plot(detr_rate[detr_rate>0], z1[detr_rate>0], \
                          linestyle='' ,marker='.', \
                          label='{}'.format(iobj))
-
 
 # Entrainment rate (time)
             ax = axb[1,0]
@@ -369,7 +398,7 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             m2 = np.logical_and(n_cloud_points > 0 , n_new_cloud_points > 0 )            
             m2 = np.logical_and(m2, incloud[1:])
                      
-            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz 
+            z1 = (mean_prop['cloud'][1:,iobj,z_ptr][m2]-0.5)*tr.deltaz 
             
 #            print(n_cloud_points[m2],n_new_cloud_points[m2], \
 #                  n_cloud_points[m2] - n_new_cloud_points[m2] / 2.0)
@@ -396,7 +425,7 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             m2 = np.logical_and(n_cloud_points > 0 , n_new_cloud_points > 0 )
             m2 = np.logical_and(m2, incloud[1:])
             
-            z1 = (mean_prop['cloud'][1:,iobj,nvars+3][m2]-0.5)*tr.deltaz 
+            z1 = (mean_prop['cloud'][1:,iobj,z_ptr][m2]-0.5)*tr.deltaz 
             entr_rate = n_new_cloud_points[m2] / \
                ( n_cloud_points[m2] + n_new_cloud_points[m2] / 2.0) / \
                 (tr.times[1:][m2]-tr.times[0:-1][m2])
@@ -438,6 +467,22 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
     return
    
 def plot_traj_pos(traj, index, fn, save=False) :
+    """
+	Function to plot a single 3D plot of a set of trajectories at a given time.
+    
+    Args: 
+        traj                 : trajectory set object.
+        index (integer)      : Time index.
+        fn                   : Root file name for save figures.
+        save (bool)          : Save figure.
+    
+    Returns:
+        Nothing
+    
+    @author: Peter Clark
+	
+    """
+
     # First set up the figure, the axis, and the plot element we want to animate
 
     fig = plt.figure(figsize=(10,6))
@@ -488,6 +533,19 @@ def box_xyz(b):
                   b[1,2],b[1,2],b[1,2],b[1,2],b[1,2]])
     return x, y, z
 
+def get_file_times(infiles, dir_override=None) :
+    
+    if dir_override is None :
+        files = infiles
+    else :
+        files = list([])
+        for file in infiles :
+            filename = os.path.basename(file).split('\\')[-1] 
+            files.append(dir_override+filename)
+    
+    file_times = np.zeros(len(files))
+    for i, file in enumerate(files) : file_times[i] = file_key(file)
+    return files, file_times
 
 def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
                         legend = False, select = None, \
@@ -498,22 +556,50 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
                         no_cloud_size = 0.2, cloud_size = 2.0, \
                         field_size = 0.5, fps = 10, with_boxes = False, \
                         version = 1) :
+    """
+    Function to plot animation of trajectories.
+    
+    Args: 
+        traj                 : Trajectory set object.
+        save_anim (bool)     : If True, create mpeg animation file.
+        anim_name (string)   : Name of animation file. Default is 'traj_anim'.
+        legend (bool)        : If True, include legend.
+        select (int)         : ID of object to plot.
+        galilean (Array[2])  : Array with u and v components of system 
+            velocity to apply Galilean Transformation to plot. Default in None.
+        plot_field (bool)    : If True also plot Eulerian field of cloud.
+        dir_override (string): Override original directory for file names 
+            contained in traj.
+        title (string)       : Title for plot. Default is None.
+        plot_class (int array) : Classifications of trajectory points 
+            provided by traj.mean_properties().
+        no_cloud_size        : Size of symbols used to plot non-cloudy points.
+            Default is 0.2.
+        cloud_size           : Size of symbols used to plot cloudy points.
+            Default is 2.0.
+        field_size           : Size of symbols used to plot Eulerian cloud 
+            points. Default is 0.5.
+        fps (int)            : Frames per second in animation. Default is 10.
+        with_boxes (bool)    : If True, include cloud box in plots.
+        version (int)        : Version of classification scheme. Currently only
+            version=1 supported.
+        
+    
+    Returns:
+        Nothing
+       	
+	@author: Peter Clark
+	
+    """
 
     ntraj = traj.ntimes
     nobj = traj.nobjects
+    
+    files, file_times = get_file_times(traj.files, dir_override=dir_override)
+#                print(filename)
+#    print(files)
     if select is None : select = np.arange(0, nobj)
     if version == 1 :
-        class_key = list([\
-            ["Not set", "0.3"] , \
-            ["PRE_CLOUD_IN_BL","r"], \
-            ["PRE_CLOUD_ABOVE_BL","g"], \
-            ["IN_CLOUD_AT_START","b"], \
-            ["FIRST_CLOUD","k"], \
-            ["NEW_CLOUD_FROM_BOTTOM","c"], \
-            ["NEW_CLOUD_FROM_SIDE","m"], \
-            ["DETR_CLOUD","y"], \
-            ])
-    elif version == 2 or version == 3 :
         class_key = list([\
             ["Not set", "0.3"] , \
             ["PRE_CLOUD_ENTR_FROM_BL","r"], \
@@ -522,7 +608,6 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
             ["CLOUD","k"], \
             ["ENTRAINED_FROM_BL","c"], \
             ["ENTRAINED_FROM_ABOVE_BL","m"], \
-#            ["ENTR_PREVIOUS_CLOUD","0.8"], \
             ["DETR_CLOUD","y"], \
             ["SUBS_CLOUD","0.6"], \
             ])
@@ -630,14 +715,20 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
         j = i 
     #    print 'Frame %d Time %d'%(i,j)
         if plot_field :
-            if dir_override is None :
-                dataset = Dataset(traj.files[j])
-            else :
-                filename = os.path.basename(traj.files[j]).split('\\')[-1] 
-#                print(filename)
-                dataset = Dataset(dir_override+filename)
+#            print('Plotting {}'.format(traj.times[j]))
+            file_number = np.where(file_times >= traj.times[j])[0][0]
+#            print(files[file_number])
+            dataset=Dataset(files[file_number])
             qcl_field = dataset.variables["q_cloud_liquid_mass"]
-            in_cl = (qcl_field[0,...] > traj.thresh)
+            qcl_times = dataset.variables[qcl_field.dimensions[0]][...]
+#            print(qcl_times)
+            if len(qcl_times) == 1 :
+                it = 0
+            else :
+                it = np.where(qcl_times == traj.times[j])[0][0]
+#            print(file_number,it)
+            in_cl = (qcl_field[it,...] > traj.thresh)
+            dataset.close()
             x = xg[in_cl]
             y = yg[in_cl]
             z = zg[in_cl]
@@ -708,9 +799,34 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
     plt.show()
     return
 
-def plot_traj_family_members(traj_family,selection_list, galilean = None, \
+def plot_traj_family_members(traj_family, selection_list, galilean = None, \
                              with_boxes = False, asint = True, \
                              no_cloud_size = 0.2, cloud_size = 2.0) :
+    """
+    Function to plot animation of members of trajectory family.
+    
+    Args: 
+        traj_family          : Trajectory_family object.
+        selection_list (int) : IDs of objects to plot.
+        galilean (Array[2])  : Array with u and v components of system 
+            velocity to apply Galilean Transformation to plot. Default in None.
+        with_boxes (bool)    : If True, include cloud box in plots.
+        asint (bool)         : Round x,y,z to nearest integer (grid point).
+        no_cloud_size        : Size of symbols used to plot non-cloudy points.
+            Default is 0.2.
+        cloud_size           : Size of symbols used to plot cloudy points.
+            Default is 2.0.
+        field_size           : Size of symbols used to plot Eulerian cloud 
+            points. Default is 0.5.
+        
+    
+    Returns:
+        Nothing
+       	
+	@author: Peter Clark
+	
+    """
+
     fig = plt.figure(figsize=(10,6))
     ax = fig.add_subplot(111, projection='3d')
     ax.set_xlabel("x")
@@ -774,10 +890,51 @@ def plot_traj_family_animation(traj_family, match_index, \
                         dir_override = None, \
                         no_cloud_size = 0.2, cloud_size = 2.0, \
                         field_size = 0.5, fps = 10, with_boxes = False) :
+    """
+    Function to plot animation of members of trajectory family.
+    
+    Args: 
+        traj_family          : Trajectory_family object.
+        match_index          : Index of time to match selected objects.
+            If positive, matching object comes from 
+            traj_family.matching_object_list_summary
+            If negative and super_obj is None, matching object comes from 
+            traj_family.find_linked_objects
+            If negative and super_obj is not None, matching object comes from 
+            super_obj
+        save_anim (bool)     : If True, create mpeg animation file.
+        anim_name (string)   : Name of animation file. Default is 'traj_anim'.
+        legend (bool)        : If True, include legend.
+        title (string)       : Title for plot. Default is None.
+        select (int)         : IDs of objects to plot. None gives all objects.
+        super_obj            : Super objects provided by
+            traj_family.find_super_objects
+        galilean (Array[2])  : Array with u and v components of system 
+            velocity to apply Galilean Transformation to plot. Default in None.
+        plot_field (bool)    : If True also plot Eulerian field of cloud.
+        dir_override (string): Override original directory for file names 
+            contained in traj.
+        no_cloud_size        : Size of symbols used to plot non-cloudy points.
+            Default is 0.2.
+        cloud_size           : Size of symbols used to plot cloudy points.
+            Default is 2.0.
+        field_size           : Size of symbols used to plot Eulerian cloud 
+            points. Default is 0.5.
+        fps (int)            : Frames per second in animation. Default is 10.
+        with_boxes (bool)    : If True, include cloud box in plots.        
+    
+    Returns:
+        Nothing
+       	
+	@author: Peter Clark
+	
+    """
     
     traj = traj_family.family[-1]
     ref = len(traj_family.family) - 1
     nobj = traj.nobjects
+    files, file_times = get_file_times(traj.files, dir_override=dir_override)
+
 #    print(traj)
     if match_index >= 0 :
         
@@ -1099,17 +1256,15 @@ def plot_traj_family_animation(traj_family, match_index, \
 #        print("Frame {0} {1}".format(i,j))
 #        input("Press enter")
         if plot_field :
+
             if j >= 0 :
-                filename = match_traj.files[j]
-            else :                
-                filename = match_traj.files[i]
-            if dir_override is not None :
-                filename = os.path.basename(filename).split('\\')[-1] 
-#                print(filename)
-                filename = dir_override + filename
-            dataset = Dataset(filename)    
+                dataset, file_number, it, delta_t = find_time_in_files(\
+                                                    files, traj.times[j])
+#                filename = match_traj.files[j]
+#            else :                
+#                filename = match_traj.files[i]
             qcl_field = dataset.variables["q_cloud_liquid_mass"]
-            in_cl = (qcl_field[0,...] > traj.thresh)
+            in_cl = (qcl_field[it,...] > traj.thresh)
             x = xg[in_cl]
             y = yg[in_cl]
             z = zg[in_cl]
