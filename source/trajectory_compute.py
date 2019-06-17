@@ -21,76 +21,6 @@ debug = False
 cyclic_xy = True
 #use_bilin = False
 use_bilin = True
-use_bilin = True
-
-def file_key(file):
-    f1 = file.split('_')[-1]
-    f2 = f1.split('.')[0]
-    return float(f2)
-
-def find_time_in_files(files, ref_time, nodt = False) :
-    """
-	Function to find file containing data at required time.
-	    Assumes file names are of form \*_tt.0\* where tt is model output time.
-
-	Args: 
-		files: ordered list of files
-		ref_time: required time.
-		nodt: if True do not look for next time to ge tdelta_t
-
-	Returns:
-		ref_file: Index of file containing required time in files.
-		it: Index of time in dataset. 
-		delta_t: Interval between data.
-		
-	@author: Peter Clark
-	
-    """
-    
-    file_times = np.zeros(len(files))
-    for i, file in enumerate(files) : file_times[i] = file_key(file)
-    ref_file = np.where(file_times >= ref_time)[0][0]
-#    print(files[ref_file])
-    dataset=Dataset(files[ref_file])
-    theta=dataset.variables["th"]
-#    print(theta)
-#    print(theta.dimensions[0])
-    times=dataset.variables[theta.dimensions[0]][...]
-#    print(times)
-    
-    if len(times) == 1 :
-        it = 0
-        if times[it] != ref_time :
-            print('Could not find time {} in file {}'.\
-                  format(ref_time,files[ref_file]))
-            dataset.close()
-            return None, ref_file, it, 0
-        else :
-#            print('Looking in next file')
-            if nodt :
-                delta_t = 0
-            else :
-                dataset_next=Dataset(files[ref_file+1])
-                theta=dataset.variables["th"]
-                times_next=dataset_next.variables[theta.dimensions[0]][...]
-    #            print(times_next)
-                delta_t = times_next[0] - times[0]
-                dataset_next.close()
-    else :
-        it = np.where(times == ref_time)[0]
-        if len(it) == 0 :
-            print('Could not find time {} in file {}'.\
-                  format(ref_time,files[ref_file]))
-            dataset.close()
-            return None, ref_file, it, 0
-        else :
-            it = it[0]
-            if it == (len(times)-1) :
-                delta_t = times[it] - times[it-1]
-            else :
-                delta_t = times[it+1] - times[it]
-    dataset.close()
-    return ref_file, it, delta_t.astype(int)
 
 class trajectory_family : 
     """
@@ -110,7 +40,10 @@ class trajectory_family :
         deltaz            : Model z grid spacing in m. 
         variable_list=None: List of variable names for data to interpolate to trajectory.                              
         thresh=1.0E-5     : Threshold for cloud definition.
-
+    
+    Attributes:
+        family(list): List of trajectory objects with required reference times.
+    
     @author: Peter Clark
     
     """
@@ -121,13 +54,13 @@ class trajectory_family :
                  deltax, deltay, deltaz, variable_list=None, \
                  thresh=1.0E-5) : 
         """
-        Create an instance of a familiy of back trajectories.
+        Create an instance of a family of back trajectories.
 
         @author: Peter Clark
             
         """
 
-        self.family = list([])
+        self.family = list([]) 
         
         first_ref_file, it, delta_t = find_time_in_files(files, \
                                                     first_ref_time)
@@ -160,8 +93,8 @@ class trajectory_family :
         Matching is done using overlap of cloud boxes.
 
         Args:
-            ref = None  : Which trajectory set in family to use to find matching objects. Default is the last set.
-                    
+            ref=None  : Which trajectory set in family to use to find matching objects. Default is the last set.
+        
         Returns:        
             List with one member for each trajectory set with an earlier 
             reference time than ref. 
@@ -609,6 +542,44 @@ class trajectories :
         deltaz             : Model z grid spacing in m. 
         variable_list=None : List of variable names for data to interpolate to trajectory.                              
         thresh=1.0E-5      : Threshold for cloud definition.
+    
+    Attributes:
+        rhoref (array): Reference profile of density.
+        pref (array): Reference profile of pressure.
+        thref (array): Reference profile of potential temperature.
+        piref (array): Reference profile of Exner pressure.
+        data : list of arrays [nt, m, n] where nt is total number of times, 
+            m the number of trajectory points at a given time and 
+            n is the number of variables in variable_list.
+        trajectory: Array [nt, m, 3] where the last index gives x,y,z 
+        traj_error: Array [nt, m, 3] with estimated error in trajectory.
+        traj_times: Array [nt] with times corresponding to trajectory.
+        labels: Array [m] labelling points with labels 0 to nobjects-1. 
+        nobjects: Number of objects (clouds).
+        xcoord: xcoordinate of model space.
+        ycoord: ycoordinate of model space.
+        zcoord: zcoordinate of model space.
+        deltat: time spacing in trajectories.
+        thresh: Cloud liquid water threshold for clouds.
+        files: Input file list.
+        ref: Index of reference time in trajectory array.
+        end: Index of end time in trajectory array. (start is always 0)
+        ntimes: Number of times in trajectory array.
+        npoints: Number of times in trajectory array.
+        deltax             : Model x grid spacing in m.
+        deltay             : Model y grid spacing in m.
+        deltaz             : Model z grid spacing in m. 
+        nx: length of xcoord
+        ny: length of xcoord
+        nz: length of xcoord
+        variable_list: variable_list corresponding to data.
+        trajectory: trajectory array.        
+        data_mean: mean of cloudy points data.
+        num_cloud: number of cloudy points.
+        centroid: centroid of cloudy points
+        bounding_box: box containing all trajectory points.
+        cloud_box: box containing all cloudy trajectory points.
+        max_at_ref: list of objects which reach maximum LWC at reference time.
 
     @author: Peter Clark
     
@@ -718,26 +689,27 @@ class trajectories :
             thresh: Threshold if LWC to define cloud. Default is self.thresh.
             version: Which version of classification. (Currently only 1).
 
-        Returns: dictionary pointing to arrays of mean properties and meta data.
-
-        Dictionary keys:
-            "unclassified" 
-            "pre_cloud_bl"
-            "pre_cloud_above_bl"
-            "previous_cloud"
-            "cloud"
-            "entr"
-            "entr_bot"
-            "detr"
-            "subsequent_cloud"
-            "class"
-            "first cloud base"
-            "min cloud base"
-            "cloud top"
-            "cloud_trigger_time"
-            "cloud_dissipate_time"
-            "version"
-
+        Returns: 
+            dictionary pointing to arrays of mean properties and meta data::
+            
+                Dictionary keys:
+                    "unclassified" 
+                    "pre_cloud_bl"
+                    "pre_cloud_above_bl"
+                    "previous_cloud"
+                    "cloud"
+                    "entr"
+                    "entr_bot"
+                    "detr"
+                    "subsequent_cloud"
+                    "class"
+                    "first cloud base"
+                    "min cloud base"
+                    "cloud top"
+                    "cloud_trigger_time"
+                    "cloud_dissipate_time"
+                    "version"
+            
         @author: Peter Clark
 
         '''
@@ -1118,18 +1090,6 @@ class trajectories :
         rep = "Trajectory Reference time: {0}, Times:{1}, Points:{2}, Objects:{3}\n".format(\
           self.times[self.ref],self.ntimes,self.npoints, self.nobjects)
         return rep
-
-def get_sup_obj(sup, t, o) :
-    slist = list()
-    for s in sup :
-        l = (s[:,0] == t)
-        st = s[l,:]
-        if len(st) >0 :
-            st1 = st[st[:,1]==o]
-            if len(st1) > 0 : 
-#                print(s,st,st1)
-                slist.append(s)
-    return slist
     
 def compute_trajectories(files, start_time, ref_time, end_time, \
                          variable_list, thref, thresh=1.0E-5) :
@@ -1144,12 +1104,13 @@ def compute_trajectories(files, start_time, ref_time, end_time, \
         variable_list: List of variables to interpolate to trajectory points.
         thref: theta_ref profile.
         thresh=1.0E-5: Cloud liquid water threshold for clouds.
-        
+
     Returns:
-        Set of variables defining trajectories.
-            data_val: Array [nt, m, n] where nt is total number of times, 
-            m the number of trajectory points at a gievn time and 
-            n is the number of variables in variable_list.
+        Set of variables defining trajectories::
+        
+            data_val: list of arrays [nt, m, n] where nt is total number of times, 
+                m the number of trajectory points at a given time and 
+                n is the number of variables in variable_list.
             trajectory: Array [nt, m, 3] where the last index gives x,y,z 
             traj_error: Array [nt, m, 3] with estimated error in trajectory.
             traj_times: Array [nt] with times corresponding to trajectory.
@@ -1158,8 +1119,9 @@ def compute_trajectories(files, start_time, ref_time, end_time, \
             xcoord: xcoordinate of model space.
             ycoord: ycoordinate of model space.
             zcoord: zcoordinate of model space.
+            deltat: time spacing in trajectories.
             thresh: Cloud liquid water threshold for clouds.
-            
+           
     @author: Peter Clark
         
     """
@@ -1258,173 +1220,111 @@ def compute_trajectories(files, start_time, ref_time, end_time, \
     return data_val, trajectory, traj_error, traj_times, labels, nobjects, \
       xcoord, ycoord, zcoord, delta_t, thresh
 
-def whichbox(xvec, x ) :
+def trajectory_init(dataset, it, variable_list, thref, thresh=0.00001) :
     """
-    Find ix such that xvec[ix]<x<=xvec[ix+1]. Uses numpy.searchsorted.
-    
-    Args: 
-        xvec: Ordered array.
-        x: Values to locate in xvec.
-    
-    Returns:
-        Array of indices.
-        
-    @author : Peter Clark
-    """
-    
-    ix = np.searchsorted(xvec, x, side='left')-1    
-    ix[ix > (len(xvec)-1)] = len(xvec)-1
-    ix[ix < 0] = 0
-    return ix 
+    Function to set up origin of back and forward trajectories.
 
-def tri_lin_interp(data, pos, xcoord, ycoord, zcoord) :
-    """
-    Tri-linear interpolation with cyclic wrapround in x and y.
-    
-    Args: 
-        data: list of Input data arrays on 3D grid.
-        pos(Array[n,3]): Positions to interpolate to (in grid units) .
-        xcoord: 1D coordinate vector.
-        ycoord: 1D coordinate vector.
-        zcoord: 1D coordinate vector.
-    
-    Returns:
-        list of 1D arrays of data interpolated to pos.
-        
-    @author : Peter Clark
-    """
-    
-    nx = len(xcoord)
-    ny = len(ycoord)
-    nz = len(zcoord)
+    Args:
+        dataset       : Netcdf file handle.
+        it            : Index of required time in file.
+        variable_list : List of variable names.
+        thref         : array with reference theta profile.
 
-    x = pos[:,0]
-    y = pos[:,1]
-    z = pos[:,2]
-    ix = whichbox(xcoord, x)
-    iy = whichbox(ycoord, y)
-    iz = whichbox(zcoord, z)
-    dx = 1.0
-    dy = 1.0
-    iz[iz>(nz-2)] -= 1 
-    xp = (x-xcoord[ix])/dx
-    yp = (y-ycoord[iy])/dy
-    zp = (z-zcoord[iz])/(zcoord[iz+1]-zcoord[iz])
-    wx = [1.0 - xp, xp]
-    wy = [1.0 - yp, yp]
-    wz = [1.0 - zp, zp]
-    output= list([])
-    for l in range(len(data)) :
-        output.append(np.zeros_like(x))
-    t = 0
-    for i in range(0,2):
-        for j in range(0,2):
-            for k in range(0,2):
-                w = wx[i]*wy[j]*wz[k]
-                t += w
-                for l in range(len(data)) :
-                    output[l] = output[l] + data[l][(ix+i)%nx,(iy+j)%ny,iz+k]*w
-#                print 'Adding', ix+i,iy+j,iz+k,w,data[ix+i,iy+j,iz+k]
-#    print xp, yp, zp
-#    print t
-    return output
-
-def value_at_reset_time(data, traj_pos, xcoord, ycoord, zcoord):
-    """
-    Function to interpolate data to traj_pos.
-    
-    Args: 
-        data      : list of data array.
-        traj_pos  : array[n,3] of n 3D positions.
-        xcoord,ycoord,zcoord: 1D arrays giving coordinate spaces of data.
-                      
     Returns: 
-        list of arrays containing interpolated data.   
+        Trajectory variables::
         
-    @author: Peter Clark
-    
-    """
-    
-    if use_bilin :
-        output = tri_lin_interp(data, traj_pos, xcoord, ycoord, zcoord )
-    else:
-        output= list([])
-        for l in range(len(data)) :
-#            print 'Calling map_coordinates'
-#            print np.shape(data[l]), np.shape(traj_pos)
-            out = ndimage.map_coordinates(data[l], traj_pos, mode='wrap', \
-                                          order=interp_order)
-            output.append(out)
-    return output
-    
-def load_traj_step_data(dataset, it, variable_list, thref) :
-    """
-    Function to read trajectory variables and additional data from file 
-    for interpolation to trajectory.
-    
-    Args: 
-        dataset        : netcdf file handle.
-        it             : time index in netcdf file.
-        variable_list  : List of variable names.
-        thref          : Array with reference theta profile.
-                      
-    Returns:    list of arrays containing interpolated data.
-        
-    @author: Peter Clark
-        
-    """
-    
-    if cyclic_xy :
-        xr = dataset.variables['CA_xrtraj'][it,...]
-        xi = dataset.variables['CA_xitraj'][it,...]
+            dataset        : current netcdf file handle
+            trajectory     : position of origin point.
+            data_val       : associated data so far.
+            traj_error     : estimated trajectory errors so far. 
+            traj_times     : trajectory times so far.
+            xcoord         : 1D array giving x coordinate space of data.
+            ycoord         : 1D array giving y coordinate space of data.
+            zcoord         : 1D array giving z coordinate space of data.
+            thresh         : Cloud liquid water threshold for clouds.
 
-        yr = dataset.variables['CA_yrtraj'][it,...]
-        yi = dataset.variables['CA_yitraj'][it,...]
+    @author: Peter Clark
+
+    """
     
-        zpos = dataset.variables['CA_ztraj'][it,...]
-        data_list = [xr, xi, yr, yi, zpos]      
-        
-    else :
-        # Non-cyclic option may well not work anymore!
-        xpos = dataset.variables['CA_xtraj'][it,...]
-        ypos = dataset.variables['CA_ytraj'][it,...]
-        zpos = dataset.variables['CA_ztraj'][it,...]  
-        data_list = [xpos, ypos, zpos]
-        
-    for variable in variable_list :
-#        print 'Reading ', variable
-        data = dataset.variables[variable]
+    data_list, time = load_traj_step_data(dataset, it, variable_list, thref)
+    print("Starting at time {}".format(time))
+
+#    print data_list
+    xcoord = np.arange(np.shape(data_list[-1])[0],dtype='float')
+    ycoord = np.arange(np.shape(data_list[-1])[1],dtype='float')
+    zcoord = np.arange(np.shape(data_list[-1])[2],dtype='float')
+    
+    for lv, variable in enumerate(variable_list):
         if variable == "q_cloud_liquid_mass" :
-            times  = dataset.variables[data.dimensions[0]]
-        data = data[it,...]
-        if variable == 'th' :
-            data = data+thref[...]
+            break
+    if cyclic_xy :
+        n_pvar = 5
+    else:
+        n_pvar = 3
 
-        data_list.append(data)   
-        
-    return data_list, times[it]  
+    lv = lv+n_pvar
+
+    data = data_list[lv]
     
-def phase(vr, vi, n) :
-    """
-    Function to convert real and imaginary points to location on grid 
-    size n.
+#    logical_pos = data[...]>(np.max(data[...])*0.6)
+    logical_pos = data[...] >= thresh
     
-    Args: 
-        vr,vi  : real and imaginary parts of complex location.
-        n      : grid size
-                      
-    Returns: real position in [0,n)   
-        
-    @author: Peter Clark
-        
-    """
+#    print('q_cl threshold {:10.6f}'.format(np.max(data[...])*0.8))
     
-    vr = np.asarray(vr)       
-    vi = np.asarray(vi)       
-    vpos = np.asarray(((np.arctan2(vi,vr))/(2.0*np.pi)) * n )
-    vpos[vpos<0] += n
-    return vpos
+    mask = data.copy()
+    mask[...] = 0
+    mask[logical_pos] = 1
+
+    print('Setting labels.')
+    labels, nobjects = label_3D_cyclic(mask)
     
+    labels = labels[logical_pos]
+    
+    pos = np.where(logical_pos)
+    
+#    print(np.shape(pos))
+    traj_pos = np.array( [xcoord[pos[0][:]], \
+                          ycoord[pos[1][:]], \
+                          zcoord[pos[2][:]]],ndmin=2 ).T
+
+    if cyclic_xy :
+        (nx, ny, nz) = np.shape(data_list[0])
+        xpos = phase(data_list[0][logical_pos],data_list[1][logical_pos],nx)
+        ypos = phase(data_list[2][logical_pos],data_list[3][logical_pos],ny)
+        traj_pos_new = np.array( [xpos, \
+                                  ypos, \
+                                  data_list[4][logical_pos]]).T
+    else :
+        traj_pos_new = np.array( [data_list[0][logical_pos], \
+                                  data_list[1][logical_pos], \
+                                  data_list[2][logical_pos]]).T
+    data_val = list([])
+    for data in data_list[n_pvar:]:
+        data_val.append(data[logical_pos])
+    data_val=[np.vstack(data_val).T]
+    if debug :
+        print('Value of {} at trajectory position.'.format(variable))
+        print(np.shape(data_val))
+        print(np.shape(traj_pos))
+        print('xorg',traj_pos[:,0])
+        print('yorg',traj_pos[:,1])
+        print('zorg',traj_pos[:,2])
+        print('x',traj_pos_new[:,0])
+        print('y',traj_pos_new[:,1])
+        print('z',traj_pos_new[:,2])
+    trajectory = list([traj_pos])
+    traj_error = list([np.zeros_like(traj_pos)])
+    trajectory.insert(0,traj_pos_new)
+    traj_error.insert(0,np.zeros_like(traj_pos_new))
+    traj_times = list([time])
+#    print 'init'
+#    print 'trajectory:',len(trajectory[:-1]), len(trajectory[0]), np.size(trajectory[0][0])
+#    print 'traj_error:',len(traj_error[:-1]), len(traj_error[0]), np.size(traj_error[0][0])
+    
+    return trajectory, data_val, traj_error, traj_times, labels, \
+      nobjects, xcoord, ycoord, zcoord, thresh
+
 def back_trajectory_step(dataset, time_index, variable_list, trajectory, \
                          data_val, traj_error, traj_times, xcoord, ycoord, \
                          zcoord, thref) :
@@ -1441,9 +1341,10 @@ def back_trajectory_step(dataset, time_index, variable_list, trajectory, \
         traj_times     : trajectory times so far.
         xcoord, ycoord, zcoord: 1D arrays giving coordinate spaces of data.
         thref : array with reference theta profile.
-                      
+
     Returns:    
-        Inputs updated to new location.
+        Inputs updated to new location::
+        
             trajectory, data_val, traj_error, traj_times
         
     @author: Peter Clark
@@ -1490,9 +1391,10 @@ def forward_trajectory_step(dataset, time_index, variable_list, trajectory, \
         traj_times     : trajectory times so far.
         xcoord, ycoord, zcoord: 1D arrays giving coordinate spaces of data.
         thref : array with reference theta profile.
-                      
+
     Returns: 
-        Inputs updated to new location.   
+        Inputs updated to new location::
+        
             trajectory, data_val, traj_error, traj_times
         
     @author: Peter Clark
@@ -1708,17 +1610,200 @@ def forward_trajectory_step(dataset, time_index, variable_list, trajectory, \
 #    print 'trajectory:',len(trajectory[:-1]), len(trajectory[0]), np.size(trajectory[0][0])
 #    print 'traj_error:',len(traj_error[:-1]), len(traj_error[0]), np.size(traj_error[0][0])
     return trajectory, data_val, traj_error, traj_times
+
+def get_sup_obj(sup, t, o) :
+    slist = list()
+    for s in sup :
+        l = (s[:,0] == t)
+        st = s[l,:]
+        if len(st) >0 :
+            st1 = st[st[:,1]==o]
+            if len(st1) > 0 : 
+#                print(s,st,st1)
+                slist.append(s)
+    return slist
+
+def whichbox(xvec, x ) :
+    """
+    Find ix such that xvec[ix]<x<=xvec[ix+1]. Uses numpy.searchsorted.
+    
+    Args: 
+        xvec: Ordered array.
+        x: Values to locate in xvec.
+    
+    Returns:
+        Array of indices.
+        
+    @author : Peter Clark
+    """
+    
+    ix = np.searchsorted(xvec, x, side='left')-1    
+    ix[ix > (len(xvec)-1)] = len(xvec)-1
+    ix[ix < 0] = 0
+    return ix 
+
+def tri_lin_interp(data, pos, xcoord, ycoord, zcoord) :
+    """
+    Tri-linear interpolation with cyclic wrapround in x and y.
+    
+    Args: 
+        data: list of Input data arrays on 3D grid.
+        pos(Array[n,3]): Positions to interpolate to (in grid units) .
+        xcoord: 1D coordinate vector.
+        ycoord: 1D coordinate vector.
+        zcoord: 1D coordinate vector.
+    
+    Returns:
+        list of 1D arrays of data interpolated to pos.
+        
+    @author : Peter Clark
+    """
+    
+    nx = len(xcoord)
+    ny = len(ycoord)
+    nz = len(zcoord)
+
+    x = pos[:,0]
+    y = pos[:,1]
+    z = pos[:,2]
+    ix = whichbox(xcoord, x)
+    iy = whichbox(ycoord, y)
+    iz = whichbox(zcoord, z)
+    dx = 1.0
+    dy = 1.0
+    iz[iz>(nz-2)] -= 1 
+    xp = (x-xcoord[ix])/dx
+    yp = (y-ycoord[iy])/dy
+    zp = (z-zcoord[iz])/(zcoord[iz+1]-zcoord[iz])
+    wx = [1.0 - xp, xp]
+    wy = [1.0 - yp, yp]
+    wz = [1.0 - zp, zp]
+    output= list([])
+    for l in range(len(data)) :
+        output.append(np.zeros_like(x))
+    t = 0
+    for i in range(0,2):
+        for j in range(0,2):
+            for k in range(0,2):
+                w = wx[i]*wy[j]*wz[k]
+                t += w
+                for l in range(len(data)) :
+                    output[l] = output[l] + data[l][(ix+i)%nx,(iy+j)%ny,iz+k]*w
+#                print 'Adding', ix+i,iy+j,iz+k,w,data[ix+i,iy+j,iz+k]
+#    print xp, yp, zp
+#    print t
+    return output
+
+def value_at_reset_time(data, traj_pos, xcoord, ycoord, zcoord):
+    """
+    Function to interpolate data to traj_pos.
+    
+    Args: 
+        data      : list of data array.
+        traj_pos  : array[n,3] of n 3D positions.
+        xcoord,ycoord,zcoord: 1D arrays giving coordinate spaces of data.
+                      
+    Returns: 
+        list of arrays containing interpolated data.   
+        
+    @author: Peter Clark
+    
+    """
+    
+    if use_bilin :
+        output = tri_lin_interp(data, traj_pos, xcoord, ycoord, zcoord )
+    else:
+        output= list([])
+        for l in range(len(data)) :
+#            print 'Calling map_coordinates'
+#            print np.shape(data[l]), np.shape(traj_pos)
+            out = ndimage.map_coordinates(data[l], traj_pos, mode='wrap', \
+                                          order=interp_order)
+            output.append(out)
+    return output
+    
+def load_traj_step_data(dataset, it, variable_list, thref) :
+    """
+    Function to read trajectory variables and additional data from file 
+    for interpolation to trajectory.
+
+    Args: 
+        dataset        : netcdf file handle.
+        it             : time index in netcdf file.
+        variable_list  : List of variable names.
+        thref          : Array with reference theta profile.
+
+    Returns:    
+        List of arrays containing interpolated data.
+        
+    @author: Peter Clark
+        
+    """
+    
+    if cyclic_xy :
+        xr = dataset.variables['CA_xrtraj'][it,...]
+        xi = dataset.variables['CA_xitraj'][it,...]
+
+        yr = dataset.variables['CA_yrtraj'][it,...]
+        yi = dataset.variables['CA_yitraj'][it,...]
+    
+        zpos = dataset.variables['CA_ztraj'][it,...]
+        data_list = [xr, xi, yr, yi, zpos]      
+        
+    else :
+        # Non-cyclic option may well not work anymore!
+        xpos = dataset.variables['CA_xtraj'][it,...]
+        ypos = dataset.variables['CA_ytraj'][it,...]
+        zpos = dataset.variables['CA_ztraj'][it,...]  
+        data_list = [xpos, ypos, zpos]
+        
+    for variable in variable_list :
+#        print 'Reading ', variable
+        data = dataset.variables[variable]
+        if variable == "q_cloud_liquid_mass" :
+            times  = dataset.variables[data.dimensions[0]]
+        data = data[it,...]
+        if variable == 'th' :
+            data = data+thref[...]
+
+        data_list.append(data)   
+        
+    return data_list, times[it]  
+    
+def phase(vr, vi, n) :
+    """
+    Function to convert real and imaginary points to location on grid 
+    size n.
+    
+    Args: 
+        vr,vi  : real and imaginary parts of complex location.
+        n      : grid size
+
+    Returns: 
+        Real position in [0,n)   
+        
+    @author: Peter Clark
+        
+    """
+    
+    vr = np.asarray(vr)       
+    vi = np.asarray(vi)       
+    vpos = np.asarray(((np.arctan2(vi,vr))/(2.0*np.pi)) * n )
+    vpos[vpos<0] += n
+    return vpos    
        
 def label_3D_cyclic(mask) :
     """
     Function to label 3D objects taking account of cyclic boundary 
     in x and y. Uses ndimage(label) as primary engine.
-    
-    Args: 
-        mask : 3D logical array with object mask (i.e. objects are 
-            contiguous True).                          
+
+    Args:
+        mask: 3D logical array with object mask (i.e. objects are 
+            contiguous True).  
+
     Returns:   
-        Object identifiers.
+        Object identifiers::
+        
             labs  : Integer array[nx,ny,nz] of labels. -1 denotes unlabelled.                   
             nobjs : number of distinct objects. Labels range from 0 to nobjs-1.
         
@@ -1808,110 +1893,6 @@ def label_3D_cyclic(mask) :
     labels, nobjects = find_objects_at_edge(False, 1, ny, labels, nobjects)
        
     return labels, nobjects
-
-def trajectory_init(dataset, it, variable_list, thref, thresh=0.00001) :
-    """
-    Function to set up origin of back and forward trajectories.
-
-    Args:
-        dataset       : Netcdf file handle.
-        it            : Index of required time in file.
-        variable_list : List of variable names.
-        thref         : array with reference theta profile.
-
-    Returns: 
-        Trajectory variables.
-            dataset        : current netcdf file handle
-            trajectory     : position of origin point.
-            data_val       : associated data so far.
-            traj_error     : estimated trajectory errors so far. 
-            traj_times     : trajectory times so far.
-            xcoord         : 1D array giving x coordinate space of data.
-            ycoord         : 1D array giving y coordinate space of data.
-            zcoord         : 1D array giving z coordinate space of data.
-            thresh         : Cloud liquid water threshold for clouds.
-
-    @author: Peter Clark
-
-    """
-    
-    data_list, time = load_traj_step_data(dataset, it, variable_list, thref)
-    print("Starting at time {}".format(time))
-
-#    print data_list
-    xcoord = np.arange(np.shape(data_list[-1])[0],dtype='float')
-    ycoord = np.arange(np.shape(data_list[-1])[1],dtype='float')
-    zcoord = np.arange(np.shape(data_list[-1])[2],dtype='float')
-    
-    for lv, variable in enumerate(variable_list):
-        if variable == "q_cloud_liquid_mass" :
-            break
-    if cyclic_xy :
-        n_pvar = 5
-    else:
-        n_pvar = 3
-
-    lv = lv+n_pvar
-
-    data = data_list[lv]
-    
-#    logical_pos = data[...]>(np.max(data[...])*0.6)
-    logical_pos = data[...] >= thresh
-    
-#    print('q_cl threshold {:10.6f}'.format(np.max(data[...])*0.8))
-    
-    mask = data.copy()
-    mask[...] = 0
-    mask[logical_pos] = 1
-
-    print('Setting labels.')
-    labels, nobjects = label_3D_cyclic(mask)
-    
-    labels = labels[logical_pos]
-    
-    pos = np.where(logical_pos)
-    
-#    print(np.shape(pos))
-    traj_pos = np.array( [xcoord[pos[0][:]], \
-                          ycoord[pos[1][:]], \
-                          zcoord[pos[2][:]]],ndmin=2 ).T
-
-    if cyclic_xy :
-        (nx, ny, nz) = np.shape(data_list[0])
-        xpos = phase(data_list[0][logical_pos],data_list[1][logical_pos],nx)
-        ypos = phase(data_list[2][logical_pos],data_list[3][logical_pos],ny)
-        traj_pos_new = np.array( [xpos, \
-                                  ypos, \
-                                  data_list[4][logical_pos]]).T
-    else :
-        traj_pos_new = np.array( [data_list[0][logical_pos], \
-                                  data_list[1][logical_pos], \
-                                  data_list[2][logical_pos]]).T
-    data_val = list([])
-    for data in data_list[n_pvar:]:
-        data_val.append(data[logical_pos])
-    data_val=[np.vstack(data_val).T]
-    if debug :
-        print('Value of {} at trajectory position.'.format(variable))
-        print(np.shape(data_val))
-        print(np.shape(traj_pos))
-        print('xorg',traj_pos[:,0])
-        print('yorg',traj_pos[:,1])
-        print('zorg',traj_pos[:,2])
-        print('x',traj_pos_new[:,0])
-        print('y',traj_pos_new[:,1])
-        print('z',traj_pos_new[:,2])
-    trajectory = list([traj_pos])
-    traj_error = list([np.zeros_like(traj_pos)])
-    trajectory.insert(0,traj_pos_new)
-    traj_error.insert(0,np.zeros_like(traj_pos_new))
-    traj_times = list([time])
-#    print 'init'
-#    print 'trajectory:',len(trajectory[:-1]), len(trajectory[0]), np.size(trajectory[0][0])
-#    print 'traj_error:',len(traj_error[:-1]), len(traj_error[0]), np.size(traj_error[0][0])
-    
-    return trajectory, data_val, traj_error, traj_times, labels, \
-      nobjects, xcoord, ycoord, zcoord, thresh
 
 def unsplit_object( pos, nx, ny ) :
     """
@@ -2023,9 +2004,10 @@ def compute_traj_boxes(traj) :
     
     Args: 
         traj : trajectory object.
-        
+
     Returns:  
-        Properties of cloud boxes    
+        Properties of cloud boxes::
+        
             data_mean     : mean of points (for each data variable) in cloud. 
             num_cloud     : number of cloudy points.
             traj_centroid : centroid of cloudy box.
@@ -2140,4 +2122,76 @@ def box_overlap_with_wrap(b_test, b_set, nx, ny) :
     y_ind = np.where(y_overlap)[0]
     
     return x_ind[y_ind]
+
+def file_key(file):
+    f1 = file.split('_')[-1]
+    f2 = f1.split('.')[0]
+    return float(f2)
+
+def find_time_in_files(files, ref_time, nodt = False) :
+    """
+    Function to find file containing data at required time.
+        Assumes file names are of form \*_tt.0\* where tt is model output time.
+
+    Args: 
+        files: ordered list of files
+        ref_time: required time.
+        nodt: if True do not look for next time to get delta_t
+
+    Returns:
+        Variables defining location of data in file list::
+        
+            ref_file: Index of file containing required time in files.
+            it: Index of time in dataset. 
+            delta_t: Interval between data.
+
+    @author: Peter Clark
+    
+    """
+    
+    file_times = np.zeros(len(files))
+    for i, file in enumerate(files) : file_times[i] = file_key(file)
+    ref_file = np.where(file_times >= ref_time)[0][0]
+#    print(files[ref_file])
+    dataset=Dataset(files[ref_file])
+    theta=dataset.variables["th"]
+#    print(theta)
+#    print(theta.dimensions[0])
+    times=dataset.variables[theta.dimensions[0]][...]
+#    print(times)
+    
+    if len(times) == 1 :
+        it = 0
+        if times[it] != ref_time :
+            print('Could not find time {} in file {}'.\
+                  format(ref_time,files[ref_file]))
+            dataset.close()
+            return None, ref_file, it, 0
+        else :
+#            print('Looking in next file')
+            if nodt :
+                delta_t = 0
+            else :
+                dataset_next=Dataset(files[ref_file+1])
+                theta=dataset.variables["th"]
+                times_next=dataset_next.variables[theta.dimensions[0]][...]
+    #            print(times_next)
+                delta_t = times_next[0] - times[0]
+                dataset_next.close()
+    else :
+        it = np.where(times == ref_time)[0]
+        if len(it) == 0 :
+            print('Could not find time {} in file {}'.\
+                  format(ref_time,files[ref_file]))
+            dataset.close()
+            return None, ref_file, it, 0
+        else :
+            it = it[0]
+            if it == (len(times)-1) :
+                delta_t = times[it] - times[it-1]
+            else :
+                delta_t = times[it+1] - times[it]
+    dataset.close()
+    return ref_file, it, delta_t.astype(int)
+
     
