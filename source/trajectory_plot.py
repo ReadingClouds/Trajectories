@@ -727,7 +727,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
             else :
                 it = np.where(qcl_times == traj.times[j])[0][0]
 #            print(file_number,it)
-            in_cl = (qcl_field[it,...] > traj.thresh)
+            in_cl = (qcl_field[it,...] > traj.ref_func_kwargs["thresh"])
             dataset.close()
             x = xg[in_cl]
             y = yg[in_cl]
@@ -759,7 +759,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
                 if plot_class is None : 
                     qcl = traj.data[j,traj.labels == iobj, \
                                     traj.var("q_cloud_liquid_mass")]
-                    in_cl = (qcl > traj.thresh) 
+                    in_cl = (qcl > traj.ref_func_kwargs["thresh"]) 
                     not_in_cl = ~in_cl 
                     [line, line_cl] = line_list[nplt]
                     line.set_data(x[not_in_cl], y[not_in_cl])
@@ -774,7 +774,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
                         line.set_3d_properties(z[in_cl])
                     
                 if with_boxes :
-                    b = traj.cloud_box[j,iobj,:,:]
+                    b = traj.in_obj_box[j,iobj,:,:]
                     x, y, z = box_xyz(b)
                     if galilean is not None :
                         x, y = gal_trans(x, y, galilean, j, timestep, traj, ax)                        
@@ -854,7 +854,7 @@ def plot_traj_family_members(traj_family, selection_list, galilean = None, \
             y = (y + 0.5).astype(int)
             z = (z + 0.5).astype(int)
         qcl = tr.data[tr_time, osel, tr.var("q_cloud_liquid_mass")]
-        in_cl = (qcl > tr.thresh) 
+        in_cl = (qcl > tr.ref_func_kwargs["thresh"]) 
         not_in_cl = ~in_cl 
         
 #        print(np.shape(x),np.shape(y),np.shape(y))
@@ -869,7 +869,7 @@ def plot_traj_family_members(traj_family, selection_list, galilean = None, \
                                label='{}'.format(selection))
         line_cl.set_3d_properties(z[in_cl])
         if with_boxes :
-            b = tr.cloud_box[tr_time,iobj,:,:]
+            b = tr.in_obj_box[tr_time,iobj,:,:]
             x, y, z = box_xyz(b)
             if galilean is not None :
                 x, y = gal_trans(x, y, galilean, abs_time, timestep, tr, ax)                        
@@ -1015,7 +1015,7 @@ def plot_traj_family_animation(traj_family, match_index, \
 #        print("Adding {} to traj_list".format(iobj))
         traj_list.append((traj.trajectory[:,traj.labels == iobj,...], \
                                 traj.data[:,traj.labels == iobj,...], 
-                           traj.cloud_box[:,iobj,...]) )
+                           traj.in_obj_box[:,iobj,...]) )
     
         match_list = list([])
 
@@ -1044,7 +1044,7 @@ def plot_traj_family_animation(traj_family, match_index, \
                       [:, match_traj.labels == mobj, ...], \
                                        match_traj.data\
                       [:, match_traj.labels == mobj, ...], \
-                                       match_traj.cloud_box \
+                                       match_traj.in_obj_box \
                       [:, mobj,...]) )                    
                     
         else :
@@ -1066,7 +1066,7 @@ def plot_traj_family_animation(traj_family, match_index, \
                       [:, match_traj.labels == mobj, ...], \
                                        match_traj.data\
                       [:, match_traj.labels == mobj, ...], \
-                                       match_traj.cloud_box \
+                                       match_traj.in_obj_box \
                       [:, mobj,...]) )
     
         match_traj_list_list.append(match_list)
@@ -1215,7 +1215,7 @@ def plot_traj_family_animation(traj_family, match_index, \
                 x, y = gal_trans(x, y,  galilean, it, timestep, traj, ax)                        
 
             qcl = tr[1][tr_time, :, traj.var("q_cloud_liquid_mass")]
-            in_cl = (qcl > traj.thresh) 
+            in_cl = (qcl > traj.ref_func_kwargs["thresh"]) 
             not_in_cl = ~in_cl 
             ln[0].set_data(x[not_in_cl], y[not_in_cl])
             ln[0].set_3d_properties(z[not_in_cl])
@@ -1264,7 +1264,7 @@ def plot_traj_family_animation(traj_family, match_index, \
 #            else :                
 #                filename = match_traj.files[i]
             qcl_field = dataset.variables["q_cloud_liquid_mass"]
-            in_cl = (qcl_field[it,...] > traj.thresh)
+            in_cl = (qcl_field[it,...] > traj.ref_func_kwargs["thresh"])
             x = xg[in_cl]
             y = yg[in_cl]
             z = zg[in_cl]

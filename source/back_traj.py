@@ -9,6 +9,8 @@ from trajectory_compute import *
 from trajectory_plot import *
 
 dn = 16
+#runtest=True
+runtest=False
 dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
 files = glob.glob(dir+"diagnostics_3d_ts_*.nc")
 files.sort(key=file_key)
@@ -18,18 +20,25 @@ def main():
     Top level code, a bit of a mess.
     '''
 
-    if dn in (11,16) :
+    if runtest :
+        dt = 60
+#        first_ref_file = 88
+        first_ref_time = 89*dt
+        last_ref_time =  90*dt
+        tr_back_len = 4*dt
+        tr_forward_len = 3*dt
+        ref = 1
+        
+    elif dn in (11,16) :
         dt = 60
         first_ref_time = 50*dt
-    #    first_ref_time = 89*dt
-    #    first_ref_file = 88
         last_ref_time =  90*dt
         tr_back_len = 40*dt
         tr_forward_len = 30*dt
-    #    tr_back_len = 4*dt
-    #    tr_forward_len = 3*dt
         ref = 40
+        
     else:
+        dt = 60
         first_ref_time = 24*dt
         last_ref_time =  44*dt
         tr_back_len = 20*dt
@@ -37,8 +46,8 @@ def main():
         ref = 20
     
 #   Set to True to calculate trajectory family,False to read pre-calculated from pickle file.
-    #get_traj = False
-    get_traj = True
+    get_traj = False
+    #get_traj = True
 
     debug_unsplit = False
     debug_label = False  
@@ -60,15 +69,17 @@ def main():
     fn = dir + fn
     
     ref_prof_file = glob.glob(dir+'diagnostics_ts_*.nc')[0]
-    test_pickle = 'traj_family_{:03d}_{:03d}_{:03d}_{:03d}'.\
+    test_pickle = 'traj_family_{:03d}_{:03d}_{:03d}_{:03d}_v2'.\
         format(first_ref_time//dt-1 ,last_ref_time//dt-1, \
                tr_back_len//dt, tr_forward_len//dt)
     print(test_pickle)
+    kwa={'thresh':1.0E-5}
     if get_traj :
-        tfm = trajectory_family(files, ref_prof_file, \
+        tfm = Trajectory_Family(files, ref_prof_file, \
                      first_ref_time, last_ref_time, \
                      tr_back_len, tr_forward_len, \
-                     100.0, 100.0, 40.0)
+                     100.0, 100.0, 40.0, trajectory_cloud_ref, in_cloud, \
+                     kwargs=kwa)
         outfile = open(dir+test_pickle,'wb')
         print('Pickling ',dir+test_pickle)
         pickle.dump(tfm, outfile)
@@ -79,17 +90,19 @@ def main():
         tfm = pickle.load(infile)
         print(tfm)
         infile.close()
-        
-        
+                
     traj_list = tfm.family
     
+    
 #    tfm.print_matching_object_list()
+    print("Matching object list summary")
     tfm.print_matching_object_list_summary(overlap_thresh=0.1)
     
+    print("Linked_objects")
     tfm.print_linked_objects(overlap_thresh=0.1)
     sel = np.array([72])
-    tfm.print_matching_object_list(ref=ref,select = sel)
-    tfm.print_matching_object_list_summary(ref=ref, select = sel, overlap_thresh=0.1)
+    tfm.print_matching_object_list(select = sel)
+    tfm.print_matching_object_list_summary(select = sel, overlap_thresh=0.1)
     tfm.print_linked_objects(ref=ref, select = sel, overlap_thresh=0.1)
         
     mem_list = [(85,40,40),(0,39,41),(92,39,41),(0,38,42),(1,38,42)]
@@ -151,7 +164,7 @@ def main():
     
     
     if True :
-        mean_prop = traj_m.cloud_properties(version = 1)
+        mean_prop = cloud_properties(traj_m, version = 1)
     
         print(mean_prop['cloud_trigger_time'])
         print(mean_prop['cloud_dissipate_time'])
@@ -220,8 +233,6 @@ def main():
         plt.savefig(dir+'Super_object_length.png')
         plt.show()  
         
-        
-    
     sel_list   = np.array([72])
     th=0.1
     if True :
