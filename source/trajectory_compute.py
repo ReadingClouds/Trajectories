@@ -576,7 +576,7 @@ class Trajectories :
         ref: Index of reference time in trajectory array.
         end: Index of end time in trajectory array. (start is always 0)
         ntimes: Number of times in trajectory array.
-        npoints: Number of times in trajectory array.
+        npoints: Number of points in trajectory array.
         deltax             : Model x grid spacing in m.
         deltay             : Model y grid spacing in m.
         deltaz             : Model z grid spacing in m. 
@@ -1335,24 +1335,49 @@ def load_traj_pos_data(dataset, it) :
         
     """
     
+    if 'CA_xrtraj' in dataset.variables.keys() :
+        # Circle-A Version
+        trv = {'xr':'CA_xrtraj', \
+               'xi':'CA_xitraj', \
+               'yr':'CA_yrtraj', \
+               'yi':'CA_xitraj', \
+               'zpos':'CA_ztraj' } 
+        trv_noncyc = {'xpos':'CA_xtraj', \
+                      'ypos':'CA_ytraj', \
+                      'zpos':'CA_ztraj' } 
+    else :
+        # Stand-alone Version
+        trv = {'xr':'tracer_traj_xr', \
+               'xi':'tracer_traj_xi', \
+               'yr':'tracer_traj_yr', \
+               'yi':'tracer_traj_yi', \
+               'zpos':'tracer_traj_zr' } 
+        trv_noncyc = {'xpos':'tracer_traj_xr', \
+                      'ypos':'tracer_traj_yr', \
+                      'zpos':'tracer_traj_zr' } 
+        
+        
     if cyclic_xy :
-        xr = dataset.variables['CA_xrtraj'][it,...]
-        xi = dataset.variables['CA_xitraj'][it,...]
+        xr = dataset.variables[trv['xr']][it,...]
+        xi = dataset.variables[trv['xi']][it,...]
 
-        yr = dataset.variables['CA_yrtraj'][it,...]
-        yi = dataset.variables['CA_yitraj'][it,...]
+        yr = dataset.variables[trv['yr']][it,...]
+        yi = dataset.variables[trv['yi']][it,...]
     
-        zpos = dataset.variables['CA_ztraj'][it,...]
-        data_list = [xr, xi, yr, yi, zpos]      
+        zpos = dataset.variables[trv['zpos']]
+        zposd = zpos[it,...]
+        data_list = [xr, xi, yr, yi, zposd]      
         
     else :
         # Non-cyclic option may well not work anymore!
-        xpos = dataset.variables['CA_xtraj'][it,...]
-        ypos = dataset.variables['CA_ytraj'][it,...]
-        zpos = dataset.variables['CA_ztraj'][it,...]  
-        data_list = [xpos, ypos, zpos]
+        xpos = dataset.variables[trv_noncyc['xpos']][it,...]
+        ypos = dataset.variables[trv_noncyc['ypos']][it,...]
+        zpos = dataset.variables[trv_noncyc['zpos']]
+        zposd = zpos[it,...]  
+        data_list = [xpos, ypos, zposd]
 
-    zpos = dataset.variables['CA_ztraj']
+# Needed as zpos above is numpy array not NetCDF variable. 
+#    zpos = dataset.variables['CA_ztraj']
     times  = dataset.variables[zpos.dimensions[0]]
              
     return data_list, times[it]  
@@ -1652,7 +1677,7 @@ def compute_traj_boxes(traj, in_obj_func, kwargs={}) :
     data_mean = np.zeros(mean_obj_shape)
     in_obj_data_mean = np.zeros(mean_obj_shape)
     objvar_mean = np.zeros(scalar_shape)
-    num_in_obj = np.zeros(scalar_shape)
+    num_in_obj = np.zeros(scalar_shape, dtype=int)
     traj_centroid = np.zeros(centroid_shape)
     in_obj_centroid = np.zeros(centroid_shape)
     traj_box = np.zeros(box_shape)
@@ -2160,20 +2185,20 @@ def cloud_properties(traj, thresh=None, version=1) :
         
     if version == 1 :
         
-        nplt = 72
-        for it in range(np.shape(mean_prop)[0]) :
-            s = '{:3d}'.format(it)
-            for iclass in range(0,n_class) :
-                s = s+'{:4d} '.format(mean_prop[it, nplt, r4, iclass].astype(int))
-            s = s+'{:6d} '.format(np.sum(mean_prop[it, nplt, r4, :].astype(int)))
-            print(s)
-            
-        for it in range(np.shape(mean_prop)[0]) :
-            s = '{:3d}'.format(it)
-            for iclass in range(0,n_class) :
-                s = s+'{:10f} '.format(mean_prop[it, nplt, nvars, iclass]/1E6)
-            s = s+'{:12f} '.format(np.sum(mean_prop[it, nplt, nvars, :])/1E6)
-            print(s)
+#        nplt = 72
+#        for it in range(np.shape(mean_prop)[0]) :
+#            s = '{:3d}'.format(it)
+#            for iclass in range(0,n_class) :
+#                s = s+'{:4d} '.format(mean_prop[it, nplt, r4, iclass].astype(int))
+#            s = s+'{:6d} '.format(np.sum(mean_prop[it, nplt, r4, :].astype(int)))
+#            print(s)
+#            
+#        for it in range(np.shape(mean_prop)[0]) :
+#            s = '{:3d}'.format(it)
+#            for iclass in range(0,n_class) :
+#                s = s+'{:10f} '.format(mean_prop[it, nplt, nvars, iclass]/1E6)
+#            s = s+'{:12f} '.format(np.sum(mean_prop[it, nplt, nvars, :])/1E6)
+#            print(s)
         
         for iclass in range(0,n_class) :
             m = (mean_prop[:, :, r4, iclass]>0)   

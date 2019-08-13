@@ -8,10 +8,22 @@ import pickle as pickle
 from trajectory_compute import *
 from trajectory_plot import *
 
-dn = 16
+dn = 5
 #runtest=True
 runtest=False
-dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
+#dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
+dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r5n/'
+#   Set to True to calculate trajectory family,False to read pre-calculated from pickle file.
+get_traj = False
+#get_traj = True
+
+debug_unsplit = False
+debug_label = False  
+debug_mean = False 
+debug = False
+    
+
+
 files = glob.glob(dir+"diagnostics_3d_ts_*.nc")
 files.sort(key=file_key)
 
@@ -28,6 +40,21 @@ def main():
         tr_back_len = 4*dt
         tr_forward_len = 3*dt
         ref = 1
+        selind = 1
+#        sel_list   = np.array([0, 24, 38, 41, 43, 56, 57, 61])
+        sel_list   = np.array([21, 29, 32, 34, 38, 40, 47, 48, 61, 64])
+
+        
+    elif dn in (5,) :
+        dt = 60
+        first_ref_time = 50*dt
+        last_ref_time =  90*dt
+        tr_back_len = 40*dt
+        tr_forward_len = 30*dt
+        ref = 40
+        selind = 61
+#        sel_list   = np.array([21, 29, 32, 34, 38, 40, 47, 48, 61, 64])
+        sel_list   = np.array([0, 24, 41, 43, 56, 57])
         
     elif dn in (11,16) :
         dt = 60
@@ -36,6 +63,8 @@ def main():
         tr_back_len = 40*dt
         tr_forward_len = 30*dt
         ref = 40
+        selind = 72
+        sel_list   = np.array([14, 44, 72, 74, 79, 85, 92])
         
     else:
         dt = 60
@@ -44,15 +73,6 @@ def main():
         tr_back_len = 20*dt
         tr_forward_len = 15*dt
         ref = 20
-    
-#   Set to True to calculate trajectory family,False to read pre-calculated from pickle file.
-    get_traj = False
-    #get_traj = True
-
-    debug_unsplit = False
-    debug_label = False  
-    debug_mean = False 
-    debug = False
     
     order_labs =[ \
                  'linear', \
@@ -95,15 +115,16 @@ def main():
     
     
 #    tfm.print_matching_object_list()
-    print("Matching object list summary")
-    tfm.print_matching_object_list_summary(overlap_thresh=0.1)
+#    print("Matching object list summary")
+#    tfm.print_matching_object_list_summary(overlap_thresh=0.1)
     
-    print("Linked_objects")
-    tfm.print_linked_objects(overlap_thresh=0.1)
-    sel = np.array([72])
-    tfm.print_matching_object_list(select = sel)
-    tfm.print_matching_object_list_summary(select = sel, overlap_thresh=0.1)
-    tfm.print_linked_objects(ref=ref, select = sel, overlap_thresh=0.1)
+#    print("Linked_objects")
+#    tfm.print_linked_objects(overlap_thresh=0.1)
+    
+    sel = np.array([selind])
+#    tfm.print_matching_object_list(select = sel)
+#    tfm.print_matching_object_list_summary(select = sel, overlap_thresh=0.1)
+#    tfm.print_linked_objects(ref=ref, select = sel, overlap_thresh=0.1)
         
     mem_list = [(85,40,40),(0,39,41),(92,39,41),(0,38,42),(1,38,42)]
     #mem_list = [(85,40,40),(92,39,41)]
@@ -116,8 +137,10 @@ def main():
     traj_m = traj_list[-1]
     traj_r = traj_list[0]
     
+    so = np.argsort(traj_m.num_in_obj[ref,:])
+    for i in so[-6:] :
+        print(i, traj_m.num_in_obj[ref,i])
     # Appropriate for r11 and r16 test data
-    sel_list   = np.array([14, 44, 72, 74, 79, 85, 92])
     #sel_list   = np.array([72])
     
     
@@ -153,7 +176,7 @@ def main():
     
     max_list = traj_m.max_at_ref
     print(max_list)
-    #sel_list = max_list
+    sel_list = max_list
     if False :
         for iobj in sel_list:
             plot_trajectory_history(traj_m, iobj, fn) 
@@ -166,8 +189,8 @@ def main():
     if True :
         mean_prop = cloud_properties(traj_m, version = 1)
     
-        print(mean_prop['cloud_trigger_time'])
-        print(mean_prop['cloud_dissipate_time'])
+#        print(mean_prop['cloud_trigger_time'])
+#        print(mean_prop['cloud_dissipate_time'])
 
     if True :
         cloud_lifetime = mean_prop['cloud_dissipate_time'] - \
@@ -233,7 +256,7 @@ def main():
         plt.savefig(dir+'Super_object_length.png')
         plt.show()  
         
-    sel_list   = np.array([72])
+    sel_list   = np.array([selind])
     th=0.1
     if True :
         for cloud in sel_list :
