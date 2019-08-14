@@ -614,6 +614,7 @@ class Trajectories :
                   "v":r"$v$ m s$^{-1}$", \
                   "w":r"$w$ m s$^{-1}$", \
                   "th":r"$\theta$ K", \
+                  "p":r"Pa", \
                   "q_vapour":r"$q_{v}$ kg/kg", \
                   "q_cloud_liquid_mass":r"$q_{cl}$ kg/kg", \
                   }

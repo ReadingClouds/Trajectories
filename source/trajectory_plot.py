@@ -171,6 +171,13 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             ax.set_ylabel(r"$z$ m",fontsize=16)
             ax.set_ylim(0,ymax)
             
+            
+            ax = axa[2,2]
+            ax.set_xlabel(r"Tracer 1 kgkg$^{-1}$",\
+                          fontsize=16)
+            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_ylim(0,ymax)
+           
             fig2, axb = plt.subplots(3, 2, figsize=(8,10), sharey=True)
             entrmax=0.01
             ax = axb[0,0]
@@ -291,8 +298,7 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             m2 = (mean_prop['cloud'][1:,iobj,npts_ptr] >10)
             z1 = (mean_prop['cloud'][1:,iobj,z_ptr][m2]-0.5)*tr.deltaz
 #           now = cloud + entr + entr_bot + detr ( + bl + above bl)
-#           pre = cloud_pre + entr_pre + entr_bot_pre + bl + above_bl
-            
+#           pre = cloud_pre + entr_pre + entr_bot_pre + bl + above_bl            
             mse_now  = mean_prop['cloud'][1:,iobj,nvars][m2] * \
                        mean_prop['cloud'][1:,iobj,npts_ptr][m2]
                        
@@ -366,6 +372,15 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             ax.plot(mse_loss[m3], z1[m3],\
                     linewidth=4, \
                     label='{}'.format(iobj))
+            
+            ax = axa[2,2]
+            v="tracer_rad1"
+            line = ax.plot(mean_prop['pre_cloud_bl']\
+                    [:,iobj,tr.var(v)][mbl], zbl[mbl])
+            ax.plot(mean_prop['cloud'][:,iobj,tr.var(v)][m1], z[m1], \
+                     color = line[0].get_color(), linewidth=4, \
+                    label='{}'.format(iobj))
+
 
 ############################################################################
 # Cloud volume                      
@@ -959,7 +974,7 @@ def plot_traj_family_animation(traj_family, match_index, \
             linked_objs = traj_family.find_linked_objects(ref=ref, \
                                     select = ref_obj , \
                                     overlap_thresh = overlap_thresh)
-#            print(linked_objs)
+            print(linked_objs)
             for obj in linked_objs :
                 for t,o,mint in obj :
                     max_t = np.max([max_t,ref-t])
