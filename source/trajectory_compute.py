@@ -553,11 +553,12 @@ class Trajectories :
         kwargs             : any additional keyword arguments to ref_func (dict).
     
     Attributes:
+    
         rhoref (array): Reference profile of density.
         pref (array): Reference profile of pressure.
         thref (array): Reference profile of potential temperature.
         piref (array): Reference profile of Exner pressure.
-        data : list of arrays [nt, m, n] where nt is total number of times, 
+        data : Array [nt, m, n] where nt is total number of times, 
             m the number of trajectory points at a given time and 
             n is the number of variables in variable_list.
         trajectory: Array [nt, m, 3] where the last index gives x,y,z 
@@ -724,7 +725,7 @@ def compute_trajectories(files, start_time, ref_time, end_time, \
     Returns:
         Set of variables defining trajectories::
         
-            data_val: list of arrays [nt, m, n] where nt is total number of times, 
+            data_val: Array [nt, m, n] where nt is total number of times, 
                 m the number of trajectory points at a given time and 
                 n is the number of variables in variable_list.
             trajectory: Array [nt, m, 3] where the last index gives x,y,z 
@@ -2238,6 +2239,7 @@ def cloud_properties(traj, thresh=None, version=1) :
 def trajectory_cloud_ref(dataset, time_index, thresh=0.00001) :
     """
     Function to set up origin of back and forward trajectories.
+
     Args:
         dataset        : Netcdf file handle.
         time_index     : Index of required time in file.
@@ -2245,6 +2247,7 @@ def trajectory_cloud_ref(dataset, time_index, thresh=0.00001) :
 
     Returns: 
         Trajectory variables::
+        
             traj_pos       : position of origin point.
             labels         : array of point labels.
             nobjects       : number of objects.
@@ -2293,11 +2296,15 @@ def in_cloud(traj, *argv, thresh=1.0E-5) :
     
     Args:
         traj           : Trajectory object.
+        tr_time        : Time index (optional)
+        obj_ptrs       : Logical array selecting object
         thresh=0.00001 : Cloud liquid water threshold for clouds.
 
-    Returns: 
-        mask           : Logical array like trajectory array.
-        qcl            : Cloud liquid water content array.
+    Returns:
+        Variables defining those points in cloud::
+        
+            mask           : Logical array like trajectory array.
+            qcl            : Cloud liquid water content array.
 
     @author: Peter Clark
 
@@ -2326,7 +2333,7 @@ def cloud_select(qcl, thresh=1.0E-5) :
         thresh=0.00001 : Cloud liquid water threshold for clouds.
 
     Returns: 
-        mask           : Logical array like trajectory array.
+        Logical array like trajectory array selecting those points inside cloud.
 
     @author: Peter Clark
 
