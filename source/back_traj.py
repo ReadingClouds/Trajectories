@@ -8,8 +8,20 @@ import pickle as pickle
 from trajectory_compute import *
 from trajectory_plot import *
 
-dn = 16
-dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
+dn = 5
+#runtest=True
+runtest=False
+#dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
+dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r5n/'
+#   Set to True to calculate trajectory family,False to read pre-calculated from pickle file.
+get_traj = False
+#get_traj = True
+
+debug_unsplit = False
+debug_label = False  
+debug_mean = False 
+debug = False
+    
 files = glob.glob(dir+"diagnostics_3d_ts_*.nc")
 files.sort(key=file_key)
 
@@ -18,32 +30,47 @@ def main():
     Top level code, a bit of a mess.
     '''
 
-    if dn in (11,16) :
+    if runtest :
+        dt = 60
+#        first_ref_file = 88
+        first_ref_time = 89*dt
+        last_ref_time =  90*dt
+        tr_back_len = 4*dt
+        tr_forward_len = 3*dt
+        ref = 1
+        selind = 1
+#        sel_list   = np.array([0, 24, 38, 41, 43, 56, 57, 61])
+        sel_list   = np.array([21, 29, 32, 34, 38, 40, 47, 48, 61, 64])
+
+        
+    elif dn in (5,) :
         dt = 60
         first_ref_time = 50*dt
-    #    first_ref_time = 89*dt
-    #    first_ref_file = 88
         last_ref_time =  90*dt
         tr_back_len = 40*dt
         tr_forward_len = 30*dt
-    #    tr_back_len = 4*dt
-    #    tr_forward_len = 3*dt
         ref = 40
+        selind = 61
+#        sel_list   = np.array([21, 29, 32, 34, 38, 40, 47, 48, 61, 64])
+        sel_list   = np.array([0, 24, 41, 43, 56, 57])
+        
+    elif dn in (11,16) :
+        dt = 60
+        first_ref_time = 50*dt
+        last_ref_time =  90*dt
+        tr_back_len = 40*dt
+        tr_forward_len = 30*dt
+        ref = 40
+        selind = 72
+        sel_list   = np.array([14, 44, 72, 74, 79, 85, 92])
+        
     else:
+        dt = 60
         first_ref_time = 24*dt
         last_ref_time =  44*dt
         tr_back_len = 20*dt
         tr_forward_len = 15*dt
         ref = 20
-    
-#   Set to True to calculate trajectory family,False to read pre-calculated from pickle file.
-    #get_traj = False
-    get_traj = True
-
-    debug_unsplit = False
-    debug_label = False  
-    debug_mean = False 
-    debug = False
     
     order_labs =[ \
                  'linear', \
@@ -60,15 +87,29 @@ def main():
     fn = dir + fn
     
     ref_prof_file = glob.glob(dir+'diagnostics_ts_*.nc')[0]
-    test_pickle = 'traj_family_{:03d}_{:03d}_{:03d}_{:03d}'.\
+    test_pickle = 'traj_family_{:03d}_{:03d}_{:03d}_{:03d}_v2'.\
         format(first_ref_time//dt-1 ,last_ref_time//dt-1, \
                tr_back_len//dt, tr_forward_len//dt)
     print(test_pickle)
+    var_list = { \
+      "u":r"$u$ m s$^{-1}$", \
+      "v":r"$v$ m s$^{-1}$", \
+      "w":r"$w$ m s$^{-1}$", \
+      "th":r"$\theta$ K", \
+      "p":r"Pa", \
+      "q_vapour":r"$q_{v}$ kg/kg", \
+      "q_cloud_liquid_mass":r"$q_{cl}$ kg/kg", \
+      "tracer_rad1":r"kg/kg", \
+      "tracer_rad2":r"kg/kg", \
+      }
+    kwa={'thresh':1.0E-5}
     if get_traj :
-        tfm = trajectory_family(files, ref_prof_file, \
+
+        tfm = Trajectory_Family(files, ref_prof_file, \
                      first_ref_time, last_ref_time, \
                      tr_back_len, tr_forward_len, \
-                     100.0, 100.0, 40.0)
+                     100.0, 100.0, 40.0, trajectory_cloud_ref, in_cloud, \
+                     kwargs=kwa, variable_list=var_list)
         outfile = open(dir+test_pickle,'wb')
         print('Pickling ',dir+test_pickle)
         pickle.dump(tfm, outfile)
@@ -79,18 +120,21 @@ def main():
         tfm = pickle.load(infile)
         print(tfm)
         infile.close()
-        
-        
+                
     traj_list = tfm.family
     
-#    tfm.print_matching_object_list()
+    
+    tfm.print_matching_object_list()
+    print("Matching object list summary")
     tfm.print_matching_object_list_summary(overlap_thresh=0.1)
     
+    print("Linked_objects")
     tfm.print_linked_objects(overlap_thresh=0.1)
-    sel = np.array([72])
-    tfm.print_matching_object_list(ref=ref,select = sel)
-    tfm.print_matching_object_list_summary(ref=ref, select = sel, overlap_thresh=0.1)
-    tfm.print_linked_objects(ref=ref, select = sel, overlap_thresh=0.1)
+    
+    sel = np.array([selind])
+#    tfm.print_matching_object_list(select = sel)
+#    tfm.print_matching_object_list_summary(select = sel, overlap_thresh=0.1)
+#    tfm.print_linked_objects(ref=ref, select = sel, overlap_thresh=0.1)
         
     mem_list = [(85,40,40),(0,39,41),(92,39,41),(0,38,42),(1,38,42)]
     #mem_list = [(85,40,40),(92,39,41)]
@@ -103,14 +147,30 @@ def main():
     traj_m = traj_list[-1]
     traj_r = traj_list[0]
     
+    so = np.argsort(traj_m.num_in_obj[ref,:])
+    for i in so[-6:] :
+        print(i, traj_m.num_in_obj[ref,i])
     # Appropriate for r11 and r16 test data
-    sel_list   = np.array([14, 44, 72, 74, 79, 85, 92])
     #sel_list   = np.array([72])
+
+
+    #input("Press Enter then continue Powerpoint...")
+    
+    
+    if True :
+        mean_prop = cloud_properties(traj_m, version = 1)
+        
+#        print(mean_prop.keys())
+#        print(np.shape(mean_prop['cloud']))
+    
+#        print(mean_prop['cloud_trigger_time'])
+#        print(mean_prop['cloud_dissipate_time'])
     
     
     if True :
         th = 0.5
         sup, len_sup = tfm.find_super_objects(overlap_thresh = th)
+#        print(sup)
     
     # Plot all clouds
     if True :
@@ -140,21 +200,12 @@ def main():
     
     max_list = traj_m.max_at_ref
     print(max_list)
-    #sel_list = max_list
+    sel_list = max_list
     if False :
         for iobj in sel_list:
             plot_trajectory_history(traj_m, iobj, fn) 
     
         plt.show()    
-
-    #input("Press Enter then continue Powerpoint...")
-    
-    
-    if True :
-        mean_prop = traj_m.cloud_properties(version = 1)
-    
-        print(mean_prop['cloud_trigger_time'])
-        print(mean_prop['cloud_dissipate_time'])
 
     if True :
         cloud_lifetime = mean_prop['cloud_dissipate_time'] - \
@@ -220,9 +271,8 @@ def main():
         plt.savefig(dir+'Super_object_length.png')
         plt.show()  
         
-        
-    
-    sel_list   = np.array([72])
+#    sel_list   = np.array([selind])
+    sel_list = max_list
     th=0.1
     if True :
         for cloud in sel_list :

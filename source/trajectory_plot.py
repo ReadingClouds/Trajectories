@@ -171,6 +171,13 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             ax.set_ylabel(r"$z$ m",fontsize=16)
             ax.set_ylim(0,ymax)
             
+            
+            ax = axa[2,2]
+            ax.set_xlabel(r"Tracer 1 kgkg$^{-1}$",\
+                          fontsize=16)
+            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_ylim(0,ymax)
+           
             fig2, axb = plt.subplots(3, 2, figsize=(8,10), sharey=True)
             entrmax=0.01
             ax = axb[0,0]
@@ -291,8 +298,7 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             m2 = (mean_prop['cloud'][1:,iobj,npts_ptr] >10)
             z1 = (mean_prop['cloud'][1:,iobj,z_ptr][m2]-0.5)*tr.deltaz
 #           now = cloud + entr + entr_bot + detr ( + bl + above bl)
-#           pre = cloud_pre + entr_pre + entr_bot_pre + bl + above_bl
-            
+#           pre = cloud_pre + entr_pre + entr_bot_pre + bl + above_bl            
             mse_now  = mean_prop['cloud'][1:,iobj,nvars][m2] * \
                        mean_prop['cloud'][1:,iobj,npts_ptr][m2]
                        
@@ -366,6 +372,15 @@ def plot_trajectory_mean_history(tr, mean_prop, fn, \
             ax.plot(mse_loss[m3], z1[m3],\
                     linewidth=4, \
                     label='{}'.format(iobj))
+            
+            ax = axa[2,2]
+            v="tracer_rad1"
+            line = ax.plot(mean_prop['pre_cloud_bl']\
+                    [:,iobj,tr.var(v)][mbl], zbl[mbl])
+            ax.plot(mean_prop['cloud'][:,iobj,tr.var(v)][m1], z[m1], \
+                     color = line[0].get_color(), linewidth=4, \
+                    label='{}'.format(iobj))
+
 
 ############################################################################
 # Cloud volume                      
@@ -507,21 +522,11 @@ def plot_traj_pos(traj, index, fn, save=False) :
     plt.close(fig)
     return
  
-def gal_trans(x, y, galilean, j, timestep, traj, ax) :  
+def gal_trans(x, y, galilean, j, timestep, traj) :  
     if galilean[0] != 0 :
         x = ( x - galilean[0]*j*timestep/traj.deltax )%traj.nx
-        xlim = ax.get_xlim()
-        if xlim[0] <= 0 :
-            x[x >= xlim[1]] -= traj.nx
-        if xlim[1] >=  traj.nx:
-            x[x <= xlim[0]] += traj.nx
     if galilean[1] != 0 :
-        y = ( y - galilean[1]*j*timestep/traj.deltax )%traj.ny
-        ylim = ax.get_ylim()
-        if ylim[0] <= 0 :
-            y[y >= ylim[1]] -= traj.ny
-        if ylim[1] >=  traj.ny:
-            y[y <= ylim[0]] += traj.ny
+        y = ( y - galilean[1]*j*timestep/traj.deltay )%traj.ny
     return x, y
 
 def box_xyz(b):
@@ -627,6 +632,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
         iobj = select[0]
         x = traj.trajectory[0,traj.labels == iobj,0]
         y = traj.trajectory[0,traj.labels == iobj,1]
+
         xm = np.mean(x)
         xr = np.max(x)- np.min(x)
 #        print(np.min(x),np.max(x))
@@ -714,6 +720,9 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
     #    j = traj.ntimes-i-1
         j = i 
     #    print 'Frame %d Time %d'%(i,j)
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+
         if plot_field :
 #            print('Plotting {}'.format(traj.times[j]))
             file_number = np.where(file_times >= traj.times[j])[0][0]
@@ -727,15 +736,15 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
             else :
                 it = np.where(qcl_times == traj.times[j])[0][0]
 #            print(file_number,it)
-            in_cl = (qcl_field[it,...] > traj.thresh)
+            in_cl = (qcl_field[it,...] > traj.ref_func_kwargs["thresh"])
             dataset.close()
             x = xg[in_cl]
             y = yg[in_cl]
             z = zg[in_cl]
             
             if galilean is not None :
-                x, y = gal_trans(x, y,  galilean, j, timestep, traj, ax)                        
-            
+                x, y = gal_trans(x, y,  galilean, j, timestep, traj) 
+                       
             clip_arr = (x >= (x_min-10)) & (x <= (x_max+10)) \
                      & (y >= (y_min-10)) & (y <= (y_max+10))
             x = x[clip_arr]
@@ -754,12 +763,15 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
                 y = traj.trajectory[j,traj.labels == iobj,1]
                 z = traj.trajectory[j,traj.labels == iobj,2]
                 if galilean is not None :
-                    x, y = gal_trans(x, y,  galilean, j, timestep, traj, ax)                        
+                    x, y = gal_trans(x, y,  galilean, j, timestep, traj) 
+
+                x = conform_plot(x, traj.nx, xlim)
+                y = conform_plot(y, traj.ny, ylim)
                         
                 if plot_class is None : 
                     qcl = traj.data[j,traj.labels == iobj, \
                                     traj.var("q_cloud_liquid_mass")]
-                    in_cl = (qcl > traj.thresh) 
+                    in_cl = (qcl > traj.ref_func_kwargs["thresh"]) 
                     not_in_cl = ~in_cl 
                     [line, line_cl] = line_list[nplt]
                     line.set_data(x[not_in_cl], y[not_in_cl])
@@ -774,10 +786,13 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
                         line.set_3d_properties(z[in_cl])
                     
                 if with_boxes :
-                    b = traj.cloud_box[j,iobj,:,:]
+                    b = traj.in_obj_box[j,iobj,:,:]
                     x, y, z = box_xyz(b)
                     if galilean is not None :
-                        x, y = gal_trans(x, y, galilean, j, timestep, traj, ax)                        
+                        x, y = gal_trans(x, y, galilean, j, timestep, traj)                        
+
+                    x = conform_plot(x, traj.nx, xlim)
+                    y = conform_plot(y, traj.ny, ylim)
 
                     box = box_list[nplt]
                     box.set_data(x, y)
@@ -843,7 +858,7 @@ def plot_traj_family_members(traj_family, selection_list, galilean = None, \
         z = tr.trajectory[tr_time,osel,2]
         ax.set_zlim(0, tr.zcoord[-1])
         if galilean is not None :
-            x, y = gal_trans(x, y,  galilean, abs_time, timestep, tr, ax)  
+            x, y = gal_trans(x, y,  galilean, abs_time, timestep, tr)  
 
 #        print(np.min(x),np.max(x))                      
 #        print(np.min(y),np.max(y))                      
@@ -854,7 +869,7 @@ def plot_traj_family_members(traj_family, selection_list, galilean = None, \
             y = (y + 0.5).astype(int)
             z = (z + 0.5).astype(int)
         qcl = tr.data[tr_time, osel, tr.var("q_cloud_liquid_mass")]
-        in_cl = (qcl > tr.thresh) 
+        in_cl = (qcl > tr.ref_func_kwargs["thresh"]) 
         not_in_cl = ~in_cl 
         
 #        print(np.shape(x),np.shape(y),np.shape(y))
@@ -869,10 +884,10 @@ def plot_traj_family_members(traj_family, selection_list, galilean = None, \
                                label='{}'.format(selection))
         line_cl.set_3d_properties(z[in_cl])
         if with_boxes :
-            b = tr.cloud_box[tr_time,iobj,:,:]
+            b = tr.in_obj_box[tr_time,iobj,:,:]
             x, y, z = box_xyz(b)
             if galilean is not None :
-                x, y = gal_trans(x, y, galilean, abs_time, timestep, tr, ax)                        
+                x, y = gal_trans(x, y, galilean, abs_time, timestep, tr)                        
 
             box, = ax.plot(x,y,color = line.get_color())
             box.set_3d_properties(z)
@@ -959,7 +974,7 @@ def plot_traj_family_animation(traj_family, match_index, \
             linked_objs = traj_family.find_linked_objects(ref=ref, \
                                     select = ref_obj , \
                                     overlap_thresh = overlap_thresh)
-#            print(linked_objs)
+            print(linked_objs)
             for obj in linked_objs :
                 for t,o,mint in obj :
                     max_t = np.max([max_t,ref-t])
@@ -1015,7 +1030,7 @@ def plot_traj_family_animation(traj_family, match_index, \
 #        print("Adding {} to traj_list".format(iobj))
         traj_list.append((traj.trajectory[:,traj.labels == iobj,...], \
                                 traj.data[:,traj.labels == iobj,...], 
-                           traj.cloud_box[:,iobj,...]) )
+                           traj.in_obj_box[:,iobj,...]) )
     
         match_list = list([])
 
@@ -1044,7 +1059,7 @@ def plot_traj_family_animation(traj_family, match_index, \
                       [:, match_traj.labels == mobj, ...], \
                                        match_traj.data\
                       [:, match_traj.labels == mobj, ...], \
-                                       match_traj.cloud_box \
+                                       match_traj.in_obj_box \
                       [:, mobj,...]) )                    
                     
         else :
@@ -1066,7 +1081,7 @@ def plot_traj_family_animation(traj_family, match_index, \
                       [:, match_traj.labels == mobj, ...], \
                                        match_traj.data\
                       [:, match_traj.labels == mobj, ...], \
-                                       match_traj.cloud_box \
+                                       match_traj.in_obj_box \
                       [:, mobj,...]) )
     
         match_traj_list_list.append(match_list)
@@ -1203,19 +1218,25 @@ def plot_traj_family_animation(traj_family, match_index, \
 #            input("Press enter")
         return
     
-    def set_line_data(tr, it, t_off, ln) :
+    def set_line_data(tr, it, t_off, ln, ax) :
 #        print("Setting line data")
 #        print(tr,it,ln,ln_cl)
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+
         tr_time = it + t_off
         if (tr_time >= 0 ) & (tr_time < np.shape(tr[0])[0]) :
             x = tr[0][tr_time,:,0]
             y = tr[0][tr_time,:,1]
             z = tr[0][tr_time,:,2]
             if galilean is not None :
-                x, y = gal_trans(x, y,  galilean, it, timestep, traj, ax)                        
+                x, y = gal_trans(x, y,  galilean, it, timestep, traj) 
+                
+            x = conform_plot(x, traj.nx, xlim)
+            y = conform_plot(y, traj.ny, ylim)
 
             qcl = tr[1][tr_time, :, traj.var("q_cloud_liquid_mass")]
-            in_cl = (qcl > traj.thresh) 
+            in_cl = (qcl > traj.ref_func_kwargs["thresh"]) 
             not_in_cl = ~in_cl 
             ln[0].set_data(x[not_in_cl], y[not_in_cl])
             ln[0].set_3d_properties(z[not_in_cl])
@@ -1232,11 +1253,16 @@ def plot_traj_family_animation(traj_family, match_index, \
 #        print("Setting line data")
 #        print(tr,it,ln,ln_cl)
         tr_time = it + t_off
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
         if (tr_time >= 0 ) & (tr_time < np.shape(tr[0])[0]) :
             b = tr[2][tr_time,:,:]
             x, y, z = box_xyz(b)
             if galilean is not None :
-                x, y = gal_trans(x, y,  galilean, it, timestep, traj, ax)                        
+                x, y = gal_trans(x, y,  galilean, it, timestep, traj)  
+                                      
+            x = conform_plot(x, traj.nx, xlim)
+            y = conform_plot(y, traj.ny, ylim)
 
             box.set_data(x, y)
             box.set_3d_properties(z)
@@ -1264,13 +1290,13 @@ def plot_traj_family_animation(traj_family, match_index, \
 #            else :                
 #                filename = match_traj.files[i]
             qcl_field = dataset.variables["q_cloud_liquid_mass"]
-            in_cl = (qcl_field[it,...] > traj.thresh)
+            in_cl = (qcl_field[it,...] > traj.ref_func_kwargs["thresh"])
             x = xg[in_cl]
             y = yg[in_cl]
             z = zg[in_cl]
                
             if galilean is not None :
-                x, y = gal_trans(x, y,  galilean, j, timestep, traj, ax)                        
+                x, y = gal_trans(x, y,  galilean, j, timestep, traj)                        
             
             clip_arr = (x >= (x_min-10)) & (x <= (x_max+10)) \
                      & (y >= (y_min-10)) & (y <= (y_max+10))
@@ -1288,7 +1314,7 @@ def plot_traj_family_animation(traj_family, match_index, \
 #                print("Setting line data", j, nplt, line_list[nplt])
 #                input("Press enter")
 
-            set_line_data(traj_list[nplt], j, 0, line_list[nplt])
+            set_line_data(traj_list[nplt], j, 0, line_list[nplt], ax)
 #                input("Press enter")
               
             if plot_linked :
@@ -1309,7 +1335,7 @@ def plot_traj_family_animation(traj_family, match_index, \
                         match_index = ref-match_obj
 #                            print("match_index",match_index)
                         set_line_data(m_traj, j, match_index, \
-                                      match_line_list)
+                                      match_line_list, ax)
                                
                     if with_boxes :
                         set_box_data(traj_list[nplt], j, 0, \
@@ -1332,7 +1358,7 @@ def plot_traj_family_animation(traj_family, match_index, \
 #                        print(m_traj)
 #                        print("Match line list", match_line_list)
     
-                    set_line_data(m_traj, j, match_index, match_line_list)
+                    set_line_data(m_traj, j, match_index, match_line_list, ax)
 #                        input("Press enter")
                            
                 if with_boxes :
@@ -1358,4 +1384,11 @@ def plot_traj_family_animation(traj_family, match_index, \
     if save_anim : anim.save(anim_name+'.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
     plt.show()
     return
+    
+def conform_plot(x, nx, xlim ) :
+    if xlim[0] < 0 and xlim[1] < nx:
+        x[x >= xlim[1]] -= nx
+    if xlim[0] > 0 and xlim[1] > nx:
+        x[x <= xlim[0]] += nx
+    return x      
 
