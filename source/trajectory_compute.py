@@ -21,8 +21,8 @@ c_virtual         = 1.0/epsilon-1.0
 
 #debug_unsplit = True
 debug_unsplit = False
-debug_label = False  
 #debug_label = True  
+debug_label = False  
 #debug_mean = True 
 debug_mean = False 
 #debug = True
