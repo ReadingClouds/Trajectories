@@ -19,11 +19,18 @@ files.sort(key=file_key)
 def main():
     '''
     Top level code, a bit of a mess.
+    This computes families of trajectories from files in directory dir.
+    Current setup is back 40 min, forward 30 min from reference times every minute. 
+    Trajectories are calculated with reference times from 3h in to 23h 59 min - each hour's family is picked in a separate pickle file
     '''
 
     ref_prof_file = glob.glob(dir+'diagnostics_ts_*.nc')[0]
     tr_back_len_min = 40
     tr_forward_len_min = 30
+    
+    dx = 100.0
+    dy = 100.0
+    dz = 40.0
 
     order_labs =[ \
                 'linear', \
@@ -69,7 +76,7 @@ def main():
             tfm = Trajectory_Family(files, ref_prof_file, \
                      first_ref_time, last_ref_time, \
                      tr_back_len, tr_forward_len, \
-                     100.0, 100.0, 40.0, trajectory_cloud_ref, in_cloud, \
+                     dx, dy, dz, trajectory_cloud_ref, in_cloud, \
                      kwargs=kwa, variable_list=var_list)
             outfile = open(dir+pickle_file,'wb')
             print('Pickling ',dir+pickle_file)

@@ -9,6 +9,17 @@ import pickle as pickle
 from trajectory_compute import *
 from trajectory_plot import *
 
+def heat_map(ax, xd, yd, bins, cmap=plt.cm.Reds) :
+    hist, xc, yc, im = ax.hist2d(xd, yd, bins, cmap=cmap)
+    xp = (xc[0:-1]+xc[1:])*0.5
+    zp = (yc[0:-1]+yc[1:])*0.5
+    mn = np.mean(hist*xp[:,np.newaxis], axis=0)/np.mean(hist, axis=0)
+    mn2 = np.mean(hist*xp[:,np.newaxis]**2, axis=0)/np.mean(hist, axis=0)
+    std = np.sqrt(mn2-mn*mn)
+    ax.errorbar(mn,zp,xerr=std,fmt='-k',capsize=5.0)
+    return zp, mn, std
+
+
 CLOUD_HEIGHT = 0
 CLOUD_POINTS = 1
 CLOUD_VOLUME = 2
@@ -27,27 +38,17 @@ n_entr_vars = 8
 dn = 5
 #dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
 dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r6n/'
+   
+dx = 100.0
+dy = 100.0
+dz = 40.0
+
 #   Set to True to calculate trajectory family,False to read pre-calculated from pickle file.
-get_traj = False
+ get_traj = False
 #get_traj = True
    
 files = glob.glob(dir+"diagnostics_3d_ts_*.nc")
 files.sort(key=file_key)
-
-def heat_map(ax, xd, yd, bins, cmap=plt.cm.Reds) :
-    hist, xc, yc, im = ax.hist2d(xd, yd, bins, cmap=cmap)
-    xp = (xc[0:-1]+xc[1:])*0.5
-    zp = (yc[0:-1]+yc[1:])*0.5
-    mn = np.mean(hist*xp[:,np.newaxis], axis=0)/np.mean(hist, axis=0)
-    mn2 = np.mean(hist*xp[:,np.newaxis]**2, axis=0)/np.mean(hist, axis=0)
-    std = np.sqrt(mn2-mn*mn)
-    ax.errorbar(mn,zp,xerr=std,fmt='-k',capsize=5.0)
-    return zp, mn, std
-
-#def main():
-'''
-Top level code, a bit of a mess.
-'''
 
 ref_prof_file = glob.glob(dir+'diagnostics_ts_*.nc')[0]
 tr_back_len_min = 40
@@ -66,6 +67,19 @@ var_list = { \
   }
 kwa={'thresh':1.0E-5}  
 
+
+
+'''
+Top level code, a bit of a mess.
+This uses computed families of trajectories from files in directory dir.
+Current setup is back 40 min, forward 30 min from reference times every minute. 
+Trajectories are calculated with reference times from 1 h in to 22 h 59 min - 
+each hour's family is pickled in a separate pickle file.
+If get_traj==True, these are computed first, otherwise they must already exist.
+Various cloud parameter distributions are calculated.
+'''
+
+# It is easier to concatentate lists - at the end, the lists are consolidated into numpy arrays.
 cloud_time = list([])
 cloud_lifetime = list([])
 cloud_base = list([])
@@ -73,7 +87,6 @@ cloud_top = list([])
 cloud_base_area = list([])
 cloud_base_variables = list([])
 entrainment = list([])
-
 
 for hh in range(1,23) :
     first_ref_min = hh*60
@@ -92,7 +105,7 @@ for hh in range(1,23) :
         tfm = Trajectory_Family(files, ref_prof_file, \
                  first_ref_time, last_ref_time, \
                  tr_back_len, tr_forward_len, \
-                 100.0, 100.0, 40.0, trajectory_cloud_ref, in_cloud, \
+                 dx, dy, dz, trajectory_cloud_ref, in_cloud, \
                  kwargs=kwa, variable_list=var_list)
         outfile = open(dir+pickle_file,'wb')
         print('Pickling ',dir+pickle_file)
@@ -108,79 +121,125 @@ for hh in range(1,23) :
         else :
             print("File not found: ",dir+pickle_file)
             
- 
+# Loop over trajectory sets for each reference time in trajectory family.
     for traj_m in tfm.family :
         
-
+        # Classify trajectory points according to in cloud, being entrained from boundary-layer,
+        # being entrained from above boundary-layer etc.
+        # Note, this dictionary includes some additional cloud statistics.
         traj_m_class = set_cloud_class(traj_m, version = 1)
+        
+        # Total number of standard variables associated with each trajectory point.
         nvars = np.shape(traj_m.data)[2]
-
+        
+        # Save absolute times for trajectory points.
         cloud_time.append(traj_m.times[traj_m.ref])
         print('Trajectory time: ',traj_m.times[traj_m.ref])
         
+        # After the classification, most of the work is done here.        
+        # Compute means for each cloud over each classification of points.
+        # This includes additional derived variables according to the 
+        # cloud-properties function.
+        # This also calculates entrainment rates etc.. 
+        # See documentation
         mean_prop = cloud_properties(traj_m, traj_m_class)
 
+        # Total number of derived variables associated with each trajectory point.
         ndvars = len(mean_prop["derived_variable_list"])
+        # Total number of position variables associated with each trajectory point.
         nposvars = 3
 
-        z_ptr = nvars + ndvars + 2 # Index of variable in mean_prop which is height
-        npts_ptr = nvars + ndvars + nposvars # Index of variable in mean_prop which is 
+        # Set up pointers into the traj_m.data and mean_prop arrays.
+        
+        # Index of variable in mean_prop which is height
+        z_ptr = nvars + ndvars + 2 
+        # Index of variable in mean_prop which is number of points in object.
+        npts_ptr = nvars + ndvars + nposvars 
+        # Index of Moist Static Energy
         mse_ptr = nvars + list(mean_prop["derived_variable_list"].keys()).index("MSE") 
+        # Index of total water mixing ratio.
         qt_ptr = nvars + list(mean_prop["derived_variable_list"].keys()).index("q_total")
         
+        # Objects (clouds) in traj_m to include in analysis.
+        # traj_m.max_at_ref is those clouds with maximim total q_cl at reference time.        
         select = traj_m.max_at_ref
         
+        # Extract cloud statistics from traj_m_class for selected objects.
         cloud_lifetime.append(traj_m_class['cloud_dissipate_time'][select] - \
-                         traj_m_class['cloud_trigger_time'][select])
+                              traj_m_class['cloud_trigger_time'][select])
         cloud_base.append(traj_m_class['min_cloud_base'][select])
-        cloud_top.append(traj_m_class['cloud_top'][select])
-        
+        cloud_top.append(traj_m_class['cloud_top'][select])      
+
+        # Extract some mean data from mean_prop for selected objects.
+        # See cloud_properties function for how these are computed.        
         cloud_base_area.append(mean_prop['max_cloud_base_area'][select])
-        cloud_base_variables.append(mean_prop['cloud_base_variables'][select, :]) 
+        cloud_base_variables.append(mean_prop['cloud_base_variables'][select, :])         
         
-         
+        # Now we want to compute various numbers cloud by cloud.         
         entr = list([])                 
-        for iobj in select :             
+        for iobj in select : 
+            # Create an index array for the object        
             index_points = np.arange(len(mean_prop['cloud'][:,iobj,npts_ptr]), \
                                         dtype=int)
+                                        
+            # Create mask for times between trigger time and dissipation time.                            
             incloud = np.logical_and( \
                       index_points >=  traj_m_class['cloud_trigger_time'][iobj],\
                       index_points  < traj_m_class['cloud_dissipate_time'][iobj])
-            precloud = np.arange(len(mean_prop['cloud'][:,iobj,npts_ptr]), \
-                                        dtype=int)
-            precloud = (precloud < traj_m_class['cloud_dissipate_time'][iobj])
             cloud_gt_0 = (mean_prop['cloud'][:,iobj,npts_ptr] > 0)
             incloud = np.logical_and(cloud_gt_0, incloud)
+            # Rates are computed by finite difference so have 1 fewer items.
             incloud_rates = incloud[1:]
             
+            # Extract timeseries of cloud volume and mean height
             vol = mean_prop['cloud_properties'][:,iobj,CLOUD_VOLUME]
+            z = mean_prop['cloud_properties'][:,iobj,CLOUD_HEIGHT]
+            # Find where cloud volume maximised.
             max_cloud_index = np.where(vol == np.max(vol))[0][0]
             
+            # Creat mask for times in growing cloud.
             growing_cloud = np.logical_and(index_points <= max_cloud_index, incloud)
             growing_cloud_rates = growing_cloud[1:]
             
-            z = mean_prop['cloud_properties'][:,iobj,CLOUD_HEIGHT]
+            # Create mask for times inside boundary layer 
+            # First, must be before cloud dissipates
+            precloud = np.arange(len(mean_prop['cloud'][:,iobj,npts_ptr]), \
+                                        dtype=int)
+            precloud = (precloud < traj_m_class['cloud_dissipate_time'][iobj])
+            
+            # Extract mean heights (m) for points in bl prior to entrainment.
+            # This needs sorting for variable vertical grid.             
             zbl = (mean_prop['pre_cloud_bl'][:,iobj,z_ptr]-0.5)*traj_m.deltaz
+            
+            # Now we can make sure pre-cloud points are below cloud base.
             in_bl = (mean_prop['pre_cloud_bl'][:,iobj,npts_ptr] > 0)
             in_bl = np.logical_and(in_bl, precloud)
             in_bl = np.logical_and(in_bl, zbl<= traj_m_class["min_cloud_base"][iobj])
 
+            # The above (in_bl) does not appear to be used but I've left it because it might be useful.
+            
+            # Extract various variables from mean prop just for the times where cloud exists and is growing.
             z_entr = mean_prop['cloud_properties'][:,iobj,CLOUD_HEIGHT][1:][growing_cloud_rates]        
             entr_rate = mean_prop["entrainment"][:,iobj,CB_ENTR][growing_cloud_rates]
             entr_rate_z = mean_prop["entrainment"][:,iobj,CB_ENTR_Z][growing_cloud_rates]
             side_entr_rate = mean_prop["entrainment"][:,iobj,SIDE_ENTR][growing_cloud_rates]
             side_entr_rate_z = mean_prop["entrainment"][:,iobj,SIDE_ENTR_Z][growing_cloud_rates]
             
+            # This is just a check 
             if len(z_entr) != len(entr_rate) :
                 print("Object ", iobj, len(z_entr), len(entr_rate), \
                 len(mean_prop['cloud_properties'][:,iobj,CLOUD_HEIGHT]), \
                 len(mean_prop["entrainment"][:,iobj,CB_ENTR]))
                 
-
+            # Add list of results to entr list. 
             entr.append([z_entr, entr_rate, entr_rate_z, side_entr_rate, \
                                 side_entr_rate_z])
+            # End of extraction for cloud.
+        # Add list of results to entrainment list. 
         entrainment.append(entr)
-
+    # End of reference time loop.
+    
+# Create single dictionary out of various variables extracted above.
 cloud_dict={\
 "cloud_time": cloud_time, \
 "cloud_lifetime": cloud_lifetime, \
@@ -191,29 +250,34 @@ cloud_dict={\
 "entrainment": entrainment, \
 }
 
+# Pickle this for further procesing.
 outf = open(dir+'Cloud_props','wb')
 print('Pickling ',dir+'Cloud_props')
-pickle.dump(tfm, outf)
+pickle.dump(cloud_dict, outf)
 outf.close()
 
-
+# Some variables are just lists of arrays - one entry per time, array of cloud ids.
+# Convert to simple arrays.
 c_life=np.hstack(cloud_lifetime)
 c_top=np.hstack(cloud_top)
 c_base=np.hstack(cloud_base)
 c_base_area=np.hstack(cloud_base_area)
 c_depth=c_top-c_base
 
+# Consolidate cloud-base variables into an array over clouds.
 c_base_variables = np.zeros((len(cloud_base_variables[0][0]),0))
 for c in cloud_base_variables :
     for cbv in c :
 #        print(np.shape(c_base_variables), np.shape(cbv))
         c_base_variables = np.concatenate((c_base_variables, cbv[:,np.newaxis]),axis=1)
-        
+
+# Consolidate z, entrainment rates (4 variables) into arrays and count number of clouds included.        
 z=np.array([])                                                                      
 ent=np.zeros((4,0))
 n_clouds =0
 for e in entrainment:
     for c in e :
+        # Don't include cloud if no entrainment data.
         if len(c[0]>0) : 
             n_clouds += 1
             if len(c[0]) == len(c[4]) :
@@ -222,7 +286,7 @@ for e in entrainment:
                 ent = np.concatenate((ent, arr),axis=1)
 print(n_clouds)
 
-
+# Time to do some plotting!
 plt.hist(c_life, bins = np.arange(0,75,10, dtype=int), density=True)
 plt.xlabel('Lagrangian lifetime (min)')
 plt.ylabel('Fraction of clouds')
@@ -357,41 +421,3 @@ for i in range(4) :
     plt.savefig(dir+'entr_line_{:1d}.png'.format(i))
     plt.show()
 
-sel_list = traj_m.max_at_ref
- # Plot max_list clouds mean history         
-if False :
-    plot_trajectory_mean_history(traj_m, traj_m_class, mean_prop, fn, select = sel_list) 
-
-# Plot subset max_list clouds with galilean transform
-# Not needed   
-if False :
-    plot_traj_animation(traj_m, save_anim=False, select = sel_list, \
-                    no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
-                    with_boxes = False, galilean = np.array([-8.5,0]))
-
-
-#input("Press Enter to continue...")
- 
-if False :
-    plot_traj_animation(traj_m, save_anim=False, \
-                    anim_name='traj_cloud_sel_field', \
-                    select = sel_list, \
-                    fps=10, legend = True, plot_field = True, \
-                    dir_override=dir, \
-                    no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
-                    title = 'Reference Time {0} Galilean Trans with clouds'.\
-                    format(last_ref_time), with_boxes = False, \
-                    galilean = np.array([-8.5,0]))
-    
-    
-if False :
-    plt.hist(len_sup, bins = np.arange(0.5,16.5), density=True)
-    plt.title('Threshold = {:2.0f}%'.format(th*100))
-    plt.xlabel('Super-object length (min)')
-    plt.ylabel('Fraction of super objects')
-    plt.savefig(dir+'Super_object_length.png')
-    plt.show()  
-        
-    
-#if __name__ == "__main__":
-#    main() 
