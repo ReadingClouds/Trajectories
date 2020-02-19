@@ -12,7 +12,7 @@ dn = 5
 #runtest=True
 runtest=False
 #dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
-dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r5n/'
+dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r6n/'
 #   Set to True to calculate trajectory family,False to read pre-calculated from pickle file.
 get_traj = False
 #get_traj = True
@@ -50,6 +50,17 @@ def main():
         tr_back_len = 40*dt
         tr_forward_len = 30*dt
         ref = 40
+        selind = 61
+#        sel_list   = np.array([21, 29, 32, 34, 38, 40, 47, 48, 61, 64])
+        sel_list   = np.array([0, 24, 41, 43, 56, 57])
+        
+    elif dn in (6,) :
+        dt = 60
+        first_ref_time = 60*dt
+        last_ref_time =  119*dt
+        tr_back_len = 40*dt
+        tr_forward_len = 30*dt
+        ref = 30
         selind = 61
 #        sel_list   = np.array([21, 29, 32, 34, 38, 40, 47, 48, 61, 64])
         sel_list   = np.array([0, 24, 41, 43, 56, 57])
@@ -149,9 +160,9 @@ def main():
     traj_m.variable_list["tracer_rad1"]=r"Tracer 1 kg/kg"
     traj_m.variable_list["tracer_rad2"]=r"Tracer 2 kg/kg"
     
-    so = np.argsort(traj_m.num_in_obj[ref,:])
-    for i in so[-6:] :
-        print(i, traj_m.num_in_obj[ref,i])
+#    so = np.argsort(traj_m.num_in_obj[ref,:])
+#    for i in so[-6:] :
+#        print(i, traj_m.num_in_obj[ref,i])
     # Appropriate for r11 and r16 test data
     #sel_list   = np.array([72])
 
@@ -180,7 +191,7 @@ def main():
     if True :
         th = 0.5
         sup, len_sup = tfm.find_super_objects(overlap_thresh = th)
-#        print(sup)
+        print(sup)
     
     # Plot all clouds
     if False :
@@ -212,13 +223,13 @@ def main():
     print(max_list)
     sel_list = max_list
     sel_list=np.array([61])
-    if False :
+    if True :
         for iobj in sel_list:
             plot_trajectory_history(traj_m, iobj, fn) 
     
         plt.show()    
 
-    if False :
+    if True :
         cloud_lifetime = traj_m_class['cloud_dissipate_time'] - \
                          traj_m_class['cloud_trigger_time']
         

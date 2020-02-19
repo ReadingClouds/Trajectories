@@ -30,8 +30,9 @@ def plot_trajectory_history(tr, select_obj, fn) :
 		Nothing
         
         Plots:
-            "w","th","q_vapour","q_cloud_liquid_mass","theta_L","q_t" plus 3D
-            history of cloudy points.
+            "w","th","q_vapour","q_cloud_liquid_mass","theta_L","q_t" 
+            against height and time, height vs time and3D history of 
+            cloudy points.
         	
 	@author: Peter Clark
 	
@@ -39,16 +40,23 @@ def plot_trajectory_history(tr, select_obj, fn) :
 
     mask = (tr.labels == select_obj)
     
-    fig, axa = plt.subplots(3,2,figsize=(8,10))
 #    fig.clf
     traj = tr.trajectory[:,mask,:]
     data = tr.data[:,mask,:]
           
     z = (traj[:,:,2]-0.5)*tr.deltaz
     zn = (np.arange(0,np.size(tr.piref))-0.5)*tr.deltaz
+    
+    times = tr.times/3600.0
 #    print np.shape(z)
     
+#    plottypes = [\
+#                 ("z", r"$z$ m"), \
+#                 ("t", r"time h$^{-1}$"), \
+#                 ]
     #print np.shape(z)
+    fig1, axa = plt.subplots(3,2,figsize=(8,10))
+    
     for j,v in enumerate(["w","th","q_vapour","q_cloud_liquid_mass"]):
 #        print (j,v,var(v))        
         ax = axa[(j)%2,(j)//2]
@@ -76,16 +84,55 @@ def plot_trajectory_history(tr, select_obj, fn) :
              data[:,i,tr.var("q_cloud_liquid_mass")]
 #        print qt,data[:,var("q_vapour"),i],data[:,var("q_cloud_liquid_mass"),i]
         ax.plot( qt,z[:,i])
-    ax.set_xlabel(r"$q_t$ kg/kg",fontsize=16)
+#    ax.set_xlabel(r"$q_t$ kg/kg",fontsize=16)
     ax.set_ylabel(r"$z$ m",fontsize=16)
     ax.set_title('Cloud %2.2d'%select_obj)
 
     plt.tight_layout()
     plt.savefig(fn+'_Cloud_traj_%3.3d'%select_obj+'.png')
-    
-    fig1 = plt.figure(figsize=(10,6))
 
-    ax1 = fig1.add_subplot(111, projection='3d')
+    fig2, axa = plt.subplots(3,2,figsize=(8,10))
+    
+    for j,v in enumerate(["w","th","q_vapour","q_cloud_liquid_mass"]):
+#        print (j,v,var(v))        
+        ax = axa[(j)%2,(j)//2]
+        for i in range(np.shape(z)[1]-1) :
+            ax.plot(times,data[:,i,tr.var(v)])
+        ax.plot(times[tr.ref]*np.ones(2),ax.get_ylim(),'--k')
+        ax.set_ylabel(tr.variable_list[v],fontsize=16)
+        ax.set_xlabel(r"time h$^{-1}$",fontsize=16)
+        ax.set_title('Cloud %2.2d'%select_obj)
+
+    ax = axa[2,0]
+    for i in range(np.shape(z)[1]-1) :
+        piref_z = np.interp(z[:,i],zn,tr.piref)
+#        print piref_z
+        thl = data[:,i,tr.var("th")] - \
+              L_over_cp*data[:,i,tr.var("q_cloud_liquid_mass")]/piref_z
+#        print thl, data[:,var("th"),i],data[:,var("q_vapour"),i]
+        ax.plot(times,thl)
+    ax.plot(times[tr.ref]*np.ones(2),ax.get_ylim(),'--k')
+    ax.set_ylabel(r"$\theta_L$ K",fontsize=16)
+    ax.set_xlabel(r"time h$^{-1}$",fontsize=16)
+    ax.set_title('Cloud %2.2d'%select_obj)
+    
+    ax = axa[2,1]
+    for i in range(np.shape(z)[1]-1) :
+        qt = data[:,i,tr.var("q_vapour")] + \
+             data[:,i,tr.var("q_cloud_liquid_mass")]
+#        print qt,data[:,var("q_vapour"),i],data[:,var("q_cloud_liquid_mass"),i]
+        ax.plot( times, qt)
+    ax.plot(times[tr.ref]*np.ones(2),ax.get_ylim(),'--k')
+    ax.set_ylabel(r"$q_t$ kg/kg",fontsize=16)
+    ax.set_xlabel(r"time h$^{-1}$",fontsize=16)
+    ax.set_title('Cloud %2.2d'%select_obj)
+
+    plt.tight_layout()
+    plt.savefig(fn+'_Cloud_traj_%3.3d_time_'%select_obj+'.png')
+    
+    fig2 = plt.figure(figsize=(10,6))
+
+    ax1 = fig2.add_subplot(111, projection='3d')
     
     ax1.set_xlim(tr.xcoord[0]-10, tr.xcoord[-1]+10)
     ax1.set_ylim(tr.ycoord[0]-10, tr.ycoord[-1]+10)
@@ -97,7 +144,16 @@ def plot_trajectory_history(tr, select_obj, fn) :
     
     plt.savefig(fn+'_Cloud_traj_pos_%3.3d'%select_obj+'.png')
 
-    plt.close(fig1)
+    fig3, ax = plt.subplots(1,1,figsize=(10,6))
+    for i in range(np.shape(z)[1]-1) :
+        ax.plot(times, z[:,i])
+    ax.plot(times[tr.ref]*np.ones(2),ax.get_ylim(),'--k')
+#    print(times[tr.ref]*np.ones(2),plt.ylim())
+    ax.set_xlabel(r"time h$^{-1}$",fontsize=16)
+    ax.set_ylabel(r"$z$ m",fontsize=16)
+    ax.set_title('Cloud %2.2d'%select_obj)
+    plt.savefig(fn+'_Cloud_traj_z_%3.3d'%select_obj+'.png')
+#    plt.close(fig2)
     
     return
         
@@ -132,8 +188,11 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
     TOT_ENTR_Z = 1
     SIDE_ENTR = 2
     SIDE_ENTR_Z = 3
-    DETR = 4
-    DETR_Z = 5
+    CB_ENTR = 4
+    CB_ENTR_Z = 5
+    DETR = 6
+    DETR_Z = 7
+    n_entr_vars = 8
     
     nvars = np.shape(tr.data)[2]
     ndvars = len(mean_prop["derived_variable_list"])
@@ -157,14 +216,18 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
     obj_plotted = 0
     iobj = 0
     figs = 0
+    
+    mult = 0.7
+    
+    fntsz = 8
     while obj_plotted < np.size(select) :
         
-        ymax = np.ceil(np.max(traj_cl['cloud top'])/100)*100
+        ymax = np.ceil(np.max(traj_cl['cloud_top'])/100)*100
         
         
         if new_fig :
             figlist = list([])
-            fig1, axa = plt.subplots(3, 3, figsize=(10,10), sharey=True)
+            fig1, axa = plt.subplots(3, 3, figsize=(10*mult,10*mult), sharey=True)
             figlist.append((axa, fig1))
                         
             for j,v in enumerate(["th","th_v","th_L",\
@@ -180,49 +243,50 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
                     lab = ""
                     
                 ax = axa[(j)%3,(j)//3]
-                ax.set_xlabel(lab,fontsize=16)
-                ax.set_ylabel(r"$z$ m",fontsize=16)
+                ax.set_xlabel(lab,fontsize=fntsz)
+                ax.set_ylabel(r"$z$ m",fontsize=fntsz)
                 ax.set_ylim(0, ymax)
 
-            fig2, axb = plt.subplots(3, 2, figsize=(8,10), sharey=True)
+            fig2, axb = plt.subplots(3, 2, figsize=(8*mult,10*mult), sharey=True)
             figlist.append((axb, fig2))
 
             entrmax=0.01
+            
             ax = axb[0,0]
-            ax.set_xlabel(r"Volume km$^3$",fontsize=16)
-            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlabel(r"Volume km$^3$",fontsize=fntsz)
+            ax.set_ylabel(r"$z$ m",fontsize=fntsz)
             ax.set_ylim(0,ymax)
 
             ax = axb[0,1]
-            ax.set_xlabel(r"Detrainment rate s$^{-1}$",fontsize=16)
-            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlabel(r"Detrainment rate s$^{-1}$",fontsize=fntsz)
+            ax.set_ylabel(r"$z$ m",fontsize=fntsz)
             ax.set_ylim(0,ymax)
 
             ax = axb[1,0]
-            ax.set_xlabel(r"Entrainment rate s$^{-1}$",fontsize=16)
-            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlabel(r"CB Entrainment rate s$^{-1}$",fontsize=fntsz)
+            ax.set_ylabel(r"$z$ m",fontsize=fntsz)
             ax.set_xlim(0,entrmax)
             ax.set_ylim(0,ymax)
 
             ax = axb[1,1]
-            ax.set_xlabel(r"Side Entrainment rate s$^{-1}$",fontsize=16)
-            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlabel(r"Side Entrainment rate s$^{-1}$",fontsize=fntsz)
+            ax.set_ylabel(r"$z$ m",fontsize=fntsz)
             ax.set_xlim(0,entrmax)
             ax.set_ylim(0,ymax)
 
             ax = axb[2,0]
-            ax.set_xlabel(r"Entrainment rate m$^{-1}$",fontsize=16)
-            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlabel(r"CB Entrainment rate m$^{-1}$",fontsize=fntsz)
+            ax.set_ylabel(r"$z$ m",fontsize=fntsz)
             ax.set_xlim(0,entrmax)
             ax.set_ylim(0,ymax)
 
             ax = axb[2,1]
-            ax.set_xlabel(r"Side Entrainment rate m$^{-1}$",fontsize=16)
-            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_xlabel(r"Side Entrainment rate m$^{-1}$",fontsize=fntsz)
+            ax.set_ylabel(r"$z$ m",fontsize=fntsz)
             ax.set_xlim(0,entrmax)
             ax.set_ylim(0,ymax)
             
-            fig3, axc = plt.subplots(3, 3, figsize=(10,10), sharey=True)
+            fig3, axc = plt.subplots(3, 3, figsize=(10*mult,10*mult), sharey=True)
             figlist.append((axc, fig3))
 
             for j,v in enumerate(["th","th_v","th_L",\
@@ -238,8 +302,8 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
                     lab = ""
                     
                 ax = axc[(j)%3,(j)//3]
-                ax.set_xlabel(lab,fontsize=16)
-                ax.set_ylabel(r"$z$ m",fontsize=16)
+                ax.set_xlabel(lab,fontsize=fntsz)
+                ax.set_ylabel(r"$z$ m",fontsize=fntsz)
                 ax.set_ylim(0, ymax)
             
 
@@ -247,37 +311,30 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
             figs +=1
                         
         if np.isin(iobj,select) :
-            incloud = np.arange(len(mean_prop['cloud'][:,iobj,npts_ptr]), \
+            index_points = np.arange(len(mean_prop['cloud'][:,iobj,npts_ptr]), \
                                 dtype=int)
             incloud = np.logical_and( \
-                            incloud >=  traj_cl['cloud_trigger_time'][iobj],\
-                            incloud <  traj_cl['cloud_dissipate_time'][iobj])
+                            index_points >=  traj_cl['cloud_trigger_time'][iobj],\
+                            index_points <  traj_cl['cloud_dissipate_time'][iobj])
             precloud = np.arange(len(mean_prop['cloud'][:,iobj,npts_ptr]), \
                                 dtype=int)
             precloud = (precloud < traj_cl['cloud_dissipate_time'][iobj])
-            m = (mean_prop['cloud'][:,iobj,npts_ptr] > 0)
+            cloud_gt_0 = (mean_prop['cloud'][:,iobj,npts_ptr] > 0)
 #            m2 = (mean_prop['cloud'][1:,iobj,npts_ptr] >10)
-            m1 = np.logical_and(m, incloud)
-            m2 = m1[1:]
+            incloud = np.logical_and(cloud_gt_0, incloud)
+            incloud_rates = incloud[1:]
             
-#            print(np.size(m1), np.size(m2))
-#            nplt = 72
-#            if iobj == nplt :
-#                print(mean_prop["cloud_trigger_time"][iobj])
-#                print(mean_prop["cloud_dissipate_time"][iobj])
-#                print(m1)
+            vol = mean_prop['cloud_properties'][:,iobj,CLOUD_VOLUME]
+            max_cloud_index = np.where(vol == np.max(vol))[0][0]
+            
+            growing_cloud = np.logical_and(index_points <= max_cloud_index, incloud)
+            growing_cloud_rates = growing_cloud[1:]
 
             z = mean_prop['cloud_properties'][:,iobj,CLOUD_HEIGHT]
             zbl = (mean_prop['pre_cloud_bl'][:,iobj,z_ptr]-0.5)*tr.deltaz
-            mbl = (mean_prop['pre_cloud_bl'][:,iobj,npts_ptr] > 0)
-            mbl = np.logical_and(mbl, precloud)
-            mbl = np.logical_and(mbl, zbl<= traj_cl["min cloud base"][iobj])
-            
-#            if iobj == nplt :
-#                print(mean_prop["first cloud base"][iobj])
-#                print(mean_prop["min cloud base"][iobj])
-#                print(mbl)
-#                print(zbl[mbl])
+            in_bl = (mean_prop['pre_cloud_bl'][:,iobj,npts_ptr] > 0)
+            in_bl = np.logical_and(in_bl, precloud)
+            in_bl = np.logical_and(in_bl, zbl<= traj_cl["min_cloud_base"][iobj])
 
             for j,v in enumerate(["th","th_v","th_L",\
                                   "q_vapour","q_cloud_liquid_mass","q_total",\
@@ -293,9 +350,9 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
                     
                 ax = axa[(j)%3,(j)//3]
                 line = ax.plot(mean_prop['pre_cloud_bl']\
-                               [:,iobj,vptr][mbl], zbl[mbl])
+                               [:,iobj,vptr][in_bl], zbl[in_bl])
 
-                ax.plot(mean_prop['cloud'][:,iobj,vptr][m1], z[m1], \
+                ax.plot(mean_prop['cloud'][:,iobj,vptr][incloud], z[incloud], \
                         color = line[0].get_color(), linewidth=4, \
                          label='{}'.format(iobj))
 
@@ -314,11 +371,11 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
                     vptr = 9999
                     
                 ax = axc[(j)%3,(j)//3]
-#                print(np.shape(m1), np.shape(mbl),np.shape(mean_prop["budget_loss"][:, iobj, vptr]), np.shape(z), np.shape(zbl))
-                line = ax.plot(mean_prop["budget_loss"][:,iobj,vptr][mbl[1:]], \
-                               zbl[1:][mbl[1:]])
+#                print(np.shape(m1), np.shape(in_bl),np.shape(mean_prop["budget_loss"][:, iobj, vptr]), np.shape(z), np.shape(zbl))
+                line = ax.plot(mean_prop["budget_loss"][:,iobj,vptr][in_bl[1:]], \
+                               zbl[1:][in_bl[1:]])
 
-                ax.plot(mean_prop["budget_loss"][:, iobj, vptr][m1[1:]], z[1:][m1[1:]], \
+                ax.plot(mean_prop["budget_loss"][:, iobj, vptr][incloud_rates], z[1:][incloud_rates], \
                         color = line[0].get_color(), linewidth=4, \
                          label='{}'.format(iobj))
            
@@ -327,56 +384,61 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
             ax = axb[0,0]
             mass = mean_prop['cloud_properties'][:,iobj,CLOUD_VOLUME]/1E9
 
-            line = ax.plot(mass[m], z[m])
-            ax.plot(mass[m1], z[m1], label='{}'.format(iobj), \
+            line = ax.plot(mass[cloud_gt_0], z[cloud_gt_0])
+            ax.plot(mass[incloud], z[incloud], label='{}'.format(iobj), \
                     color = line[0].get_color(), linewidth=4)
+            ax.plot(mass[max_cloud_index], z[max_cloud_index], '*', \
+              color = line[0].get_color())
+              
+#            print(iobj,mass[incloud], z[incloud])
 # Detrainment rate
             ax = axb[0,1]
 
-            detr_rate = mean_prop["entrainment"][:,iobj,DETR][m2]
+            detr_rate = mean_prop["entrainment"][:,iobj,DETR][incloud_rates]
 
 #            for z,d in zip(z1,detr_rate) : print(z,d)
 
-            ax.plot(detr_rate[detr_rate>0], z[1:][m2][detr_rate>0], \
+            ax.plot(detr_rate[detr_rate>0], z[1:][incloud_rates][detr_rate>0], \
                          linestyle='' ,marker='.', \
                          label='{}'.format(iobj))
 
 # Entrainment rate (time)
             ax = axb[1,0]
             
-            entr_rate = mean_prop["entrainment"][:,iobj,TOT_ENTR][m2]
+            entr_rate = mean_prop["entrainment"][:,iobj,CB_ENTR][growing_cloud_rates]
                 
 #            for z,e in zip(z1,entr_rate): print(z,e)
 
-            ax.plot(entr_rate[entr_rate>0], z[1:][m2][entr_rate>0], \
+            ax.plot(entr_rate[entr_rate>0], z[1:][growing_cloud_rates][entr_rate>0], \
                          linestyle='' ,marker='.', \
                          label='{}'.format(iobj))
             
 # Entrainment rate (space)
             ax = axb[2,0]
-            entr_rate_z = mean_prop["entrainment"][:,iobj,TOT_ENTR_Z][m2]
+            entr_rate_z = mean_prop["entrainment"][:,iobj,CB_ENTR_Z][growing_cloud_rates]
 
-            ax.plot(entr_rate_z[entr_rate_z>0], z[1:][m2][entr_rate_z>0], \
-                         linestyle='' ,marker='.', \
-                         label='{}'.format(iobj))
+            ax.plot(entr_rate_z[entr_rate_z>0], \
+                    z[1:][growing_cloud_rates][entr_rate_z>0], \
+                    linestyle='' ,marker='.', \
+                    label='{}'.format(iobj))
             
 # Side Entrainment rate 
             ax = axb[1,1]
             
-            side_entr_rate = mean_prop["entrainment"][:,iobj,SIDE_ENTR][m2]
+            side_entr_rate = mean_prop["entrainment"][:,iobj,SIDE_ENTR][growing_cloud_rates]
 
 #            for z,e in zip(z1,entr_rate) : print(z,e)
 
             ax.plot(side_entr_rate[side_entr_rate>0], \
-                         z[1:][m2][side_entr_rate>0], \
+                         z[1:][growing_cloud_rates][side_entr_rate>0], \
                          linestyle='' ,marker='.', \
                          label='{}'.format(iobj))
 # Side Entrainment rate  (space)
             ax = axb[2,1]
-            side_entr_rate_z = mean_prop["entrainment"][:,iobj,SIDE_ENTR_Z][m2]
+            side_entr_rate_z = mean_prop["entrainment"][:,iobj,SIDE_ENTR_Z][growing_cloud_rates]
 
             ax.plot(side_entr_rate_z[side_entr_rate_z>0], \
-                         z[1:][m2][side_entr_rate_z>0], \
+                         z[1:][growing_cloud_rates][side_entr_rate_z>0], \
                          linestyle='' ,marker='.', \
                          label='{}'.format(iobj))
 
@@ -751,6 +813,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
         while True :
             x =  input("Enter T, f or b")
             if x == "T" : break
+            if x == "p" : plt.savefig('frame_{:03d}.png'.format(frame))
             if x == "f" and frame < ntraj : frame += 1
             if x == "b" and frame > 0 : frame -= 1
             animate(frame)

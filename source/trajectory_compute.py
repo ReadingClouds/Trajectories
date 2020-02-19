@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
+import os
+
 from netCDF4 import Dataset
 import numpy as np
 from scipy import ndimage
 from sklearn.cluster import KMeans
 from scipy.optimize import minimize
+#import matplotlib.pyplot as plt
 
 L_vap = 2.501E6
 Cp = 1005.0
@@ -98,17 +101,25 @@ class Trajectory_Family :
 #            input("Press a key")
         return
     
-    def matching_object_list(self, ref = None, select = None ):
+    def matching_object_list(self, master_ref = None, select = None ):
         """
         Method to generate a list of matching objects at all times they match. 
         Matching is done using overlap of in_obj boxes.
 
         Args:
-            ref=None  : Which trajectory set in family to use to find matching objects. Default is the last set.
+            master_ref=None  : Which trajectory set in family to use to find matching objects. Default is the last set.
+            select=None      : Which objects to find matches for.
         
         Returns:        
+            dictionary pointing to arrays of mean properties and meta data::
+        
+                Dictionary keys::
+                  "master_ref"       : master_ref actually used.
+                  "objects"          : object numbers selected.
+                  "matching_objects" : List described below.
+                  
             List with one member for each trajectory set with an earlier 
-            reference time than ref. 
+            reference time than master_ref. 
             
             By default, this is all the sets apart 
             from the last. Let us say t_off is the backwards offset from the
@@ -116,78 +127,67 @@ class Trajectory_Family :
             reference time.
             
             Each member is a list with one member for each back trajectory time 
-            in the ref trajectories, containing a list with one member for 
-            every object in ref,comprising an array of integer indices of the 
+            in the master_ref trajectories, containing a list with one member for 
+            every object in master_ref,comprising an array of integer indices of the 
             matching objects in the earlier set that match the reference object
             at the given time. This may be empty if no matches have been found.
-            Let us say the it_back measures the time backwards from ref, with
-            it_back=0 at th ereference time.
+            Let us say the it_back measures the time backwards from master_ref, with
+            it_back=0 at the reference time.
             
             Thus, if mol is the matching object list,
             mol[t_off][it_back][iobj] is an array of object ids belonging to
-            trajectory set ref-(t_off+1), at ref trajectory time it_back before 
-            the ref reference time and matching iobj a the reference time.
+            trajectory set master_ref-(t_off+1), at master_ref trajectory time it_back before 
+            the master_ref reference time and matching object index iobj a the reference time.
             
         @author: Peter Clark
         
         """
         
         mol = list([])
-        if ref is None : ref = len(self.family) - 1
-        traj = self.family[ref]
+        if master_ref is None : master_ref = len(self.family) - 1
+        traj = self.family[master_ref]
         if select is None : select = np.arange(0, traj.nobjects, dtype = int)
-        # Iterate backwards from first set before ref.
-        for t_off in range(0, ref) :
-#            print("Matching at reference time offset {}".format(t_off+1))
+        # Iterate backwards from first set before master_ref.
+        for t_off in range(0, master_ref) :
             # We are looking for objects in match_traj matching those in traj.
-            match_traj = self.family[ref-(t_off+1)]
+            match_traj = self.family[master_ref-(t_off+1)]
             # matching_objects[t_off] will be those objects in match_traj 
             # which match traj at any time.
             matching_objects = list([])
-#            print('ref, t_off',ref, t_off)
-            # Iterate backwards over all set times from ref to start. 
+
+            # Iterate backwards over all set times from master_ref to start. 
             for it_back in range(0,traj.ref+1) :
                 # Time to make comparison
                 ref_time = traj.ref-it_back
                 # Note match_traj.ref in general will equal traj.ref 
                 # Time in match_traj that matches ref_time
-                 #       so match_time = ref - it_back
+                #       so match_time = master_ref - it_back
                 match_time = match_traj.ref + (t_off + 1)- it_back 
-#                print("Matching at reference trajectory time {}".format(it_back))
                 matching_object_at_time = list([])
-                # Iterate over objects in ref.
- #               print('ref_time, match_time',ref_time, match_time)
-#                input("Press enter")
+
+                # Iterate over objects in master_ref.
                 for iobj in select :
-#                    corr_box = np.array([],dtype=int)
-                    # Only look at in_objs
-#                    print('iobj',iobj)
+
                     if traj.num_in_obj[ref_time ,iobj] > 0 :
                         b_test = traj.in_obj_box[ref_time, iobj,...]
-#                        print("b_test",b_test)
-#                        if iobj == 0 : print("Matching time {}".format(match_time))
+
                         # Find boxes in match_traj at match_time that overlap
                         # in_obj box for iobj at the same time.
                         if (match_time >= 0) & \
                           (match_time < np.shape(match_traj.in_obj_box)[0]) :
+
                             b_set  = match_traj.in_obj_box[match_time,...]
-#                            print(b_set[0:4])
                             corr_box = box_overlap_with_wrap(b_test, b_set, \
                                 traj.nx, traj.ny)
-#                            print("corr_box",corr_box,b_set[corr_box,...])
                             valid = (match_traj.num_in_obj[match_time, corr_box]>0)
-#                            print("valid", valid)
-#                            print('box 1',match_traj.in_obj_box[match_time,1])
                             corr_box = corr_box[valid]
-#                            if iobj == 85 :
-#                                print(iobj,match_time,b_test, corr_box, b_set[corr_box,...])
-#                                input("Press enter")
                     matching_object_at_time.append(corr_box)
                 matching_objects.append(matching_object_at_time)
             mol.append(matching_objects)
-        return mol
+        ret_dict = {"master_ref": master_ref, "objects": select, "matching_objects": mol}
+        return ret_dict
    
-    def print_matching_object_list(self, ref = None, select = None) :    
+    def print_matching_object_list(self, master_ref = None, select = None) :    
         """
         Method to print matching object list.
         
@@ -197,42 +197,52 @@ class Trajectory_Family :
         
         """
         
-        if ref == None : ref = len(self.family) - 1
-        if select is None : select = np.arange(0, self.family[ref].nobjects, \
+        if master_ref == None : master_ref = len(self.family) - 1
+        if select is None : select = np.arange(0, self.family[master_ref].nobjects, \
                                            dtype = int)
-        mol = self.matching_object_list(ref = ref, select = select)
+        mol_dict = self.matching_object_list(master_ref = master_ref, select = select)
+        mol = mol_dict["matching_objects"]
 #        for t_off in range(0, 4) :
         for t_off in range(0, len(mol)) :
             matching_objects = mol[t_off]
-            for i in range(0, len(matching_objects[0])) :
+            for i in range(0, len(select)) :
                 iobj = select[i]
                 for it_back in range(0, len(matching_objects)) :
 #                for it_back in range(0, 4) :
+                    rep =""
                     for obj in matching_objects[it_back][i] :
-                        if np.size(obj) > 0 :
-                            print("t_off: {0} iobj: {1} it_back: {2} obj: {3}".\
-                                  format(t_off+1, iobj, it_back, obj))
+                        rep += "{} ".format(obj)
+                    if len(rep) > 0 :
+                        print("t_off: {0} iobj: {1} it_back: {2} obj: {3}".\
+                                  format(t_off, iobj, it_back, rep))
         return
     
-    def matching_object_list_summary(self, ref = None, select = None, \
+    def matching_object_list_summary(self, master_ref = None, select = None, \
                                      overlap_thresh=0.02) :
         """
         Method to classify matching objects.
         
         Args: 
-            ref=None  : Which trajectory set in family to use to find \
+            master_ref=None  : Which trajectory set in family to use to find \
              matching objects. Default is the last set.         
             overlap_thresh=0.02 Threshold for overlap to be sufficient for inclusion.
             
                           
         Returns:
-            List with one member for each trajectory set with an earlier reference than ref. 
+            Dictionary pointing to arrays of mean properties and meta data::
+        
+                Dictionary keys::
+                  "master_ref"              : master_ref actually used.
+                  "objects"                 : object numbers selected.
+                  "matching_object_summary" : List described below.
+                  
+            List with one member for each trajectory set with an earlier reference than master_ref. 
             
             By default, this is all the sets apart from the last.
             
-            Each member is a list with one member for each object in ref,
+            Each member is a list with one member for each object in master_ref,
             containing a list of objects in the earlier set that match the
-            object in ref AT ANY TIME.
+            object in master_ref AT ANY TIME.
             
             Each of these is classified 'Linked' if the object is in the 
             max_at_ref list at the earler reference time, otherwise 'Same'.
@@ -241,36 +251,36 @@ class Trajectory_Family :
         
         """
         
-        if ref is None : ref = len(self.family) - 1
-        traj = self.family[ref]
+        if master_ref is None : master_ref = len(self.family) - 1
+        traj = self.family[master_ref]
         if select is None : select = np.arange(0, traj.nobjects, dtype = int )
-        
-        mol = self.matching_object_list(ref = ref, select=select)
+        mol_dict = self.matching_object_list(master_ref = master_ref, select=select)        
+        mol = mol_dict["matching_objects"]
         mols = list([])
-        # Iterate backwards from first set before ref.
+        # Iterate backwards from first set before master_ref.
         for t_off, matching_objects in enumerate(mol) :
             match_list = list([])
-#            match_time = ref-(t_off+1)
+#            match_time = master_ref-(t_off+1)
                 # Note match_traj.ref in general will equal traj.ref 
                 # Time in match_traj that matches ref_time
-                 #       so match_time = ref - it_back
+                 #       so match_time = master_ref - it_back
             for i, iobj in enumerate(select) :
                 objlist = list([])
                 otypelist = list([])
                 interlist = list([])
                 for it_back in range(0, len(matching_objects)) :
-                    match_traj = self.family[ref-(t_off+1)]
+                    match_traj = self.family[master_ref-(t_off+1)]
                     ref_time = traj.ref-it_back
                     match_time = match_traj.ref + (t_off + 1)- it_back 
 #                    print('times',ref_time,match_time)
-                    for obj in matching_objects[it_back][i] :
-                        if np.size(obj) > 0 :
-                            if obj not in objlist : 
+                    if (match_time >= 0) & (match_time < len(self.family)) :
+                        for obj in matching_objects[it_back][i] :
+                            if np.size(obj) > 0 :
+                        
+                                if obj not in objlist : 
                                 
-                                if (match_time >= 0) & \
-                                        (match_time < len(self.family)) :
                                     inter = self.refine_object_overlap(t_off, \
-                                            it_back, iobj, obj, ref = ref)
+                                            it_back, iobj, obj, master_ref = master_ref)
                                 
                                     if inter > overlap_thresh :
                                 
@@ -280,12 +290,13 @@ class Trajectory_Family :
                                                 otype = 'Linked'
                                         objlist.append(obj)
                                         otypelist.append(otype)
-                                        interlist.append(int(inter*100+0.5))
+                                        interlist.append(int(round(inter*100,0)))
                 match_list.append(list(zip(objlist,otypelist,interlist)))
             mols.append(match_list)
-        return mols
+        ret_dict = {"master_ref": master_ref, "objects": select, "matching_object_summary": mols}
+        return ret_dict
     
-    def print_matching_object_list_summary(self, ref = None,  select = None, \
+    def print_matching_object_list_summary(self, master_ref = None,  select = None, \
                                            overlap_thresh = 0.02) :    
         """
         Method to print matching object list summary.
@@ -296,35 +307,36 @@ class Trajectory_Family :
         
         """
         
-        if ref == None : ref = len(self.family) - 1
-        if select is None : select = np.arange(0, self.family[ref].nobjects, \
+        if master_ref is None : master_ref = len(self.family) - 1
+        if select is None : select = np.arange(0, self.family[master_ref].nobjects, \
                                                dtype = int)
-        mols = self.matching_object_list_summary(ref = ref, select = select, \
-                                                 overlap_thresh = \
-                                                 overlap_thresh)
+        mols_dict = self.matching_object_list_summary(master_ref = master_ref, select = select, \
+                                                 overlap_thresh = overlap_thresh)
+        mols = mols_dict["matching_object_summary"]
         for t_off in range(0, len(mols)) :
             matching_objects = mols[t_off]
-            for i in range(0, len(matching_objects)) :
+            for i in range(0, len(select)) :
                 iobj = select[i]
                 rep =""
                 for mo, mot, mint in matching_objects[i] : 
                     rep += "({}, {}, {:02d})".format(mo,mot,mint)
-                print("t_off: {0} iobj: {1} obj: {2} ".\
+                if len(rep) > 0 :
+                    print("t_off: {0} iobj: {1} obj: {2} ".\
                                   format(t_off, iobj, rep))
                            
         return
 
-    def find_linked_objects(self, ref = None, select = None, \
+    def find_linked_objects(self, master_ref = None, select = None, \
         overlap_thresh = 0.02) :   
         """
-        Method to find all objects linked to objects in max_at_ref list in ref.
+        Method to find all objects linked to objects in max_at_ref list in master_ref.
         
         Args: 
-            ref=None: Which trajectory set in family to use to find matching objects. Default is the last set.                         
-            overlap_thresh=0.02: Threshold for overlap to be sufficient for inclusion.
+            master_ref=None      : Which trajectory set in family to use to find matching objects. Default is the last set.                         
+            overlap_thresh=0.02  : Threshold for overlap to be sufficient for inclusion.
                           
         Returns:
-            List with one member for each object in max_at_ref list in ref.
+            List with one member for each object in max_at_ref list in master_ref.
             Each member is a an array of triplets containing the time,
             object id and percentage ovelap with next of objects in the 
             max_at_ref list of the family at time classified as 'Linked'.
@@ -333,24 +345,24 @@ class Trajectory_Family :
         
         """
         
-        if ref is None : ref = len(self.family) - 1
-        if select is None : select = self.family[ref].max_at_ref
-        mols = self.matching_object_list_summary(ref = ref, select=select,
-                                                 overlap_thresh = \
-                                                 overlap_thresh)
+        if master_ref is None : master_ref = len(self.family) - 1
+        if select is None : select = self.family[master_ref].max_at_ref
+        mols_dict = self.matching_object_list_summary(master_ref = master_ref, select = select, \
+                                                 overlap_thresh = overlap_thresh)
+        mols = mols_dict["matching_object_summary"]
         linked_objects = list([])
         for i in range(len(select)) :
             linked_obj = list([])
-            linked_obj.append([ref, select[i], 100])
+            linked_obj.append([master_ref, select[i], 100])
             for t_off in range(0, len(mols)) :
                 matching_objects = mols[t_off][i]
                 for mo, mot, mint in matching_objects : 
                     if mot == 'Linked' :
-                        linked_obj.append([ref-t_off-1, mo, mint])
+                        linked_obj.append([master_ref-t_off-1, mo, mint])
             linked_objects.append(np.array(linked_obj))
         return linked_objects
     
-    def print_linked_objects(self, ref = None, select = None, \
+    def print_linked_objects(self, master_ref = None, select = None, \
                              overlap_thresh = 0.02) :
         """
         Method to print linked object list.
@@ -361,9 +373,9 @@ class Trajectory_Family :
         
         """
         
-        if ref == None : ref = len(self.family) - 1
-        if select is None : select = self.family[ref].max_at_ref
-        linked_objects = self.find_linked_objects(ref = ref, select=select, \
+        if master_ref == None : master_ref = len(self.family) - 1
+        if select is None : select = self.family[master_ref].max_at_ref
+        linked_objects = self.find_linked_objects(master_ref = master_ref, select=select, \
                                                   overlap_thresh = \
                                                   overlap_thresh)
         for iobj, linked_obj in zip(select, \
@@ -376,44 +388,49 @@ class Trajectory_Family :
             print("iobj: {0} objects: {1} ".format(iobj, rep))
         return
     
-    def find_super_objects(self, ref = None, \
+    def find_super_objects(self, master_ref = None, \
         overlap_thresh = 0.02) :
         """
-        Method to find all objects linked contiguously to objects in max_at_ref list in ref.
+        Method to find all objects linked contiguously to objects in max_at_ref list in master_ref.
         
         Args: 
-            ref=None           : Which trajectory set in family to use to find matching objects. Default is the last set.                                           
+            master_ref=None           : Which trajectory set in family to use to find matching objects. Default is the last set.                                           
             overlap_thresh=0.02: Threshold for overlap to be sufficient for inclusion.
                           
         Returns:
-            List with one member for each object in max_at_ref list in ref.
+            super_objects, len_sup
+            
+            super_objects is a list with one member for each object in max_at_ref list in master_ref.
             Each member is an array of triplets containing the time,
             object id and percentage ovelap with next of objects in the 
             max_at_ref list of the family at time classified as 'Linked'.
+            
+            len_sup is an array of the lengths of each super_objects array
             
         @author: Peter Clark
         
         """
         
-        def step_obj_back(ref, objs) :
+        def step_obj_back(master_ref, objs) :
             found_super_objs = list([])
-            mol = self.matching_object_list(ref = ref, select=objs)
+            mol_dict = self.matching_object_list(master_ref = master_ref, select=objs)        
+            mol = mol_dict["matching_objects"]
             t_off = 0
             matching_objects = mol[t_off]
-            match_time = ref-(t_off+1)
+            match_time = master_ref-(t_off+1)
             for i,iobj in enumerate(objs) :
-                objlist = list([(ref,iobj,100)])
+                objlist = list([(master_ref,iobj,100)])
                 it_back = 0
 #                print(iobj)
-#                print(ref,match_time, matching_objects[it_back][i])
+#                print(master_ref,match_time, matching_objects[it_back][i])
                 for obj in matching_objects[it_back][i] :
                     if np.size(obj) > 0 :
                                 
                         inter = self.refine_object_overlap(t_off, \
-                                    it_back, iobj, obj, ref = ref)
+                                    it_back, iobj, obj, master_ref = master_ref)
 #                        print(obj,inter)        
                         if inter > overlap_thresh :
-                            if obj in self.family[ref-(t_off+1)].max_at_ref :
+                            if obj in self.family[master_ref-(t_off+1)].max_at_ref :
                                 objlist.append((match_time,obj,\
                                                 int(inter*100+0.5)))
 #                                print(objlist)
@@ -422,12 +439,12 @@ class Trajectory_Family :
             return found_super_objs
             
         print("Finding super-objects")
-        if ref is None : ref = len(self.family) - 1
-        select = self.family[ref].max_at_ref
+        if master_ref is None : master_ref = len(self.family) - 1
+        select = self.family[master_ref].max_at_ref
         super_objects = list([])
         incomplete_objects = list([])
         incomplete_object_ids = np.array([],dtype=int)
-        for newref in range(ref,0,-1) :
+        for newref in range(master_ref,0,-1) :
             sup_obj = step_obj_back(newref, select)
             next_level_objs = self.family[newref-1].max_at_ref
             new_incomplete_objects = list([])
@@ -466,19 +483,19 @@ class Trajectory_Family :
                          
         return super_objects, len_sup
            
-    def refine_object_overlap(self, t_off, time, obj, mobj, ref=None) :
+    def refine_object_overlap(self, t_off, time, obj, mobj, master_ref=None) :
         """
         Method to estimate degree of overlap between two trajectory objects.
-            Reference object is self.family trajectory object obj at time ref-time
+            Reference object is self.family trajectory object obj at time master_ref-time
             Comparison object is self.family trajectory object mobj 
-            at same true time, reference time ref-(t_off+1).
+            at same true time, reference time master_ref-(t_off+1).
         
         Args: 
-            t_off(integer)    : Reference object is at time index ref-time
-            time(integer)     : Comparison object is at time index ref-(t_off+1)
+            t_off(integer)    : Reference object is at time index master_ref-time
+            time(integer)     : Comparison object is at time index master_ref-(t_off+1)
             obj(integer)      : Reference object id
             mobj(integer)     : Comparison object if.
-            ref=None(integer) : default is last set in family.
+            master_ref=None(integer) : default is last set in family.
                            
         Returns: 
             Fractional overlap
@@ -487,16 +504,16 @@ class Trajectory_Family :
         
         """
         
-        if ref == None : ref = len(self.family) - 1
+        if master_ref == None : master_ref = len(self.family) - 1
 #        print(t_off, time, obj, mobj)
-#        print("Comparing trajectories {} and {}".format(ref, ref-(t_off+1)))
+#        print("Comparing trajectories {} and {}".format(master_ref, master_ref-(t_off+1)))
         
-        def extract_obj_as1Dint(fam, ref, time, obj) :
-            traj = fam[ref]
+        def extract_obj_as1Dint(fam, master_ref, time, obj) :
+            traj = fam[master_ref]
             tr_time = traj.ref-time
-#            print("Time in {} is {}, {}".format(ref, tr_time, traj.times[tr_time]))
+#            print("Time in {} is {}, {}".format(master_ref, tr_time, traj.times[tr_time]))
             obj_ptrs = (traj.labels == obj)
-#            print('extr',ref, time, tr_time)
+#            print('extr',master_ref, time, tr_time)
             mask, objvar = traj.in_obj_func(traj, tr_time, obj_ptrs, \
                                             **traj.ref_func_kwargs)
 #            mask = mask[tr_time, obj_ptrs]
@@ -507,15 +524,15 @@ class Trajectory_Family :
 #            for i in range(2) : print(np.min(tr[:,i]),np.max(tr[:,i]))
             tr1D = np.unique(tr[:,0] + traj.nx * (tr[:,1] + traj.ny * tr[:,2]))
             return tr1D
-#        traj = self.family[ref]
-#        match_traj = self.family[ref-(t_off+1)]
+#        traj = self.family[master_ref]
+#        match_traj = self.family[master_ref-(t_off+1)]
 #        ref_time = traj.ref-it_back
 #        match_time = match_traj.ref + (t_off + 1)- it_back 
             
     
-        tr1D  = extract_obj_as1Dint(self.family, ref,           \
+        tr1D  = extract_obj_as1Dint(self.family, master_ref,           \
                                     time, obj)
-        trm1D = extract_obj_as1Dint(self.family, ref-(t_off+1), \
+        trm1D = extract_obj_as1Dint(self.family, master_ref-(t_off+1), \
                                     time-(t_off+1) , mobj)
                 
         max_size = np.max([np.size(tr1D),np.size(trm1D)])
@@ -603,7 +620,7 @@ class Trajectories :
     """
 
     def __init__(self, files, ref_prof_file, start_time, ref, end_time, \
-                 deltax, deltay, deltaz,
+                 deltax, deltay, deltaz, \
                  ref_func, in_obj_func, kwargs={}, variable_list=None ) : 
         """
         Create an instance of a set of trajectories with a given reference. 
@@ -631,8 +648,9 @@ class Trajectories :
         self.pref = dataset_ref.variables['prefn'][-1,...]
         self.thref = dataset_ref.variables['thref'][-1,...]
         self.piref = (self.pref[:]/1.0E5)**r_over_cp
-        self.data, trajectory, self.traj_error, self.times, self.labels, \
-        self.nobjects, self.xcoord, self.ycoord, self.zcoord, self.deltat = \
+        self.data, trajectory, self.traj_error, self.times, self.ref, \
+        self.labels, self.nobjects, \
+        self.xcoord, self.ycoord, self.zcoord, self.deltat = \
         compute_trajectories(files, start_time, ref, end_time, \
                              variable_list.keys(), self.thref, \
                              ref_func, kwargs=kwargs) 
@@ -640,8 +658,8 @@ class Trajectories :
         self.in_obj_func=in_obj_func
         self.ref_func_kwargs=kwargs
         self.files = files
-        self.ref   = (ref-start_time)//self.deltat
-        self.end   = (end_time-start_time)//self.deltat
+#        self.ref   = (ref-start_time)//self.deltat
+        self.end = len(self.times)-1
         self.ntimes = np.shape(trajectory)[0]
         self.npoints = np.shape(trajectory)[1]
         self.deltax = deltax
@@ -776,11 +794,13 @@ def compute_trajectories(files, start_time, ref_time, end_time, \
     
     ref_file_number, ref_time_index, delta_t = find_time_in_files(\
                                                         files, ref_time)
+    
     dataset=Dataset(files[ref_file_number])
     theta = dataset.variables["th"]
     ref_times = dataset.variables[theta.dimensions[0]][...]
-    print('Starting in file {} at time {}.'.\
-          format(files[ref_file_number], ref_times[ ref_time_index] ))
+    print('Starting in file number {}, name {}, index {} at time {}.'.\
+          format(ref_file_number, os.path.basename(files[ref_file_number]), \
+                 ref_time_index, ref_times[ ref_time_index] ))
     file_number = ref_file_number
     time_index = ref_time_index
     
@@ -793,38 +813,47 @@ def compute_trajectories(files, start_time, ref_time, end_time, \
     trajectory, data_val, traj_error, traj_times, xcoord, ycoord, zcoord \
       = trajectory_init(dataset, time_index, variable_list, thref, traj_pos)
 #    input("Press enter")
+    ref_index = 0
+    
+    print("Computing backward trajectories.")
     
     while (traj_times[0] > start_time) and (file_number >= 0) :
         time_index -= 1
         if time_index >= 0 :
-            print('Time index: {}'.format(time_index))
+            print('Time index: {} File: {}'.format(time_index, \
+                   os.path.basename(files[file_number])))
             trajectory, data_val, traj_error, traj_times = \
             back_trajectory_step(dataset, time_index, variable_list, thref, \
                                xcoord, ycoord, zcoord, \
                                trajectory, data_val, traj_error, traj_times)
+            ref_index += 1
         else :
             file_number -= 1
             if file_number < 0 :
                 print('Ran out of data.')
             else :                
                 dataset.close()
-                print('File {}'.format(file_number))
+                print('File {} {}'.format(file_number, \
+                      os.path.basename(files[file_number])))
                 dataset = Dataset(files[file_number])
                 theta = dataset.variables["th"]
                 times = dataset.variables[theta.dimensions[0]][...]
                 time_index = len(times)
     dataset.close()
-
+    
 # Back to reference time for forward trajectories.
     file_number = ref_file_number
     time_index = ref_time_index
     times = ref_times
     dataset = Dataset(files[ref_file_number])
+
+    print("Computing forward trajectories.")
          
     while (traj_times[-1] < end_time) and (file_number >= 0) :
         time_index += 1
         if time_index < len(times) :
-            print('Time index: {}'.format(time_index))
+            print('Time index: {} File: {}'.format(time_index, \
+                   os.path.basename(files[file_number])))
             trajectory, data_val, traj_error, traj_times = \
                 forward_trajectory_step(dataset, time_index, \
                                         variable_list, thref, \
@@ -837,7 +866,8 @@ def compute_trajectories(files, start_time, ref_time, end_time, \
                 print('Ran out of data.')
             else :                
                 dataset.close()
-                print('File {}'.format(file_number))
+                print('File {} {}'.format(file_number, \
+                      os.path.basename(files[file_number])))
                 dataset = Dataset(files[file_number])
                 theta = dataset.variables["th"]
                 times = dataset.variables[theta.dimensions[0]][...]
@@ -866,7 +896,8 @@ def compute_trajectories(files, start_time, ref_time, end_time, \
     
     traj_times = np.reshape(np.vstack(traj_times),-1)
     
-    return data_val, trajectory, traj_error, traj_times, labels, nobjects, \
+    return data_val, trajectory, traj_error, traj_times, ref_index, \
+      labels, nobjects, \
       xcoord, ycoord, zcoord, delta_t
 
 def extract_pos(nx, ny, dat) :
@@ -1089,7 +1120,7 @@ def forward_trajectory_step(dataset, time_index, variable_list, thref, \
 
         traj_pos_at_est, n_pvar = extract_pos(nx, ny, out)
 
-#        print "traj_pos_at_est ", np.shape(traj_pos_new), traj_pos_new#[:,0:5]
+#        print("traj_pos_at_est ", np.shape(traj_pos_at_est), traj_pos_at_est)#[:,0:5]
         diff = traj_pos_at_est - traj_pos
         
 # Deal with wrap around.
@@ -1695,9 +1726,6 @@ def compute_traj_boxes(traj, in_obj_func, kwargs={}) :
         
     """
     
-#    print('Boxes', traj)
-#    print(np.shape(traj.trajectory))
-#    print(traj.nobjects)
     scalar_shape = (np.shape(traj.data)[0], traj.nobjects)
     centroid_shape = (np.shape(traj.data)[0], traj.nobjects, \
                       3)
@@ -1721,7 +1749,7 @@ def compute_traj_boxes(traj, in_obj_func, kwargs={}) :
         data = traj.data[:,traj.labels == iobj,:]
         data_mean[:,iobj,:] = np.mean(data, axis=1) 
         obj = traj.trajectory[:, traj.labels == iobj, :]
-#        print(np.shape(obj))
+
         traj_centroid[:,iobj, :] = np.mean(obj,axis=1) 
         traj_box[:,iobj, 0, :] = np.amin(obj, axis=1)
         traj_box[:,iobj, 1, :] = np.amax(obj, axis=1)
@@ -1730,7 +1758,6 @@ def compute_traj_boxes(traj, in_obj_func, kwargs={}) :
         
         for it in np.arange(0,np.shape(obj)[0]) : 
             mask = in_obj_mask[it, traj.labels == iobj]
-#            print(np.shape(mask))
             num_in_obj[it, iobj] = np.size(np.where(mask))
             if num_in_obj[it, iobj] > 0 :
                 in_obj_data_mean[it, iobj, :] = np.mean(data[it, mask, :], axis=0) 
@@ -1842,47 +1869,68 @@ def find_time_in_files(files, ref_time, nodt = False) :
     
     file_times = np.zeros(len(files))
     for i, file in enumerate(files) : file_times[i] = file_key(file)
-    ref_file = np.where(file_times >= ref_time)[0][0]
-#    print(files[ref_file])
-    dataset=Dataset(files[ref_file])
-    theta=dataset.variables["th"]
-#    print(theta)
-#    print(theta.dimensions[0])
-    times=dataset.variables[theta.dimensions[0]][...]
-#    print(times)
     
-    if len(times) == 1 :
-        it = 0
-        if times[it] != ref_time :
-            print('Could not find time {} in file {}'.\
-                  format(ref_time,files[ref_file]))
+    def get_file_times(dataset) :
+        theta=dataset.variables["th"]
+#        print(theta)
+#        print(theta.dimensions[0])
+        t=dataset.variables[theta.dimensions[0]][...]
+#        print(t)
+        return t
+    
+    delta_t = 0.0
+    it=-1
+    ref_file = np.where(file_times >= ref_time)[0][0]
+    while True :
+        if ref_file >= len(files) or ref_file < 0 :
+            ref_file = None
+            break
+#        print(files[ref_file])
+        dataset=Dataset(files[ref_file])
+        times = get_file_times(dataset)
+        dataset.close()
+#        print(times)
+    
+        if len(times) == 1 :
             dataset.close()
-            return None, ref_file, it, 0
-        else :
-#            print('Looking in next file')
-            if nodt :
-                delta_t = 0
+            it = 0
+            if times[it] != ref_time :
+                print('Could not find exact time {} in file {}'.\
+                  format(ref_time,files[ref_file]))
+                ref_file = None
             else :
-                dataset_next=Dataset(files[ref_file+1])
-                theta=dataset.variables["th"]
-                times_next=dataset_next.variables[theta.dimensions[0]][...]
-    #            print(times_next)
-                delta_t = times_next[0] - times[0]
-                dataset_next.close()
-    else :
-        it = np.where(times == ref_time)[0]
-        if len(it) == 0 :
-            print('Could not find time {} in file {}'.\
-                  format(ref_time,files[ref_file]))
-            dataset.close()
-            return None, ref_file, it, 0
-        else :
+                if nodt :
+                    delta_t = 0.0
+                else :
+                    print('Looking in next file to get dt.')
+                    dataset_next=Dataset(files[ref_file+1])
+                    times_next = get_file_times(dataset_next)
+                    delta_t = times_next[0] - times[0]
+                    dataset_next.close()
+            break 
+                
+        else : # len(times) > 1
+            it = np.where(times == ref_time)[0]
+            if len(it) == 0 :
+                print('Could not find exact time {} in file {}'.\
+                  format(ref_time,ref_file))
+                it = np.where(times >= ref_time)[0]
+#                print("it={}".format(it))
+                if len(it) == 0 :
+                    print('Could not find time >= {} in file {}, looking in next.'.\
+                      format(ref_time,ref_file))
+                    ref_file += 1
+                    continue
+#            else :
             it = it[0]
             if it == (len(times)-1) :
                 delta_t = times[it] - times[it-1]
             else :
                 delta_t = times[it+1] - times[it]
-    dataset.close()
+            break
+    print(\
+    "Looking for time {}, returning file #{}, index {}, time {}, delta_t {}".\
+          format(  ref_time,ref_file, it, times[it], delta_t) )
     return ref_file, it, delta_t.astype(int)
 
 def compute_derived_variables(traj, derived_variable_list=None) :
@@ -1954,9 +2002,9 @@ def set_cloud_class(traj, thresh=None, version=1) :
           Dictionary keys:
           "class"
           "key"
-          "first cloud base"
-          "min cloud base"
-          "cloud top"
+          "first_cloud_base"
+          "min_cloud_base"
+          "cloud_top"
           "cloud_trigger_time"
           "cloud_dissipate_time"
           "version":version
@@ -2288,9 +2336,9 @@ def set_cloud_class(traj, thresh=None, version=1) :
     traj_class = { \
                    "class":traj_class, \
                    "key":class_key, \
-                   "first cloud base":first_cloud_base, \
-                   "min cloud base":min_cloud_base, \
-                   "cloud top":cloud_top, \
+                   "first_cloud_base":first_cloud_base, \
+                   "min_cloud_base":min_cloud_base, \
+                   "cloud_top":cloud_top, \
                    "cloud_trigger_time":cloud_trigger_time, \
                    "cloud_dissipate_time":cloud_dissipate_time, \
                    "version":version, \
@@ -2332,7 +2380,7 @@ def print_cloud_class(traj, traj_cl, sel_obj, list_classes=True) :
         strout += "{:6d} ".format(tot)
         print(strout)
        
-def cloud_properties(traj, traj_cl, thresh=None) :
+def cloud_properties(traj, traj_cl, thresh=None, use_density = False) :
     '''
     Function to compute trajectory class and mean cloud properties.
 
@@ -2346,15 +2394,22 @@ def cloud_properties(traj, traj_cl, thresh=None) :
         dictionary pointing to arrays of mean properties and meta data::
         
             Dictionary keys:
-                "unclassified" 
+                "overall_mean"
+                "unclassified"
                 "pre_cloud_bl"
                 "pre_cloud_above_bl"
                 "previous_cloud"
+                "detr_prev"
+                "post_detr_prev"
                 "cloud"
-                "entr"
                 "entr_bot"
+                "entr"
                 "detr"
+                "post_detr"
                 "subsequent_cloud"
+                "cloud_properties"
+                "budget_loss"
+                "entrainment"
                 "derived_variable_list"
         
     @author: Peter Clark
@@ -2383,16 +2438,7 @@ def cloud_properties(traj, traj_cl, thresh=None) :
     
     traj_class = traj_cl["class"]
     
-#    try :
-#        traj.derived_data
-#    except AttributeError :
     derived_variable_list, derived_data = compute_derived_variables(traj)
-#        traj_m.derived_variable_list = derived_variable_list
-#        traj_m.derived_data = derived_data
-        
-#    print("Derived data")
-#    for i,var in enumerate(derived_variable_list.keys()) :
-#        print(var, np.min(derived_data[...,i]), np.max(derived_data[...,i]))
                     
     nvars = np.shape(traj.data)[2]
     ndvars = np.shape(derived_data)[2]
@@ -2405,7 +2451,10 @@ def cloud_properties(traj, traj_cl, thresh=None) :
     mse_ptr = nvars + list(derived_variable_list.keys()).index("MSE") 
     qt_ptr = nvars + list(derived_variable_list.keys()).index("q_total")
 
-    volume = traj.deltax*traj.deltay*traj.deltaz
+    grid_box_area = traj.deltax * traj.deltay
+    grid_box_volume = grid_box_area * traj.deltaz
+    
+    rho = np.interp(traj.trajectory[:,:,2],traj.zcoord,traj.rhoref)
     
 #    print(nvars, ndvars, nposvars)
     # These possible slices are set for ease of maintenance.
@@ -2419,6 +2468,13 @@ def cloud_properties(traj, traj_cl, thresh=None) :
     r4 = nvars + ndvars + nposvars 
     
     if version == 1 :
+        mean_prop = np.zeros([traj.ntimes, traj.nobjects, total_nvars])
+        
+        mean_prop_by_class = np.zeros([traj.ntimes, traj.nobjects, \
+                                       total_nvars,  n_class+1])
+        budget_loss = np.zeros([traj.ntimes-1, traj.nobjects, total_nvars-1])
+        
+        # Pointers into cloud_prop array
         CLOUD_HEIGHT = 0
         CLOUD_POINTS = 1
         CLOUD_VOLUME = 2
@@ -2426,20 +2482,22 @@ def cloud_properties(traj, traj_cl, thresh=None) :
         
         cloud_prop = np.zeros([traj.ntimes, traj.nobjects, n_cloud_prop])
         
-        mean_prop = np.zeros([traj.ntimes, traj.nobjects, total_nvars])
-        
-        mean_prop_by_class = np.zeros([traj.ntimes, traj.nobjects, \
-                                       total_nvars,  n_class+1])
-        budget_loss = np.zeros([traj.ntimes-1, traj.nobjects, total_nvars-1])
-                            
+        # Pointers into entrainment array                            
         TOT_ENTR = 0
         TOT_ENTR_Z = 1
         SIDE_ENTR = 2
         SIDE_ENTR_Z = 3
-        DETR = 4
-        DETR_Z = 5
-        n_entr_vars = 6
+        CB_ENTR = 4
+        CB_ENTR_Z = 5
+        DETR = 6
+        DETR_Z = 7
+        n_entr_vars = 8
         entrainment = -np.ones([traj.ntimes-1, traj.nobjects, n_entr_vars])
+        
+        max_cloud_base_area = np.zeros(traj.nobjects)
+        max_cloud_base_time = np.zeros(traj.nobjects, dtype = int)
+        cloud_base_variables = np.zeros([traj.nobjects, total_nvars-1])
+       
     else :
         print("Illegal Version")
         return 
@@ -2447,7 +2505,7 @@ def cloud_properties(traj, traj_cl, thresh=None) :
 # Compute mean properties of cloudy points. 
    
     for iobj in range(0,traj.nobjects) :
-        debug_mean = (iobj == 61)
+#        debug_mean = (iobj == 61)
         if debug_mean : print('Processing object {}'.format(iobj))
         
         obj_ptrs = (traj.labels == iobj)
@@ -2485,8 +2543,6 @@ def cloud_properties(traj, traj_cl, thresh=None) :
 #                    print(it, iclass)
                 trcl = traj_class[it, obj_ptrs]
                 lmask = (trcl == iclass)  
-#                        print(np.shape(lmask), \
-#                              np.shape(data[it,...]))
                 where_mask = np.where(lmask)[0]
          
                 if np.size(where_mask) > 0 :
@@ -2537,7 +2593,7 @@ def cloud_properties(traj, traj_cl, thresh=None) :
             print(incl)
             print(z_cloud)
                       
-        cloud_volume = n_main_cloud* volume / 1E9
+        cloud_volume = n_main_cloud * grid_box_volume 
 
         cloud_prop[:,iobj,CLOUD_HEIGHT] = z_cloud
         cloud_prop[:,iobj,CLOUD_POINTS] = n_main_cloud
@@ -2733,9 +2789,7 @@ def cloud_properties(traj, traj_cl, thresh=None) :
 # Total Entrainment rate
         n_new_cloud = n_entr + n_entr_bot 
         delta_n_over_n = np.zeros_like(n_cloud[:,0])
-        delta_n_over_n[some_cl] = n_new_cloud[some_cl,0] / n_cloud[some_cl,0]
-                
-#        print(np.shape(delta_n_over_n),np.shape(delta_t))
+        delta_n_over_n[some_cl] = n_new_cloud[some_cl,0] / n_cloud[some_cl,0]                
         entr_rate_tot = delta_n_over_n / delta_t
                         
 # Entrainment rate per m      
@@ -2751,13 +2805,22 @@ def cloud_properties(traj, traj_cl, thresh=None) :
         z1 = (mean_prop_by_class[1:, iobj, z_ptr, CLOUD]-0.5)*traj.deltaz 
         
         
-#        print(np.shape(delta_n),np.shape(delta_t), np.shape(n_now))
         entr_rate = delta_n_over_n / delta_t
 # Side Entrainment rate per m
              
         entr_rate_z = np.zeros_like(entr_rate)
         entr_rate_z[some_cl] = entr_rate[some_cl] / w_cloud[some_cl]
+        
+# Cloud_base Entrainment_rate 
+        n_new_cloud = n_entr_bot 
+        delta_n_over_n = np.zeros_like(n_cloud[:,0])
+        delta_n_over_n[some_cl] = n_new_cloud[some_cl,0] / n_cloud[some_cl,0]                
+        entr_rate_cb = delta_n_over_n / delta_t
 
+# Cloud_base Entrainment_rate per m 
+        entr_rate_cb_z = np.zeros_like(entr_rate)
+        entr_rate_cb_z[some_cl] = entr_rate_cb[some_cl] / w_cloud[some_cl]
+        
         if False : 
             print('n cloud', n_cloud)
             print('w cloud', mean_prop_by_class[1:, iobj, w_ptr, CLOUD])
@@ -2790,10 +2853,25 @@ def cloud_properties(traj, traj_cl, thresh=None) :
         entrainment[:, iobj, SIDE_ENTR] = entr_rate
         entrainment[:, iobj, SIDE_ENTR_Z] = entr_rate_z
 
+        entrainment[:, iobj, CB_ENTR] = entr_rate_cb
+        entrainment[:, iobj, CB_ENTR_Z] = entr_rate_cb_z
+
         entrainment[:, iobj, DETR] = detr_rate
         entrainment[:, iobj, DETR_Z] = detr_rate_z
-
         
+# Overall cloud properties
+# Cloud base
+        max_cloud_base_area[iobj] = np.max(n_entr_bot)
+#        print(max_cloud_base_area[iobj])
+#        print(np.where(n_entr_bot == max_cloud_base_area[iobj])[0][0])
+        max_cloud_base_time[iobj] = np.where(n_entr_bot == max_cloud_base_area[iobj])[0][0]
+#        print(max_cloud_base_time[iobj])
+        if max_cloud_base_area[iobj] > 0 :
+            cloud_base_variables[iobj,:] = v_entr_bot[max_cloud_base_time[iobj], :] / max_cloud_base_area[iobj]
+        else :
+           print('Zero cloud base area for cloud {}'.format(iobj))
+        max_cloud_base_area[iobj] = max_cloud_base_area[iobj] * grid_box_area
+           
 #        nplt = 72
 #        for it in range(np.shape(mean_prop_by_class)[0]) :
 #            s = '{:3d}'.format(it)
@@ -2832,6 +2910,9 @@ def cloud_properties(traj, traj_cl, thresh=None) :
                        "cloud_properties":cloud_prop, \
                        "budget_loss":budget_loss, \
                        "entrainment":entrainment, \
+                       "max_cloud_base_area":max_cloud_base_area, \
+                       "max_cloud_base_time":max_cloud_base_time, \
+                       "cloud_base_variables":cloud_base_variables, \
                        "derived_variable_list":derived_variable_list, \
                        }
 
