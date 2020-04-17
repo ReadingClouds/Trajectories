@@ -12,7 +12,7 @@ dn = 5
 #runtest=True
 runtest=False
 #dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
-dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r5n/'
+dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r6n/'
 #   Set to True to calculate trajectory family,False to read pre-calculated from pickle file.
 get_traj = False
 #get_traj = True
@@ -50,6 +50,17 @@ def main():
         tr_back_len = 40*dt
         tr_forward_len = 30*dt
         ref = 40
+        selind = 61
+#        sel_list   = np.array([21, 29, 32, 34, 38, 40, 47, 48, 61, 64])
+        sel_list   = np.array([0, 24, 41, 43, 56, 57])
+        
+    elif dn in (6,) :
+        dt = 60
+        first_ref_time = 60*dt
+        last_ref_time =  119*dt
+        tr_back_len = 40*dt
+        tr_forward_len = 30*dt
+        ref = 30
         selind = 61
 #        sel_list   = np.array([21, 29, 32, 34, 38, 40, 47, 48, 61, 64])
         sel_list   = np.array([0, 24, 41, 43, 56, 57])
@@ -99,8 +110,8 @@ def main():
       "p":r"Pa", \
       "q_vapour":r"$q_{v}$ kg/kg", \
       "q_cloud_liquid_mass":r"$q_{cl}$ kg/kg", \
-      "tracer_rad1":r"kg/kg", \
-      "tracer_rad2":r"kg/kg", \
+      "tracer_rad1":r"Tracer 1 kg/kg", \
+      "tracer_rad2":r"Tracer 2 kg/kg", \
       }
     kwa={'thresh':1.0E-5}
     if get_traj :
@@ -118,18 +129,18 @@ def main():
         infile = open(dir+test_pickle,'rb')
         print('Un-pickling ',dir+test_pickle)
         tfm = pickle.load(infile)
-        print(tfm)
+#        print(tfm)
         infile.close()
                 
     traj_list = tfm.family
     
     
-    tfm.print_matching_object_list()
-    print("Matching object list summary")
-    tfm.print_matching_object_list_summary(overlap_thresh=0.1)
+#    tfm.print_matching_object_list()
+#    print("Matching object list summary")
+#    tfm.print_matching_object_list_summary(overlap_thresh=0.1)
     
-    print("Linked_objects")
-    tfm.print_linked_objects(overlap_thresh=0.1)
+#    print("Linked_objects")
+#    tfm.print_linked_objects(overlap_thresh=0.1)
     
     sel = np.array([selind])
 #    tfm.print_matching_object_list(select = sel)
@@ -146,20 +157,30 @@ def main():
     
     traj_m = traj_list[-1]
     traj_r = traj_list[0]
+    traj_m.variable_list["tracer_rad1"]=r"Tracer 1 kg/kg"
+    traj_m.variable_list["tracer_rad2"]=r"Tracer 2 kg/kg"
     
-    so = np.argsort(traj_m.num_in_obj[ref,:])
-    for i in so[-6:] :
-        print(i, traj_m.num_in_obj[ref,i])
+#    so = np.argsort(traj_m.num_in_obj[ref,:])
+#    for i in so[-6:] :
+#        print(i, traj_m.num_in_obj[ref,i])
     # Appropriate for r11 and r16 test data
     #sel_list   = np.array([72])
 
-
     #input("Press Enter then continue Powerpoint...")
-    
+    if True :
+        traj_m_class = set_cloud_class(traj_m, version = 1)
+        print_cloud_class(traj_m, traj_m_class, 61)
     
     if True :
-        mean_prop = cloud_properties(traj_m, version = 1)
+        mean_prop = cloud_properties(traj_m, traj_m_class)
         
+        print(np.shape(mean_prop["cloud"]))
+        
+        print(mean_prop["cloud"][41,61,...])
+        
+#        v_loss = compute_derived_mean_properties(traj_m, traj_m_class, mean_prop)
+        
+#        print(v_loss)
 #        print(mean_prop.keys())
 #        print(np.shape(mean_prop['cloud']))
     
@@ -170,17 +191,17 @@ def main():
     if True :
         th = 0.5
         sup, len_sup = tfm.find_super_objects(overlap_thresh = th)
-#        print(sup)
+        print(sup)
     
     # Plot all clouds
-    if True :
+    if False :
         plot_traj_animation(traj_m, save_anim=False, anim_name='traj_all_clouds', \
                             with_boxes=False, \
                             title = 'Reference Time {}'.format(last_ref_time))
     
     #input("Press Enter to continue...")
     # Plot all clouds with galilean transform
-    if True :
+    if False :
         plot_traj_animation(traj_m, save_anim=False, anim_name='traj_all_clouds_gal', \
             title = 'Reference Time {} Galilean Tranformed'.format(last_ref_time), \
             galilean = np.array([-8.5,0]))
@@ -191,7 +212,7 @@ def main():
             galilean = np.array([-8.5,0]))
     
     # Plot max_list clouds with galilean transform
-    if True :
+    if False :
         plot_traj_animation(traj_m, save_anim=False,  anim_name='traj_sel_clouds_gal', \
             select = sel_list, \
             no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
@@ -201,15 +222,16 @@ def main():
     max_list = traj_m.max_at_ref
     print(max_list)
     sel_list = max_list
-    if False :
+    sel_list=np.array([61])
+    if True :
         for iobj in sel_list:
             plot_trajectory_history(traj_m, iobj, fn) 
     
         plt.show()    
 
     if True :
-        cloud_lifetime = mean_prop['cloud_dissipate_time'] - \
-                         mean_prop['cloud_trigger_time']
+        cloud_lifetime = traj_m_class['cloud_dissipate_time'] - \
+                         traj_m_class['cloud_trigger_time']
         
         plt.hist(cloud_lifetime, bins = np.arange(0,75,10, dtype=int), density=True)
         plt.xlabel('Lagrangian lifetime (min)')
@@ -228,13 +250,13 @@ def main():
                         title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
                         format(last_ref_time, cloud), with_boxes = False, 
                         galilean = np.array([-8.5,0]), \
-                        plot_class = mean_prop['class'],\
-                        version = mean_prop['version'])
+                        plot_class = traj_m_class,\
+                        )
             
     #input("Press Enter then continue Powerpoint...")        
     # Plot max_list clouds mean history         
     if True :
-        plot_trajectory_mean_history(traj_m, mean_prop, fn, select = sel_list) 
+        plot_trajectory_mean_history(traj_m, traj_m_class, mean_prop, fn, select = sel_list) 
     
     # Plot subset max_list clouds with galilean transform
     # Not needed   
@@ -251,7 +273,7 @@ def main():
     
     #input("Press Enter to continue...")
      
-    if True :
+    if False :
         plot_traj_animation(traj_m, save_anim=False, \
                         anim_name='traj_cloud_sel_field', \
                         select = sel_list, \
@@ -263,7 +285,7 @@ def main():
                         galilean = np.array([-8.5,0]))
         
         
-    if True :
+    if False :
         plt.hist(len_sup, bins = np.arange(0.5,16.5), density=True)
         plt.title('Threshold = {:2.0f}%'.format(th*100))
         plt.xlabel('Super-object length (min)')
@@ -274,7 +296,7 @@ def main():
 #    sel_list   = np.array([selind])
     sel_list = max_list
     th=0.1
-    if True :
+    if False :
         for cloud in sel_list :
             plot_traj_animation(traj_m, save_anim=False, \
                         anim_name='traj_cloud_{:03d}_field'.format(cloud), \
