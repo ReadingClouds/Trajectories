@@ -37,36 +37,36 @@ def _create_synthetic_dataset(dL, L, t_max, dt, U):
     return ds
 
 
-def test_single_reference_time():
-    Lx = Ly = 2e3 # [m]
-    Lz = 2e3 # [m]
-    dx = dy = dz = 25.0 # [m]
-    dt = 60. # [s]
-    t_max = 600. # [s]
-    U = [1., 2., 4., ] # [m/s]
+# def test_single_reference_time():
+    # Lx = Ly = 2e3 # [m]
+    # Lz = 2e3 # [m]
+    # dx = dy = dz = 25.0 # [m]
+    # dt = 60. # [s]
+    # t_max = 600. # [s]
+    # U = [1., 2., 4., ] # [m/s]
 
-    ds = _create_synthetic_dataset(
-        dL=(dx, dy, dz),
-        L=(Lx, Ly, Lz),
-        t_max=t_max,
-        dt=dt,
-        U=U
-    )
+    # ds = _create_synthetic_dataset(
+        # dL=(dx, dy, dz),
+        # L=(Lx, Ly, Lz),
+        # t_max=t_max,
+        # dt=dt,
+        # U=U
+    # )
 
-    # trajectories code needs some reference profiles
-    ds['thref'] = 300.0 + 0.*ds.x + 0.*ds.y + 0.*ds.z
-    ds['th'] = 300.0 + 0.*ds.x + 0.*ds.y + 0.*ds.z
-    ds['q_cloud_liquid_mass'] = 300.0 + 0.*ds.x + 0.*ds.y + 1.0e-3*(ds.z > 600.) + 0.*ds.t
+    # # trajectories code needs some reference profiles
+    # ds['thref'] = 300.0 + 0.*ds.x + 0.*ds.y + 0.*ds.z
+    # ds['th'] = 300.0 + 0.*ds.x + 0.*ds.y + 0.*ds.z
+    # ds['q_cloud_liquid_mass'] = 300.0 + 0.*ds.x + 0.*ds.y + 1.0e-3*(ds.z > 600.) + 0.*ds.t
 
-    fn = "test_0.nc"
-    ds.to_netcdf(fn)
+    # fn = "test_0.nc"
+    # ds.to_netcdf(fn)
 
-    compute_trajectories(
-        files=["test_0.nc", "test_1.nc"],
-        start_time=ds.t.max().values,
-        ref_time=0.0,
-        end_time=ds.t.max().values,
-        variable_list=[],
-        thref=0.0,
-        ref_func=trajectory_cloud_ref,
-    )
+    # compute_trajectories(
+        # files=["test_0.nc", "test_1.nc"],
+        # start_time=ds.t.max().values,
+        # ref_time=0.0,
+        # end_time=ds.t.max().values,
+        # variable_list=[],
+        # thref=0.0,
+        # ref_func=trajectory_cloud_ref,
+    # )
