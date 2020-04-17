@@ -750,7 +750,8 @@ def dict_to_index( v) :
 
     """
 
-    ii = list(self.variable_list.keys()).index(v)
+    raise NotImplementedError("LD: `self` varible below doesn't exist here")
+    ii = list(self.variable_list.keys()).index(v)  # noqa
 
 #    for ii, vr in enumerate(list(self.variable_list)) :
 #        if vr==v : break
@@ -977,7 +978,8 @@ def trajectory_init(dataset, time_index, variable_list, thref, traj_pos) :
     data_val = list([np.vstack(out[n_pvar:]).T])
     
     if debug :
-        print('Value of {} at trajectory position.'.format(variable))
+        raise NotImplementedError("LD: `variable` below doesn't exist here")
+        print('Value of {} at trajectory position.'.format(variable))  # noqa
         print(np.shape(data_val))
         print(np.shape(traj_pos))
         print('xorg',traj_pos[:,0])

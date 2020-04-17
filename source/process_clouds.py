@@ -44,7 +44,7 @@ dy = 100.0
 dz = 40.0
 
 #   Set to True to calculate trajectory family,False to read pre-calculated from pickle file.
- get_traj = False
+get_traj = False
 #get_traj = True
    
 files = glob.glob(dir+"diagnostics_3d_ts_*.nc")

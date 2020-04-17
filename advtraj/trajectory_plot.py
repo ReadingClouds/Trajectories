@@ -12,6 +12,11 @@ import matplotlib.colors as mcolors
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import animation
 from trajectory_compute import file_key
+
+from compute_trajectories import find_time_in_files
+
+
+
 L_vap = 2.501E6
 Cp = 1005.0
 L_over_cp = L_vap / Cp
@@ -802,11 +807,11 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
         plt.show()
     else :
         list_class_numbers = True
-        ioff()
+        plt.ioff()
         init()
         frame = 0
         animate(frame)
-        ion()
+        plt.ion()
         plt.show()
         x = "z"
 #        getch = _Getch()
