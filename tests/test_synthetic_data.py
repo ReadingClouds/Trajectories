@@ -36,6 +36,9 @@ def _create_synthetic_dataset(dL, L, t_max, dt, U):
 
     return ds
 
+def test_empty():
+    # dummy test to ensure imports work ok
+    pass
 
 # def test_single_reference_time():
     # Lx = Ly = 2e3 # [m]

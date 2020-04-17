@@ -1849,7 +1849,7 @@ def file_key(file):
     return float(f2)
 
 def find_time_in_files(files, ref_time, nodt = False) :
-    """
+    r"""
     Function to find file containing data at required time.
         Assumes file names are of form \*_tt.0\* where tt is model output time.
 
