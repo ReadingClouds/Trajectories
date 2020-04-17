@@ -114,3 +114,6 @@ venv.bak/
 test_data
 *.nc
 *.png
+
+# vim temporary files
+.*.sw*

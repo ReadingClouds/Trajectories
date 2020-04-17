@@ -1,0 +1,4 @@
+sklearn
+numpy
+xarray
+netCDF4
