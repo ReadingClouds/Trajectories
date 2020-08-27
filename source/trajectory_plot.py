@@ -199,7 +199,8 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
     nposvars = 3
 
     z_ptr = nvars + ndvars + 2 # Index of variable in mean_prop which is height
-    npts_ptr = nvars + ndvars + nposvars # Index of variable in mean_prop which is
+    cv_ptr = nvars + ndvars + nposvars + 1
+    npts_ptr = cv_ptr + 1 # Index of variable in mean_prop which is
     mse_ptr = nvars + list(mean_prop["derived_variable_list"].keys()).index("MSE")
     qt_ptr = nvars + list(mean_prop["derived_variable_list"].keys()).index("q_total")
 #    print("MSE: ",mse_ptr, npts_ptr, z_ptr)
@@ -227,6 +228,7 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
 
 
         if new_fig :
+
             figlist = list([])
             fig1, axa = plt.subplots(3, 3, figsize=(10*mult,10*mult), sharey=True)
             figlist.append((axa, fig1))
@@ -350,14 +352,14 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
                 else :
                     print("Variable {} not found.".format(v))
                     vptr = 9999
+                if vptr != 9999:
+                    ax = axa[(j)%3,(j)//3]
+                    line = ax.plot(mean_prop['pre_cloud_bl']\
+                                   [:,iobj,vptr][in_bl], zbl[in_bl])
 
-                ax = axa[(j)%3,(j)//3]
-                line = ax.plot(mean_prop['pre_cloud_bl']\
-                               [:,iobj,vptr][in_bl], zbl[in_bl])
-
-                ax.plot(mean_prop['cloud'][:,iobj,vptr][incloud], z[incloud], \
-                        color = line[0].get_color(), linewidth=4, \
-                         label='{}'.format(iobj))
+                    ax.plot(mean_prop['cloud'][:,iobj,vptr][incloud], z[incloud], \
+                            color = line[0].get_color(), linewidth=4, \
+                             label='{}'.format(iobj))
 
 
 # loss
@@ -373,14 +375,15 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
                     print("Variable {} not found.".format(v))
                     vptr = 9999
 
-                ax = axc[(j)%3,(j)//3]
-#                print(np.shape(m1), np.shape(in_bl),np.shape(mean_prop["budget_loss"][:, iobj, vptr]), np.shape(z), np.shape(zbl))
-                line = ax.plot(mean_prop["budget_loss"][:,iobj,vptr][in_bl[1:]], \
-                               zbl[1:][in_bl[1:]])
+                if vptr != 9999:
+                    ax = axc[(j)%3,(j)//3]
+    #                print(np.shape(m1), np.shape(in_bl),np.shape(mean_prop["budget_loss"][:, iobj, vptr]), np.shape(z), np.shape(zbl))
+                    line = ax.plot(mean_prop["budget_loss"][:,iobj,vptr][in_bl[1:]], \
+                                   zbl[1:][in_bl[1:]])
 
-                ax.plot(mean_prop["budget_loss"][:, iobj, vptr][incloud_rates], z[1:][incloud_rates], \
-                        color = line[0].get_color(), linewidth=4, \
-                         label='{}'.format(iobj))
+                    ax.plot(mean_prop["budget_loss"][:, iobj, vptr][incloud_rates], z[1:][incloud_rates], \
+                            color = line[0].get_color(), linewidth=4, \
+                             label='{}'.format(iobj))
 
 ############################################################################
 # Cloud volume

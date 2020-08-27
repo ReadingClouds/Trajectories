@@ -7,6 +7,7 @@ import pickle as pickle
 
 from trajectory_compute import *
 from trajectory_plot import *
+from compute_cloud_properties import *
 
 dn = 11
 #runtest=True
@@ -15,7 +16,6 @@ dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.forma
 #dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r6n/'
 #   Set to True to calculate trajectory family,False to read pre-calculated from pickle file.
 get_traj = False
-#tr.coords.keys()
 #get_traj = True
 
 debug_unsplit = False
@@ -36,10 +36,10 @@ def main():
 #        first_ref_file = 88
         first_ref_time = 89*dt
         last_ref_time =  90*dt
-        tr_back_len = 4*dt
-        tr_forward_len = 3*dt
+        tr_back_len = 5*dt
+        tr_forward_len = 4*dt
         ref = 1
-        selind = 1
+        selind = 29
 #        sel_list   = np.array([0, 24, 38, 41, 43, 56, 57, 61])
         sel_list   = np.array([21, 29, 32, 34, 38, 40, 47, 48, 61, 64])
 
@@ -73,7 +73,7 @@ def main():
         tr_back_len = 40*dt
         tr_forward_len = 30*dt
         ref = 40
-        selind = 72
+        selind = 29
 #        first_ref_time = 50*dt
 #        last_ref_time =  55*dt
 #        tr_back_len = 2*dt
@@ -186,7 +186,7 @@ def main():
 
         print(np.shape(mean_prop["cloud"]))
 
-        print(mean_prop["cloud"][41,61,...])
+ #       print(mean_prop["cloud"][41,61,...])
 
 #        v_loss = compute_derived_mean_properties(traj_m, traj_m_class, mean_prop)
 
@@ -204,7 +204,7 @@ def main():
 #        print(sup)
 
     # Plot all clouds
-    if True :
+    if False :
         plot_traj_animation(traj_m, save_anim=False, anim_name='traj_all_clouds', \
                             with_boxes=False, \
                             title = 'Reference Time {}'.format(last_ref_time))
@@ -216,13 +216,13 @@ def main():
             title = 'Reference Time {} Galilean Tranformed'.format(last_ref_time), \
             galilean = np.array([-8.5,0]))
 
-    if True :
+    if False :
         plot_traj_animation(traj_r, save_anim=False, \
             title = 'Reference Time {} Galilean Tranformed'.format(first_ref_time), \
             galilean = np.array([-8.5,0]))
 
     # Plot max_list clouds with galilean transform
-    if True :
+    if False :
         plot_traj_animation(traj_m, save_anim=False,  anim_name='traj_sel_clouds_gal', \
             select = sel_list, \
             no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
@@ -232,14 +232,14 @@ def main():
     max_list = traj_m.max_at_ref
     print(max_list)
     sel_list = max_list
-    sel_list=np.array([61])
-    if True :
+    sel_list=np.array([selind])
+    if False :
         for iobj in sel_list:
             plot_trajectory_history(traj_m, iobj, fn)
 
         plt.show()
 
-    if True :
+    if False :
         cloud_lifetime = traj_m_class['cloud_dissipate_time'] - \
                          traj_m_class['cloud_trigger_time']
 
@@ -251,7 +251,7 @@ def main():
 
     #input("Press Enter to continue...")
 
-    if True :
+    if False :
         for cloud in sel_list :
             plot_traj_animation(traj_m, save_anim=False, \
                         anim_name='traj_cloud_{:03d}_class'.format(cloud), \
@@ -276,7 +276,7 @@ def main():
                         with_boxes = False, galilean = np.array([-8.5,0]))
 
     # Plot subset max_list clouds with galilean transform
-    if True :
+    if False :
         plot_traj_animation(traj_r, save_anim=False, select = sel_list_r, \
                         no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
                         with_boxes = False, galilean = np.array([-8.5,0]))
