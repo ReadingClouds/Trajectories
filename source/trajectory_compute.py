@@ -47,6 +47,7 @@ interp_order = 1
 use_corrected_positions = True
 
 ind=""
+
 class Trajectory_Family :
     """
     Class defining a family of back trajectories.
@@ -577,36 +578,56 @@ class Trajectories :
 
     This is an ordered list of trajectories with sequential reference times.
 
-    Args:
-        files              : ordered list of files used to generate trajectories
-        ref_prof_file      : name of file containing reference profile.
-        start_time         : Time for origin of back trajectories.
-        ref                : Reference time of trajectories.
-        end_time           : Time for end of forward trajectories.
-        deltax             : Model x grid spacing in m.
-        deltay             : Model y grid spacing in m.
-        deltaz             : Model z grid spacing in m.
-        variable_list=None : List of variable names for data to interpolate to trajectory.
-        ref_func           : function to return reference trajectory positions and labels.
-        in_obj_func        : function to determine which points are inside an object.
-        kwargs             : any additional keyword arguments to ref_func (dict).
+    Parameters
+    ----------
+    files              : ordered list of strings.
+        Files used to generate trajectories
+    ref_prof_file      : string
+        name of file containing reference profile.
+    start_time         : int
+        Time for origin of back trajectories.
+    ref                : int
+        Reference time of trajectories.
+    end_time           : int
+        Time for end of forward trajectories.
+    deltax             : float
+        Model x grid spacing in m.
+    deltay             : float
+        Model y grid spacing in m.
+    deltaz             : float
+        Model z grid spacing in m.
+    variable_list=None : List of strings.
+        Variable names for data to interpolate to trajectory.
+    ref_func           : function 
+        Return reference trajectory positions and labels.
+    in_obj_func        : function 
+        Determine which points are inside an object.
+    kwargs             : dict
+        Any additional keyword arguments to ref_func.
 
-    Attributes:
-
-        refprof            : Dict containing reference profile
+    Attributes
+    ----------
+    refprof            : Dict 
+        Reference profile::   
+        
             'rho' (array)  : Reference profile of density.
             'p' (array)    : Reference profile of pressure.
             'th' (array)   : Reference profile of potential temperature.
             'pi' (array)   : Reference profile of Exner pressure.
-        data : Array [nt, m, n] where nt is total number of times,
+    data               : float array [nt, m, n] 
+        Data associated with trajectory::
+        
+            nt is total number of times,
             m the number of trajectory points at a given time and
             n is the number of variables in variable_list.
-        trajectory: Array [nt, m, 3] where the last index gives x,y,z
-        traj_error: Array [nt, m, 3] with estimated error in trajectory.
-        traj_times: Array [nt] with times corresponding to trajectory.
-        labels: Array [m] labelling points with labels 0 to nobjects-1.
-        nobjects: Number of objects.
-        coords             : Dict containing model grid info.
+    trajectory: Array [nt, m, 3] where the last index gives x,y,z
+    traj_error: Array [nt, m, 3] with estimated error in trajectory.
+    traj_times: Array [nt] with times corresponding to trajectory.
+    labels: Array [m] labelling points with labels 0 to nobjects-1.
+    nobjects: Number of objects.
+    coords             : Dict
+        Model grid info::   
+        
             'xcoord': grid xcoordinate of model space.
             'ycoord': grid ycoordinate of model space.
             'zcoord': grid zcoordinate of model space.
@@ -615,31 +636,33 @@ class Trajectories :
             'deltax': Model x grid spacing in m.
             'deltay': Model y grid spacing in m.
             'z'     : Model z grid m.
-            'zn'    : Model z grid m.
-        nx: length of xcoord
-        ny: length of xcoord
-        nz: length of xcoord
+            'zn'    : Model z grid m.        
+    nx: int
+        length of xcoord
+    ny: int
+        length of ycoord
+    nz: int
+        length of zcoord
 
-        deltat: time spacing in trajectories.
-        ref_func           : function to return reference trajectory positions and labels.
-        in_obj_func        : function to determine which points are inside an object.
-        ref_func_kwargs: any additional keyword arguments to ref_func (dict).
-        files: Input file list.
-        ref: Index of reference time in trajectory array.
-        end: Index of end time in trajectory array. (start is always 0)
-        ntimes: Number of times in trajectory array.
-        npoints: Number of points in trajectory array.
-        variable_list: variable_list corresponding to data.
-        trajectory: trajectory array.
-        data_mean: mean of in_obj points data.
-        num_in_obj: number of in_obj points.
-        centroid: centroid of in_objy points
-        bounding_box: box containing all trajectory points.
-        in_obj_box: box containing all in_obj trajectory points.
-        max_at_ref: list of objects which reach maximum LWC at reference time.
-
-    @author: Peter Clark
-
+    deltat: float
+        time spacing in trajectories.
+    ref_func           : function to return reference trajectory positions and labels.
+    in_obj_func        : function to determine which points are inside an object.
+    ref_func_kwargs: dict
+        Any additional keyword arguments to ref_func (dict).
+    files: Input file list.
+    ref: Index of reference time in trajectory array.
+    end: Index of end time in trajectory array. (start is always 0)
+    ntimes: Number of times in trajectory array.
+    npoints: Number of points in trajectory array.
+    variable_list: variable_list corresponding to data.
+    data_mean: mean of in_obj points data.
+    num_in_obj: number of in_obj points.
+    centroid: centroid of in_objy points
+    bounding_box: box containing all trajectory points.
+    in_obj_box: box containing all in_obj trajectory points.
+    max_at_ref: list of objects which reach maximum LWC at reference time.
+    
     """
 
     def __init__(self, files, ref_prof_file, start_time, ref, end_time,
@@ -1918,17 +1941,35 @@ def padright(f, zt, axis=0) :
 
 def get_data(source_dataset, var_name, it, refprof, coords) :
     """
-    Extract data from source NetCDF dataset or derived data.
+    Extract data from source NetCDF dataset, derived and/or processed data.
 
-	Currently supported derived data are:
-	'th_L'    : Liquid water potential temperature.
-	'th_v'    : Virtual potential temperature.
-	'q_total' : Total water
-    'x_prime' : Deviation from level mean for any variable x.
-    'x_crit'  : Level critical value for any variable x.
+        Currently supported derived data are::
+        
+            'th_L'    : Liquid water potential temperature.
+            'th_v'    : Virtual potential temperature.
+            'q_total' : Total water
+            'buoyancy': Bouyancy based on layer-mean theta_v.
+
+        Currently supported operators are::
+        
+            'v_prime' : Deviation from level mean for any variable v.
+            'v_crit'  : Level critical value for any variable v.
+            'dv_dx'   : Derivative of v in x direction.
+            'dv_dy'   : Derivative of v in y direction.
+            'dv_dz'   : Derivative of v in z direction.
+        
+        Operators must be combined using parentheseses, e.g. 
+        'd(d(th_prime)_dx)_dy'.
+    
+    Args:
+        source_dataset: handle of NetCDF dataset.
+        var_name: String describing data required.
+        it: Time index required.
+        refprof: Dict containg reference profile.
+        coords: Dict containing model coords.
 
     Returns:
-    variable, variable_grid_properties
+        variable, variable_grid_properties
 
     @author: Peter Clark and George Efstathiou
 
