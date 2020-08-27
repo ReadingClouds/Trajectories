@@ -8,20 +8,21 @@ import pickle as pickle
 from trajectory_compute import *
 from trajectory_plot import *
 
-dn = 5
+dn = 11
 #runtest=True
 runtest=False
-#dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
-dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r6n/'
+dir = 'C:/Users/paclk/OneDrive - University of Reading/traj_data/r{:02d}/'.format(dn)
+#dir = '/storage/silver/wxproc/xm904103/traj/BOMEX/r6n/'
 #   Set to True to calculate trajectory family,False to read pre-calculated from pickle file.
 get_traj = False
+#tr.coords.keys()
 #get_traj = True
 
 debug_unsplit = False
-debug_label = False  
-debug_mean = False 
+debug_label = False
+debug_mean = False
 debug = False
-    
+
 files = glob.glob(dir+"diagnostics_3d_ts_*.nc")
 files.sort(key=file_key)
 
@@ -42,7 +43,7 @@ def main():
 #        sel_list   = np.array([0, 24, 38, 41, 43, 56, 57, 61])
         sel_list   = np.array([21, 29, 32, 34, 38, 40, 47, 48, 61, 64])
 
-        
+
     elif dn in (5,) :
         dt = 60
         first_ref_time = 50*dt
@@ -53,7 +54,7 @@ def main():
         selind = 61
 #        sel_list   = np.array([21, 29, 32, 34, 38, 40, 47, 48, 61, 64])
         sel_list   = np.array([0, 24, 41, 43, 56, 57])
-        
+
     elif dn in (6,) :
         dt = 60
         first_ref_time = 60*dt
@@ -64,7 +65,7 @@ def main():
         selind = 61
 #        sel_list   = np.array([21, 29, 32, 34, 38, 40, 47, 48, 61, 64])
         sel_list   = np.array([0, 24, 41, 43, 56, 57])
-        
+
     elif dn in (11,16) :
         dt = 60
         first_ref_time = 50*dt
@@ -73,8 +74,14 @@ def main():
         tr_forward_len = 30*dt
         ref = 40
         selind = 72
+#        first_ref_time = 50*dt
+#        last_ref_time =  55*dt
+#        tr_back_len = 2*dt
+#        tr_forward_len = 2*dt
+#        ref = 40
+#        selind = 72
         sel_list   = np.array([14, 44, 72, 74, 79, 85, 92])
-        
+
     else:
         dt = 60
         first_ref_time = 24*dt
@@ -82,36 +89,39 @@ def main():
         tr_back_len = 20*dt
         tr_forward_len = 15*dt
         ref = 20
-    
+
     order_labs =[ \
                  'linear', \
                  'quadratic', \
                  'cubic', \
                  'quartic', \
                  'quintic', \
-                 ] 
+                 ]
 
     interp_order = 1
     iorder = '_'+order_labs[interp_order-1]
     fn = os.path.basename(files[0])[:-3]
     fn = ''.join(fn)+iorder
     fn = dir + fn
-    
+
     ref_prof_file = glob.glob(dir+'diagnostics_ts_*.nc')[0]
     test_pickle = 'traj_family_{:03d}_{:03d}_{:03d}_{:03d}_v2'.\
         format(first_ref_time//dt-1 ,last_ref_time//dt-1, \
                tr_back_len//dt, tr_forward_len//dt)
     print(test_pickle)
-    var_list = { \
-      "u":r"$u$ m s$^{-1}$", \
-      "v":r"$v$ m s$^{-1}$", \
-      "w":r"$w$ m s$^{-1}$", \
-      "th":r"$\theta$ K", \
-      "p":r"Pa", \
-      "q_vapour":r"$q_{v}$ kg/kg", \
-      "q_cloud_liquid_mass":r"$q_{cl}$ kg/kg", \
-      "tracer_rad1":r"Tracer 1 kg/kg", \
-      "tracer_rad2":r"Tracer 2 kg/kg", \
+    var_list = {
+      "u":r"$u$ m s$^{-1}$",
+      "v":r"$v$ m s$^{-1}$",
+      "w":r"$w$ m s$^{-1}$",
+      "th":r"$\theta$ K",
+      "p":r"Pa",
+      "dp_dx":r"Pa m^{-1}",
+      "dp_dy":r"Pa m^{-1}",
+      "dp_dz":r"Pa m^{-1}",
+      "q_vapour":r"$q_{v}$ kg/kg",
+      "q_cloud_liquid_mass":r"$q_{cl}$ kg/kg",
+#      "tracer_rad1":r"Tracer 1 kg/kg",
+#      "tracer_rad2":r"Tracer 2 kg/kg",
       }
     kwa={'thresh':1.0E-5}
     if get_traj :
@@ -131,35 +141,35 @@ def main():
         tfm = pickle.load(infile)
 #        print(tfm)
         infile.close()
-                
+
     traj_list = tfm.family
-    
-    
+
+
 #    tfm.print_matching_object_list()
 #    print("Matching object list summary")
 #    tfm.print_matching_object_list_summary(overlap_thresh=0.1)
-    
+
 #    print("Linked_objects")
 #    tfm.print_linked_objects(overlap_thresh=0.1)
-    
+
     sel = np.array([selind])
 #    tfm.print_matching_object_list(select = sel)
 #    tfm.print_matching_object_list_summary(select = sel, overlap_thresh=0.1)
 #    tfm.print_linked_objects(ref=ref, select = sel, overlap_thresh=0.1)
-        
+
     mem_list = [(85,40,40),(0,39,41),(92,39,41),(0,38,42),(1,38,42)]
     #mem_list = [(85,40,40),(92,39,41)]
     if False :
         plot_traj_family_members(tfm, mem_list, galilean = np.array([-8.5,0]), \
                              with_boxes=True, asint = True, )
-    
+
     #input("Press Enter to continue...")
-    
+
     traj_m = traj_list[-1]
     traj_r = traj_list[0]
-    traj_m.variable_list["tracer_rad1"]=r"Tracer 1 kg/kg"
-    traj_m.variable_list["tracer_rad2"]=r"Tracer 2 kg/kg"
-    
+#    traj_m.variable_list["tracer_rad1"]=r"Tracer 1 kg/kg"
+#    traj_m.variable_list["tracer_rad2"]=r"Tracer 2 kg/kg"
+
 #    so = np.argsort(traj_m.num_in_obj[ref,:])
 #    for i in so[-6:] :
 #        print(i, traj_m.num_in_obj[ref,i])
@@ -170,77 +180,77 @@ def main():
     if True :
         traj_m_class = set_cloud_class(traj_m, version = 1)
         print_cloud_class(traj_m, traj_m_class, 61)
-    
+
     if True :
         mean_prop = cloud_properties(traj_m, traj_m_class)
-        
+
         print(np.shape(mean_prop["cloud"]))
-        
+
         print(mean_prop["cloud"][41,61,...])
-        
+
 #        v_loss = compute_derived_mean_properties(traj_m, traj_m_class, mean_prop)
-        
+
 #        print(v_loss)
 #        print(mean_prop.keys())
 #        print(np.shape(mean_prop['cloud']))
-    
+
 #        print(mean_prop['cloud_trigger_time'])
 #        print(mean_prop['cloud_dissipate_time'])
-    
-    
+
+
     if True :
         th = 0.5
         sup, len_sup = tfm.find_super_objects(overlap_thresh = th)
-        print(sup)
-    
+#        print(sup)
+
     # Plot all clouds
-    if False :
+    if True :
         plot_traj_animation(traj_m, save_anim=False, anim_name='traj_all_clouds', \
                             with_boxes=False, \
                             title = 'Reference Time {}'.format(last_ref_time))
-    
+
     #input("Press Enter to continue...")
     # Plot all clouds with galilean transform
-    if False :
+    if True :
         plot_traj_animation(traj_m, save_anim=False, anim_name='traj_all_clouds_gal', \
             title = 'Reference Time {} Galilean Tranformed'.format(last_ref_time), \
             galilean = np.array([-8.5,0]))
-    
-    if False :
+
+    if True :
         plot_traj_animation(traj_r, save_anim=False, \
             title = 'Reference Time {} Galilean Tranformed'.format(first_ref_time), \
             galilean = np.array([-8.5,0]))
-    
+
     # Plot max_list clouds with galilean transform
-    if False :
+    if True :
         plot_traj_animation(traj_m, save_anim=False,  anim_name='traj_sel_clouds_gal', \
             select = sel_list, \
             no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
             title = 'Reference Time {} Galilean Tranformed'.format(last_ref_time), \
             with_boxes = False, galilean = np.array([-8.5,0]) )
-    
+
     max_list = traj_m.max_at_ref
     print(max_list)
     sel_list = max_list
     sel_list=np.array([61])
     if True :
         for iobj in sel_list:
-            plot_trajectory_history(traj_m, iobj, fn) 
-    
-        plt.show()    
+            plot_trajectory_history(traj_m, iobj, fn)
+
+        plt.show()
 
     if True :
         cloud_lifetime = traj_m_class['cloud_dissipate_time'] - \
                          traj_m_class['cloud_trigger_time']
-        
+
         plt.hist(cloud_lifetime, bins = np.arange(0,75,10, dtype=int), density=True)
         plt.xlabel('Lagrangian lifetime (min)')
         plt.ylabel('Fraction of clouds')
         plt.savefig(dir+'Cloud_lifetime.png')
         plt.show()
-        
+
     #input("Press Enter to continue...")
-          
+
     if True :
         for cloud in sel_list :
             plot_traj_animation(traj_m, save_anim=False, \
@@ -248,32 +258,32 @@ def main():
                         select = np.array([cloud]), fps = 10,  \
                         no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
                         title = 'Reference Time {0} Cloud {1} Galilean Trans'.\
-                        format(last_ref_time, cloud), with_boxes = False, 
+                        format(last_ref_time, cloud), with_boxes = False,
                         galilean = np.array([-8.5,0]), \
                         plot_class = traj_m_class,\
                         )
-            
-    #input("Press Enter then continue Powerpoint...")        
-    # Plot max_list clouds mean history         
+
+    #input("Press Enter then continue Powerpoint...")
+    # Plot max_list clouds mean history
     if True :
-        plot_trajectory_mean_history(traj_m, traj_m_class, mean_prop, fn, select = sel_list) 
-    
+        plot_trajectory_mean_history(traj_m, traj_m_class, mean_prop, fn, select = sel_list)
+
     # Plot subset max_list clouds with galilean transform
-    # Not needed   
+    # Not needed
     if False :
         plot_traj_animation(traj_m, save_anim=False, select = max_list, \
                         no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
                         with_boxes = False, galilean = np.array([-8.5,0]))
-    
+
     # Plot subset max_list clouds with galilean transform
-    if False :
+    if True :
         plot_traj_animation(traj_r, save_anim=False, select = sel_list_r, \
                         no_cloud_size = 0.2, cloud_size = 2.0, legend = True, \
                         with_boxes = False, galilean = np.array([-8.5,0]))
-    
+
     #input("Press Enter to continue...")
-     
-    if False :
+
+    if True :
         plot_traj_animation(traj_m, save_anim=False, \
                         anim_name='traj_cloud_sel_field', \
                         select = sel_list, \
@@ -283,16 +293,16 @@ def main():
                         title = 'Reference Time {0} Galilean Trans with clouds'.\
                         format(last_ref_time), with_boxes = False, \
                         galilean = np.array([-8.5,0]))
-        
-        
+
+
     if False :
         plt.hist(len_sup, bins = np.arange(0.5,16.5), density=True)
         plt.title('Threshold = {:2.0f}%'.format(th*100))
         plt.xlabel('Super-object length (min)')
         plt.ylabel('Fraction of super objects')
         plt.savefig(dir+'Super_object_length.png')
-        plt.show()  
-        
+        plt.show()
+
 #    sel_list   = np.array([selind])
     sel_list = max_list
     th=0.1
@@ -320,7 +330,7 @@ def main():
                         format(last_ref_time, last_ref_time-tback,  cloud), \
                         no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
                         with_boxes = False, galilean = np.array([-8.5,0]))
-    
+
             for tback in [-1] :
                 plot_traj_family_animation(tfm, tback, overlap_thresh = th, \
                         save_anim=False, \
@@ -332,7 +342,7 @@ def main():
                         format(last_ref_time,  cloud), \
                         no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
                         with_boxes=False, galilean = np.array([-8.5,0]))
-    
+
             for tback in [-1] :
                 plot_traj_family_animation(tfm, tback, overlap_thresh = th, \
                         save_anim=False, \
@@ -344,6 +354,6 @@ def main():
                         format(last_ref_time,  cloud), \
                         no_cloud_size = 0.2, cloud_size = 2.0, field_size = 0.5, \
                         with_boxes=False, galilean = np.array([-8.5,0]))
-    
+
 if __name__ == "__main__":
-    main() 
+    main()
