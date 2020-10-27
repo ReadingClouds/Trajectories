@@ -27,6 +27,8 @@ var_properties = {"u":[True,False,False],\
                   "p":[False,False,False],\
                   "q_vapour":[False,False,False],\
                   "q_cloud_liquid_mass":[False,False,False],\
+                  "tracer_rad1":[False,False,False],\
+                  "tracer_rad2":[False,False,False],\
                   }
 
 
@@ -2012,14 +2014,12 @@ def get_data(source_dataset, var_name, it, refprof, coords) :
             vard = theta - L_over_cp * q_cl / refprof['pi']
 
         elif var_name == 'th_v':
-
             theta, varp = get_data(source_dataset, 'th', it, refprof, coords)
             q_v, vp = get_data(source_dataset, 'q_vapour', it, refprof, coords)
             q_cl, vp = get_data(source_dataset, 'q_cloud_liquid_mass', it,
                                 refprof, coords)
-            vard = theta + refprof['th'] * (c_virtual * q_v - q_cl, it,
-                                            refprof, coords)
-
+            vard = theta + refprof['th'] * (c_virtual * q_v - q_cl)
+ 
         elif var_name == 'q_total':
 
             q_v, varp = get_data(source_dataset, 'q_vapour', it, refprof,
@@ -2032,7 +2032,7 @@ def get_data(source_dataset, var_name, it, refprof, coords) :
 
             th_v, varp = get_data(source_dataset, 'th_v', it, refprof, coords)
             mean_thv = np.mean(th_v, axis = (0,1))
-            varp = grav * (th_v - mean_thv)/mean_thv
+            vard = grav * (th_v - mean_thv)/mean_thv
 
         else:
             if ')' in var_name:
@@ -2750,7 +2750,8 @@ def cloud_select(qcl, thresh=1.0E-5) :
     return mask
 
 
-def trajectory_cstruct_ref(dataset, time_index, thresh=0.00001, find_objects=True) :
+def trajectory_cstruct_ref(dataset, time_index, thresh=0.00001, 
+                           find_objects=False) :
     """
     Function to set up origin of back and forward trajectories.
 
@@ -2758,7 +2759,7 @@ def trajectory_cstruct_ref(dataset, time_index, thresh=0.00001, find_objects=Tru
         dataset        : Netcdf file handle.
         time_index     : Index of required time in file.
         thresh=0.00001 : Cloud liquid water threshold for clouds.
-        find_objects=True : Enable idenfificatoin of distinct objects.
+        find_objects=False : Enable idenfification of distinct objects.
 
     Returns:
         Trajectory variables::
@@ -2778,13 +2779,13 @@ def trajectory_cstruct_ref(dataset, time_index, thresh=0.00001, find_objects=Tru
     w = dataset.variables["w"][time_index, ...]
     zr = dataset.variables["tracer_traj_zr"][time_index, ...]
     tr1 = dataset.variables["tracer_rad1"][time_index, ...]
-    tr2 = dataset.variables["tracer_rad2"][time_index, ...]
 
     xcoord = np.arange(np.shape(qcl)[0],dtype='float')
     ycoord = np.arange(np.shape(qcl)[1],dtype='float')
     zcoord = np.arange(np.shape(qcl)[2],dtype='float')
-
-    logical_pos = cstruct_select(qcl, w, zr, tr1, tr2, thresh=thresh, ver=4)
+    
+  
+    logical_pos = cstruct_select(qcl, w, zr, tr1, thresh=thresh, ver=6)
 
     # print('rad threshold {:10.6f}'.format(np.max(data[...])*0.8))
 
@@ -2837,9 +2838,8 @@ def in_cstruc(traj, *argv, **kwargs) :
     data = traj.data
     v = traj.var("q_cloud_liquid_mass")
     w_v = traj.var("w")
-    z_p = traj.var("w") # This seems to be a hack - i.e. wrong.
-    tr1_v = traj.var("tracer_rad1")
-    tr2_v = traj.var("tracer_rad2")
+    z_p = traj.var("tracer_traj_zr") # This seems to be a hack - i.e. wrong.
+    tr1_p = traj.var("tracer_rad1")
 
     if 'thresh' in kwargs:
         thresh = kwargs['thresh']
@@ -2850,20 +2850,17 @@ def in_cstruc(traj, *argv, **kwargs) :
         (tr_time, obj_ptrs) = argv
         qcl = data[ tr_time, obj_ptrs, v]
         w = data[ tr_time, obj_ptrs, w_v]
-        tr1 = data[ tr_time, obj_ptrs, tr1_v]
-        tr2 = data[ tr_time, obj_ptrs, tr2_v]
+        tr1 = data[ tr_time, obj_ptrs, tr1_p]
     else :
         qcl = data[..., v]
         w = data[..., w_v]
         zpos = data[..., z_p]
-        tr1 = data[ ..., tr1_v]
-        tr2 = data[ ..., tr2_v]
+        tr1 = data[ ..., tr1_p]
 
-    # mask = data[...]>(np.max(data[...])*0.6)
-    mask = cstruct_select(qcl, w, zpos, tr1, tr2, thresh=thresh, ver=4)
+    mask = cstruct_select(qcl, w, zpos, tr1, thresh=thresh, ver=6)
     return mask, qcl
 
-def cstruct_select(qcl, w, zpos, tr1, tr2, thresh=1.0E-5, ver=4) :
+def cstruct_select(qcl, w, zpos, tr1, z_lev1=1, z_lev2=3, thresh=1.0E-5, ver=6) :
     """
     Simple function to select in-coherent structure data;
     used in in_cstruct and trajectory_cstruct_ref for consistency.
@@ -2874,27 +2871,47 @@ def cstruct_select(qcl, w, zpos, tr1, tr2, thresh=1.0E-5, ver=4) :
         w              : Vertical velocity array.
         zpos           : Height array.
         tr1            : tracer 1 array.
-        tr2            : tracer 2 array.
+        tr_i            : tracer i array (if present have to be added).
         thresh=0.00001 : Cloud liquid water threshold for clouds.
+        z_lev1         : Height limit (lowest level) (=1)
+        z_lev2         : Height limit (highest level) (=3)
 
     Returns:
-        Logical array like trajectory array selecting those points inside cloud.
+        Logical array like trajectory array selecting those points which are:
+        
+    Version:
+        1. Cloudy
+        2. Active cloudy
+        3. Non-cloudy below level z_lev2
+        4. Above level z_lev1 and below z_lev2
+        5. Coherent structures
+        6. Every other point in domain (Need to set find_objects=False)
 
     @author: George Efstathiou and Peter Clark
 
     """
-    std_dev=np.ones(220)
+     
     if ver == 1 :
         mask = qcl >= thresh
     elif ver == 2:
         mask = ((qcl >= thresh) and (w > 0.0))
     elif ver == 3 :
-        mask = ((qcl < thresh) and (zpos < 30.0))
+        mask = ((qcl < thresh) and (zpos < z_lev2))
     elif ver == 4 :
-#           mask = np.logical_and( zpos > 2.0, zpos < 40.0 )
-        mask = np.logical_and( zpos > 28.0, zpos < 32.0 )
+        mask = np.logical_and( zpos > z_lev1, zpos < z_lev2 )
+    elif ver == 5 :
+        tr1_pr = tr1 - np.mean(tr1, axis = (0,1))
+        std = np.std(tr1, axis=(0,1))
+        std_int=np.ones(len(std))
+        c_crit=np.ones(len(std))
+        for iz in range(len(std)) :
+            std_int[iz] = 0.05*np.mean(std[:iz+1])
+            c_crit[iz] = np.maximum(std[iz], std_int[iz])
+        tr_crit = np.ones_like(tr1) * c_crit
+        mask = np.logical_and( tr1_pr > tr_crit, w > 0.0)
     else :
-        for zlev in range(220):
-            std_dev[zlev] = np.mean( np.mean(tr2[:,:,zlev],axis=1),axis=0)
-        mask = np.logical_and( tr1 > std_dev, zpos > 20, zpos < 30)
+        v_shape=qcl.shape
+        mask_pos = np.zeros((v_shape[0],v_shape[1],v_shape[2]))
+        mask_pos[::2,::2,::2] = 1
+        mask = mask_pos == 1
     return mask
