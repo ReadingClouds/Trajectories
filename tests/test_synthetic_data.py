@@ -1,76 +1,51 @@
-import xarray as xr
 import numpy as np
-from scipy.constants import pi
-
-from advtraj.compute_trajectories import (compute_trajectories,
-                                          trajectory_cloud_ref,
-                                          )
 
 
-def _create_synthetic_dataset(dL, L, t_max, dt, U):
-    Lx, Ly, Lz = L
-    dx, dy, dz = dL
-
-    x_ = np.arange(0, Lx, dx)
-    y_ = np.arange(0, Ly, dy)
-    z_ = np.arange(0, Lz, dz)
-    t_ = np.arange(0, t_max, dt)
-
-    ds = xr.Dataset(coords=dict(x=x_, y=y_, z=z_, t=t_))
-    ds.x.attrs['units'] = 'm'
-    ds.y.attrs['units'] = 'm'
-    ds.z.attrs['units'] = 'm'
-    ds.x.attrs['long_name'] = 'x-horz. posn.'
-    ds.y.attrs['long_name'] = 'y-horz. posn.'
-    ds.z.attrs['long_name'] = 'height'
-
-    x_pos = ds.x + U[0]*ds.t
-    y_pos = ds.y + U[1]*ds.t
-    z_pos = ds.z + U[2]*ds.t
-
-    ds['tracer_traj_xr'] = np.cos(2.*pi*x_pos/Lx) + 0.*y_pos + 0.*z_pos
-    ds['tracer_traj_xi'] = np.sin(2.*pi*x_pos/Ly) + 0.*y_pos + 0.*z_pos
-    ds['tracer_traj_yr'] = 0.*x_pos + np.cos(2.*pi*y_pos/Ly) + 0.*z_pos
-    ds['tracer_traj_yi'] = 0.*x_pos + np.sin(2.*pi*y_pos/Ly) + 0.*z_pos
-    ds['tracer_traj_zr'] = 0.*x_pos + 0.*y_pos + z_pos
-
-    return ds
+from utils import create_initial_dataset
 
 
-def test_compute_trajectories():
-    Lx = Ly = 0.5e3  # [m]
+def _advect_fields(ds_scalars, dx_grid, dy_grid, u, v, dt):
+    """
+    Perform poor-mans advection by rolling all variables in `ds_scalars` by a
+    finite number of grid positions, requiring that the time-increment `dt`
+    causes exactly grid-aligned shifts using grid resolution `dx_grid`,
+    `dy_grid` with x- and y-velocity (`u`, `v`)
+    """
+
+    def _calc_shift(dx_, vel):
+        n_shift = vel * dt / dx_
+        if not np.isclose(n_shift, int(n_shift)):
+            raise Exception(
+                f"Advecting by time {dt} with velocity {vel} along grid with"
+                f" spacing {dx_} does not result in a grid-aligned new position"
+            )
+        return int(n_shift)
+
+    i_shift = _calc_shift(dx_grid, u)
+    j_shift = _calc_shift(dy_grid, v)
+    ds_new = ds_scalars.roll(dict(x=i_shift, y=j_shift), roll_coords=False)
+    ds_new.assign_coords(dict(time=ds_scalars.time + np.timedelta64(int(dt), "s")))
+    return ds_new
+
+
+def test_diagonal_advection():
+    """
+    Test that the the poor-man's advection implemented above actually works by
+    advecting around the whole domain. Domain is twice as long in y-direction
+    as in x-direction and velocity is twice as fast.
+    """
+    Lx = 0.5e3  # [m]
+    Ly = 1.0e3
     Lz = 1.0e3  # [m]
     dx = dy = dz = 25.0  # [m]
-    dt = 120.  # [s]
-    t_max = 600.  # [s]
-    U = [1., 2., 4., ]  # [m/s]
+    u, v = 4.0, 8.0
 
-    ds = _create_synthetic_dataset(
-        dL=(dx, dy, dz),
-        L=(Lx, Ly, Lz),
-        t_max=t_max,
-        dt=dt,
-        U=U
-    )
+    dt = Lx / u  # [s]
 
-    # trajectories code needs some reference profiles
-    ds['thref'] = 300.0 + 0.*ds.x + 0.*ds.y + 0.*ds.z
-    ds['th'] = 300.0 + 0.*ds.x + 0.*ds.y + 0.*ds.z
-    ds['q_cloud_liquid_mass'] = (
-        300.0 + 0.*ds.x + 0.*ds.y + 1.0e-3*(ds.z > 600.) + 0.*ds.t
-    )
+    ds_initial = create_initial_dataset(dL=(dx, dy, dz), L=(Lx, Ly, Lz))
+    ds_advected = _advect_fields(ds_scalars=ds_initial, dx_grid=dx, dy_grid=dy, u=u, v=v, dt=dt)
 
-    fn = "test_0.nc"
-    ds.to_netcdf(fn)
-
-    compute_trajectories(
-        files=["test_0.nc", ],
-        start_time=ds.t.min().item(),
-        ref_time=0.0,
-        # trajectory code doens't currently support integration to the
-        # end of the dataset
-        end_time=ds.t.max().item()-dt*4,
-        variable_list=["th",],
-        thref=ds.thref.values,
-        ref_func=trajectory_cloud_ref,
-    )
+    for v in ds_initial.data_vars:
+        if not v.startswith("traj_tracer_"):
+            continue
+        assert np.allclose(ds_initial[v], ds_advected[v])
