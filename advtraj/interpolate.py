@@ -1,6 +1,7 @@
 """
 Main routines for integration
 """
+from . import integrate
 
 POSITION_COORD_NAMES = ["x", "y", "z", "time"]
 
@@ -12,22 +13,22 @@ def _validate_position_scalars(ds, xy_periodic=False):
     xy-direction)
     """
     required_coords = POSITION_COORD_NAMES
-    required_vars = ["tracer_traj_xr", "tracer_traj_yr", "tracer_traj_zr"]
+    required_vars = ["traj_tracer_xr", "traj_tracer_yr", "traj_tracer_zr"]
 
     if xy_periodic:
-        required_vars += ["tracer_traj_xi", "tracer_traj_yi"]
+        required_vars += ["traj_tracer_xi", "traj_tracer_yi"]
 
-    missing_vars = filter(lambda c: c not in ds, required_coords)
+    missing_vars = list(filter(lambda c: c not in ds, required_vars))
 
-    if any(missing_vars):
+    if missing_vars:
         raise Exception(
             "The position scalars dataset is missing the following requried"
             f" variables: {', '.join(missing_vars)}"
         )
 
     for v in required_vars:
-        missing_dims = filter(lambda c: c not in ds[v].coords, required_coords)
-        if any(missing_dims):
+        missing_dims = list(filter(lambda c: c not in ds[v].coords, required_coords))
+        if missing_dims:
             raise Exception(
                 f"The position variable `{v}` is missing the coordinates"
                 f"{', '.join(missing_dims)}"
@@ -41,17 +42,30 @@ def _validate_starting_points(ds):
     """
     required_vars = POSITION_COORD_NAMES
 
-    missing_vars = filter(lambda c: c not in ds.data_vars, required_vars)
+    missing_vars = list(filter(lambda c: c not in ds.data_vars, required_vars))
 
-    if any(missing_vars):
+    if missing_vars:
         raise Exception(
             "The starting position dataset is missing the following variables:"
             f" {', '.join(missing_vars)}"
         )
 
 
-def _integrate_single_trajectory(ds_starting_position, ds_position_scalars):
-    pass
+def _integrate_single_trajectory(ds_starting_point, ds_position_scalars, da_times):
+    """
+    Integrate a single trajectory both forward and backward from
+    `ds_starting_point` usnig `ds_position_scalars` and times in `da_times`
+    """
+    da_times_backward = da_times.sel(time=slice(None, ds_starting_point.time))
+    # da_times_forward = da_times.sel(time=slice(ds_starting_point.time, None))
+
+    ds_traj_backward = integrate.backward(
+        ds_position_scalars=ds_position_scalars,
+        ds_starting_point=ds_starting_point,
+        da_times=da_times_backward,
+    )
+
+    return ds_traj_backward
 
 
 def integrate_trajectories(
@@ -64,12 +78,31 @@ def integrate_trajectories(
     _validate_position_scalars(ds=ds_position_scalars, xy_periodic=xy_periodic)
     _validate_starting_points(ds=ds_starting_points)
 
+    if times == "position_scalars":
+        da_times = ds_position_scalars.time
+    else:
+        raise NotImplementedError(times)
+
     # all coordinates that are defined for the starting position variables will
     # be treated as if they represent different trajectories
     dims = ds_starting_points[POSITION_COORD_NAMES[0]].dims
 
-    ds_traj = ds_starting_points.stack(trajectory=dims).apply(
-        _integrate_single_trajectory, ds_position_scalars=ds_position_scalars
-    )
+    if len(dims) > 0:
+        ds_traj = (
+            ds_starting_points.stack(trajectory=dims)
+            .groupby("trajectory")
+            .apply(
+                _integrate_single_trajectory,
+                ds_position_scalars=ds_position_scalars,
+                da_times=da_times,
+            )
+            .unstack("trajectory")
+        )
+    else:
+        ds_traj = _integrate_single_trajectory(
+            ds_position_scalars=ds_position_scalars,
+            ds_starting_point=ds_starting_points,
+            da_times=da_times,
+        )
 
     return ds_traj

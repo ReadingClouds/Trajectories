@@ -48,5 +48,6 @@ def create_initial_dataset(dL, L, xy_periodic=True):
     ds = xr.merge([ds_grid, ds_position_scalars])
 
     ds["time"] = np.datetime64("2020-01-01T00:00")
+    ds.attrs["xy_periodic"] = xy_periodic
 
     return ds
