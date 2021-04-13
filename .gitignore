@@ -117,3 +117,5 @@ test_data
 
 # vim temporary files
 .*.sw*
+
+source/
