@@ -97,6 +97,7 @@ def grid_locations_to_position_scalars(i, j, k, nx, ny, nz, xy_periodic):
         ds["traj_tracer_xr"] = i
         ds["traj_tracer_yr"] = j
     ds["traj_tracer_zr"] = k
+    ds.attrs["xy_periodic"] = xy_periodic
     return ds
 
 
