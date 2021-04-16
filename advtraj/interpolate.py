@@ -31,7 +31,7 @@ def _validate_position_scalars(ds, xy_periodic=False):
         if missing_dims:
             raise Exception(
                 f"The position variable `{v}` is missing the coordinates"
-                f"{', '.join(missing_dims)}"
+                f" {', '.join(missing_dims)}"
             )
 
 

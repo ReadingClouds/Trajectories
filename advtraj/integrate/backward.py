@@ -1,57 +1,47 @@
-from ..utils import estimate_initial_grid_locations
+from ..utils.grid_mapping import (
+    estimate_initial_grid_indecies,
+    estimate_3d_position_from_grid_indecies,
+    map_1d_grid_index_to_position,
+)
+from ..utils.interpolation import interpolate_3d_fields
 
-from scipy import ndimage
-import numpy as np
 import xarray as xr
+from tqdm import tqdm
 
 
-def grid_location_to_3d_position(ds_grid, ds_grid_locations, interp_order=1):
-    """
-    Using the 3D grid positions (in real units, not grid indecies) defined in
-    `ds_grid` (through coordinates `x`, `y` and `z`) interpolate the "grid
-    indecies" in `ds_grid_locations` (these may be fractional, i.e. they are
-    not discrete integer grid indecies) to the real x, y and z-positions.
-    """
+def _extrapolate_single_timestep(
+    ds_position_scalars, ds_traj_posn, grid_interpolation_order=5
+):
+    # interpolate the position scalar values at the current trajectory
+    # position
+    ds_initial_position_scalar_locs = interpolate_3d_fields(
+        ds=ds_position_scalars,
+        ds_positions=ds_traj_posn,
+        interp_order=grid_interpolation_order,
+        cyclic_boundaries="xy" if ds_position_scalars.xy_periodic else None,
+    )
 
-    def _1d_idx_to_posn(idx_grid, dim):
-        if dim in ["x", "y"]:
-            return ndimage.map_coordinates(
-                ds_grid[dim], [[idx_grid]], mode="wrap", order=interp_order
-            )
-        else:
-            return ndimage.map_coordinates(
-                ds_grid[dim],
-                [[idx_grid]],
-                mode="constant",
-                cval=np.nan,
-                order=interp_order,
-            )
-
-    x_pos = _1d_idx_to_posn(ds_grid_locations.x_grid_loc, dim="x")[0]
-    y_pos = _1d_idx_to_posn(ds_grid_locations.y_grid_loc, dim="y")[0]
-    z_pos = _1d_idx_to_posn(ds_grid_locations.z_grid_loc, dim="z")[0]
-
-    return [x_pos, y_pos, z_pos]
-
-
-def _extrapolate_single_timestep(ds_position_scalars, ds_traj_posn):
-    # the position scalars at the current time will enable us to determine
-    # where the fluid started off
-    ds_initial_grid_locs = estimate_initial_grid_locations(
-        ds_position_scalars=ds_position_scalars
+    # convert these position scalar values to grid positions so we can estimate
+    # what grid positions the fluid was advected from
+    nx, ny = int(ds_position_scalars.x.count()), int(ds_position_scalars.y.count())
+    ds_traj_init_grid_idxs = estimate_initial_grid_indecies(
+        ds_position_scalars=ds_initial_position_scalar_locs, N_grid=dict(x=nx, y=ny)
     )
 
     # interpolate these grid-positions from the position scalars so that we can
     # get an actual xyz-position
-    ds_traj_init_grid_locs = ds_initial_grid_locs.interp(ds_traj_posn)
-    xyz_traj_posn_new = grid_location_to_3d_position(
-        ds_grid=ds_position_scalars, ds_grid_locations=ds_traj_init_grid_locs
+    ds_traj_posn_prev = estimate_3d_position_from_grid_indecies(
+        ds_grid=ds_position_scalars,
+        i=ds_traj_init_grid_idxs.i,
+        j=ds_traj_init_grid_idxs.j,
+        k=ds_traj_init_grid_idxs.k,
+        interp_order=grid_interpolation_order,
     )
 
-    return xyz_traj_posn_new
+    return ds_traj_posn_prev
 
 
-def main(ds_position_scalars, ds_starting_point, da_times, interp_order=1):
+def backward(ds_position_scalars, ds_starting_point, da_times, interp_order=1):
     """
     Using the position scalars `ds_position_scalars` integrate backwards from
     `ds_starting_point` to the times in `da_times`
@@ -60,35 +50,48 @@ def main(ds_position_scalars, ds_starting_point, da_times, interp_order=1):
 
     1) for a trajectory position `(x,y,z)` at a time `t` interpolate the
     "position scalars" to find their value at `(x,y,z,t)`
-    2) estimate the initial location that the fluid at `(x,y,z,t)` came from by
+    2) estimate the initial indecies that the fluid at `(x,y,z,t)` came from by
     converting the "position scalars" back to position
     """
     # create a list into which we will accumulate the trajectory points
     # while doing this we turn the time variable into a coordinate
-    datasets = [
-        ds_starting_point.drop("time").assign_coords(time=ds_starting_point.time)
-    ]
+    datasets = [ds_starting_point]
 
-    # steo back in time
-    for t_current in da_times.values[::-1]:
-        xyz_traj_posn_new = _extrapolate_single_timestep(
-            ds_position_scalars=ds_position_scalars.sel(time=t_current).drop("time"),
-            ds_traj_posn=datasets[-1].drop("time"),
+    # step back in time
+    for t_current in tqdm(da_times.values[1:][::-1], desc="backward"):
+        ds_traj_posn_current = datasets[-1].drop_vars("time")
+        ds_position_scalars_current = ds_position_scalars.sel(time=t_current).drop_vars(
+            "time"
         )
-        print(xyz_traj_posn_new)
-        # and wrap this up as a new point for the trajectory
-        t_current = ds_starting_point.time
+
+        ds_traj_posn_est = _extrapolate_single_timestep(
+            ds_position_scalars=ds_position_scalars_current,
+            ds_traj_posn=ds_traj_posn_current,
+        )
         # find the previous time so that we can construct a new dataset to contain
         # the trajectory position at the previous time
-        t_previous = ds_position_scalars.time.sel(time=slice(None, t_current)).isel(
-            time=-2
-        )
-        ds_traj_prev = xr.Dataset(coords=dict(time=t_previous))
-        for n, c in enumerate(["x", "y", "z"]):
-            ds_traj_prev[c] = xr.DataArray(
-                xyz_traj_posn_new[n], attrs=ds_position_scalars[c].attrs, name=c
+        try:
+            t_previous = ds_position_scalars.time.sel(time=slice(None, t_current)).isel(
+                time=-2
             )
-        datasets.append(ds_traj_prev)
+        except IndexError:
+            # this will happen if we're trying to integrate backwards from the
+            # very first timestep, which we can't (and shouldn't). Just check
+            # we have as many trajectory points as we're aiminng for
+            if len(datasets) == da_times.count():
+                break
+            else:
+                raise
+
+        ds_traj_posn_prev = xr.Dataset()
+        for n, c in enumerate(["x", "y", "z"]):
+            ds_traj_posn_prev[c] = xr.DataArray(
+                ds_traj_posn_est[f"{c}_est"].item(),
+                attrs=ds_position_scalars[c].attrs,
+                name=c,
+            )
+        ds_traj_posn_prev["time"] = t_previous
+        datasets.append(ds_traj_posn_prev)
 
     ds_traj = xr.concat(datasets[::-1], dim="time")
     return ds_traj

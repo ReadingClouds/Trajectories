@@ -1,21 +1,25 @@
 import numpy as np
 import xarray as xr
 
-import advtraj.utils as advtraj_utils
+import advtraj.utils.grid_mapping as advtraj_gm_utils
 
 
 def create_uniform_grid(dL, L):
     Lx, Ly, Lz = L
     dx, dy, dz = dL
 
-    x_ = np.arange(0, Lx, dx)
-    y_ = np.arange(0, Ly, dy)
-    z_ = np.arange(0, Lz, dz)
+    # create cell-center positions
+    x_ = np.arange(0, Lx, dx) + dx / 2.0
+    y_ = np.arange(0, Ly, dy) + dy / 2.0
+    z_ = np.arange(0, Lz, dz) + dz / 2.0
 
     ds = xr.Dataset(coords=dict(x=x_, y=y_, z=z_))
     ds.x.attrs["units"] = "m"
+    ds.x.attrs["dx"] = dx
     ds.y.attrs["units"] = "m"
+    ds.y.attrs["dy"] = dy
     ds.z.attrs["units"] = "m"
+    ds.z.attrs["dz"] = dz
     ds.x.attrs["long_name"] = "x-horz. posn."
     ds.y.attrs["long_name"] = "y-horz. posn."
     ds.z.attrs["long_name"] = "height"
@@ -31,23 +35,31 @@ def create_initial_dataset(dL, L, xy_periodic=True):
     dx, dy, dz = dL
     ds_grid = create_uniform_grid(dL=dL, L=L)
 
-    # make 3D arrays out of the 1D grid positions
-    x, y, z = xr.broadcast(ds_grid.x, ds_grid.y, ds_grid.z)
+    ds_grid["xy_periodic"] = xy_periodic
 
-    i = x / dx
-    j = y / dy
-    k = z / dz
-    nx = ds_grid.x.count()
-    ny = ds_grid.y.count()
-    nz = ds_grid.z.count()
+    ds = init_position_scalars(ds=ds_grid)
+    ds["time"] = np.datetime64("2020-01-01T00:00")
 
-    ds_position_scalars = advtraj_utils.grid_locations_to_position_scalars(
-        i=i, j=j, k=k, nx=nx, ny=ny, nz=nz, xy_periodic=xy_periodic
+    return ds
+
+
+def init_position_scalars(ds):
+    """
+    Add or replace the position scalars in the dataset `ds` using the grid
+    defined in there (through the coordinates `x`, `y` and `z`)
+    """
+    ds_position_scalars = advtraj_gm_utils.grid_locations_to_position_scalars(
+        ds_grid=ds, ds_pts=None
     )
 
-    ds = xr.merge([ds_grid, ds_position_scalars])
+    # get rid of the position scalars if they're already in the dataset, since
+    # we want to reset them in that case
+    for v in ds_position_scalars.data_vars:
+        if v in ds.data_vars:
+            ds = ds.drop(v)
 
-    ds["time"] = np.datetime64("2020-01-01T00:00")
+    xy_periodic = ds.xy_periodic
+    ds = xr.merge([ds, ds_position_scalars])
     ds.attrs["xy_periodic"] = xy_periodic
 
     return ds

@@ -1,1 +1,1 @@
-from .backward import main as backward
+from .backward import backward
