@@ -49,7 +49,11 @@ def interpolate_3d_field(da, ds_positions, interp_order=1, cyclic_boundaries=[])
     have cyclic boundaries, e.g. (`cyclic_boundaries = 'xy'` or
     `cyclic_boundaries = ['x', 'y']`)
     """
-    dx = dy = dz = 25.0
+    # TODO: these should be possibly be inferred from the grid and the user
+    # encouraged to set these attributes (to speed up calculations)
+    dx = da.x.dx
+    dy = da.y.dy
+    dz = da.z.dz
 
     c_min = np.array([da[c].min().values for c in da.dims])
     c_max = np.array([da[c].max().values for c in da.dims])
