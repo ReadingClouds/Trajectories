@@ -4,14 +4,81 @@ import xarray as xr
 import advtraj.utils.grid_mapping as advtraj_gm_utils
 
 
-def create_uniform_grid(dL, L):
+def cust_range(*args, rtol=1e-05, atol=1e-08, include=[True, False]):
+    """
+    Combines numpy.arange and numpy.isclose to mimic
+    open, half-open and closed intervals.
+    Avoids also floating point rounding errors as with
+    >>> numpy.arange(1, 1.3, 0.1)
+    array([1. , 1.1, 1.2, 1.3])
+
+    args: [start, ]stop, [step, ]
+        as in numpy.arange
+    rtol, atol: floats
+        floating point tolerance as in numpy.isclose
+    include: boolean list-like, length 2
+        if start and end point are included
+
+    source: https://stackoverflow.com/a/57321916/271776
+    """
+    # process arguments
+    if len(args) == 1:
+        start = 0
+        stop = args[0]
+        step = 1
+    elif len(args) == 2:
+        start, stop = args
+        step = 1
+    else:
+        assert len(args) == 3
+        start, stop, step = tuple(args)
+
+    # determine number of segments
+    n = (stop - start) / step + 1
+
+    # do rounding for n
+    if np.isclose(n, np.round(n), rtol=rtol, atol=atol):
+        n = np.round(n)
+
+    # correct for start/end is exluded
+    if not include[0]:
+        n -= 1
+        start += step
+    if not include[1]:
+        n -= 1
+        stop -= step
+
+    return np.linspace(start, stop, int(n))
+
+
+def crange(*args, **kwargs):
+    """Create range guaranteed to include max-value of range (if the step-size
+    should give an even number of steps)"""
+    return cust_range(*args, **kwargs, include=[True, True])
+
+
+def orange(*args, **kwargs):
+    """Create range guaranteed to exclude max-value of range"""
+    return cust_range(*args, **kwargs, include=[True, False])
+
+
+def create_uniform_grid(dL, L, cell_centered=True):
+    """
+    Create a grid with uniform resolution in x,y and z with domain spanning
+    [0,0,0] to `L` with grid resolution `dL`
+    """
     Lx, Ly, Lz = L
     dx, dy, dz = dL
 
-    # create cell-center positions
-    x_ = np.arange(0, Lx, dx) + dx / 2.0
-    y_ = np.arange(0, Ly, dy) + dy / 2.0
-    z_ = np.arange(0, Lz, dz) + dz / 2.0
+    if cell_centered:
+        # create cell-center positions
+        x_ = crange(dx / 2.0, Lx - dx / 2.0, dx)
+        y_ = crange(dy / 2.0, Ly - dy / 2.0, dy)
+        z_ = crange(dz / 2.0, Lz - dz / 2.0, dz)
+    else:
+        x_ = crange(0.0, Lx, dx)
+        y_ = crange(0.0, Ly, dy)
+        z_ = crange(0.0, Lz, dz)
 
     ds = xr.Dataset(coords=dict(x=x_, y=y_, z=z_))
     ds.x.attrs["units"] = "m"
