@@ -1,9 +1,93 @@
-# Trajectories
-Trajectory code for MONC data.
+# Offline trajectories with advected position scalars
 
-For documentation see http://www.met.reading.ac.uk/~xm904103/code/trajectories/index.html.
+This repository contains the `advtraj` python module for backward- and
+forward-integrate trajectories in Eulerian fluid simulations using
+position scalars advected with the flow. The utility is based on
+https://github.com/ReadingClouds/Trajectories
 
-* Current version 0.4 Released 28/08/2020 Peter Clark
-* Previous version 0.3 Released 19/02/2020 Peter Clark
+*NOTE*: currently no mask functions for calculating the starting points for
+trajectories (for example inside clouds) are implemented. That will be added
+next.
 
 
+## Installation
+
+If you are not going to modify `advtraj` it can be installed directly from github with `pip`
+
+```bash
+$> pip install git+https://github.com/leifdenby/advtraj
+```
+
+Otherwise you will want to first clone the repository locally and then install
+with `pip` (note the `-e` flag which ensures any changes you make to `advtraj`
+will be picked up by pip)
+
+```bash
+$> git clone https://github.com/leifdenby/advtraj
+$> cd advtraj
+$> pip install -e .
+```
+
+## Usage
+
+You can either call the `integrate_trajectories` function directly by importing
+the `advtraj` module or use one of the command-line interfaces (CLI).
+
+### Using the `advtraj` python module directly
+
+```python
+import advtraj
+import xarray as xr
+
+# load up the position scalars into an xarray.Dataset
+# these should be given as `traj_tracer_x`, `traj_tracer_y` and `traj_tracer_z`
+# if not using xy-periodic domains, and otherwise as `traj_tracer_xi`,
+# `traj_tracer_xr`, `traj_tracer_yi`, `traj_tracer_yr` and `traj_tracer_z`
+ds_position_scalars = xr.open_dataset(...)
+
+# define the starting points for the trajectories
+ds_starting_points = xr.Dataset()
+ds_starting_points["x"] = 0.0
+ds_starting_points["y"] = 0.0
+ds_starting_points["z"] = 100.0
+ds_starting_points["time"] = ds_position_scalars.time.isel(time=4)
+
+ds_traj = advtraj.integrate_trajectories(
+    ds_position_scalars=ds_position_scalars,
+    ds_starting_points=ds_starting_points,
+    xy_periodic=True
+)
+```
+
+### Using the command-line interface
+
+For now a only a cli for the [UCLA-LES](https://github.com/uclales/uclales)
+model has been implemented, but support for MONC will be added soon.
+
+#### UCLA-LES
+
+The UCLA-LES cli just needs to be pointed to source-directory what the model
+output and file-prefix
+
+```bash
+$> python -m advtraj.cli.uclales --help
+usage: uclales.py [-h] [--debug] [--output OUTPUT] data_path file_prefix
+
+positional arguments:
+  data_path
+  file_prefix
+
+optional arguments:
+  -h, --help       show this help message and exit
+  --debug
+  --output OUTPUT
+```
+
+E.g. 
+
+```bash
+$> python -m advtraj.cli.uclales ~/Desktop/exp_data rico
+backward: 100%|███████████████████████████████████████████| 15/15 [00:21<00:00,  1.60it/s]
+forward: 100%|████████████████████████████████████████████| 15/15 [00:27<00:00,  1.79s/it]
+Trajectories saved to rico.trajectories.nc
+```
