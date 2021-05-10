@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 
 def wrap_posn(x, x_min, x_max):
@@ -16,7 +17,19 @@ def wrap_posn(x, x_min, x_max):
     return x_wrapped
 
 
-def _find_coord_grid_spacing(da_coord):
+def find_coord_grid_spacing(da_coord, show_warnings=True):
+    v_name = f"d{da_coord.name}"
+    if v_name in da_coord.attrs:
+        return da_coord.attrs[v_name]
+    else:
+        if show_warnings:
+            warnings.warn(
+                f"The grid spacing isn't currently set for coordinate `{da_coord.name}`"
+                f" to speed up calculations and ensure the grid-spacing is set correctly"
+                f" set the `{v_name}` attribute of the `{da_coord.name}` coordinate"
+                " to the value of the grid-spacing"
+            )
+
     dx_all = np.diff(da_coord.values)
 
     if np.min(dx_all) != np.max(dx_all):
@@ -25,8 +38,8 @@ def _find_coord_grid_spacing(da_coord):
     return dx_all[0]
 
 
-def _find_grid_spacing(ds_grid, coords=("x", "y", "z")):
-    return [_find_coord_grid_spacing(ds_grid[c] for c in coords)]
+def find_grid_spacing(ds_grid, coords=("x", "y", "z")):
+    return [find_coord_grid_spacing(ds_grid[c]) for c in coords]
 
 
 def wrap_periodic_grid_coords(
@@ -42,7 +55,7 @@ def wrap_periodic_grid_coords(
 
     for c in cyclic_coords:
         da_coord = ds_grid[c]
-        dx = _find_coord_grid_spacing(da_coord=da_coord)
+        dx = find_coord_grid_spacing(da_coord=da_coord)
 
         x_min, x_max = da_coord.min().data, da_coord.max().data
         if c in cell_centered_coords:

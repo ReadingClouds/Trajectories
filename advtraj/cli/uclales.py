@@ -10,6 +10,7 @@ from collections import OrderedDict
 
 from .. import interpolate
 from ..utils.cli import optional_debugging
+from ..utils.grid import find_coord_grid_spacing
 
 
 def center_staggered_field(phi_da):
@@ -81,6 +82,12 @@ def load_data(files, fields_to_keep=["w"]):
 
     # simulations with UCLA-LES always have periodic boundary conditions
     ds.attrs["xy_periodic"] = True
+
+    # add the grid-spacing as attributes to speed up calculations
+    for c in "xyz":
+        ds[c].attrs[f"d{c}"] = find_coord_grid_spacing(
+            da_coord=ds[c], show_warnings=False
+        )
 
     return ds
 
