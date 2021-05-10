@@ -8,7 +8,7 @@ from pathlib import Path
 import xarray as xr
 from collections import OrderedDict
 
-from .. import interpolate
+from .. import integrate_trajectories
 from ..utils.cli import optional_debugging
 from ..utils.grid import find_coord_grid_spacing
 
@@ -107,7 +107,7 @@ def main(data_path, file_prefix, output_path):
     ds_starting_points["z"] = da_pt.z.item()
     ds_starting_points["time"] = da_pt.time
 
-    ds_traj = interpolate.integrate_trajectories(
+    ds_traj = integrate_trajectories(
         ds_position_scalars=ds, ds_starting_points=ds_starting_points
     )
     output_path = output_path.format(file_prefix=file_prefix)

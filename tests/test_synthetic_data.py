@@ -2,7 +2,7 @@ import xarray as xr
 import numpy as np
 
 
-from advtraj.interpolate import integrate_trajectories
+from advtraj.integrate import integrate_trajectories
 from utils import create_initial_dataset, init_position_scalars
 
 
@@ -211,7 +211,7 @@ def _test_trajectory_integration_diagonal_advection():
 
     ds_starting_points = ds_starting_points.isel(trajectory_number=0)
 
-    ds_traj = integrate_trajectories(
+    integrate_trajectories(
         ds_position_scalars=ds_position_scalars, ds_starting_points=ds_starting_points
     )
 
