@@ -57,7 +57,9 @@ def _integrate_single_trajectory(ds_starting_point, ds_position_scalars, da_time
     `ds_starting_point` usnig `ds_position_scalars` and times in `da_times`
     """
     da_times_backward = da_times.sel(time=slice(None, ds_starting_point.time))
-    # da_times_forward = da_times.sel(time=slice(ds_starting_point.time, None))
+    da_times_forward = da_times.sel(time=slice(ds_starting_point.time, None)).isel(
+        time=slice(1, None)
+    )
 
     ds_traj_backward = integrate.backward(
         ds_position_scalars=ds_position_scalars,
@@ -65,7 +67,16 @@ def _integrate_single_trajectory(ds_starting_point, ds_position_scalars, da_time
         da_times=da_times_backward,
     )
 
-    return ds_traj_backward
+    interp_order = 1
+
+    ds_traj = integrate.forward(
+        ds_position_scalars=ds_position_scalars,
+        ds_back_trajectory=ds_traj_backward,
+        da_times=da_times_forward,
+        interp_order=interp_order,
+    )
+
+    return ds_traj
 
 
 def integrate_trajectories(

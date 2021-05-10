@@ -90,7 +90,7 @@ def main(data_path, file_prefix, output_path):
 
     ds = load_data(files=files, fields_to_keep=["w"])
 
-    ds_ = ds.isel(time=-1).sel(z=slice(300, None))
+    ds_ = ds.isel(time=int(ds.time.count()) // 2).sel(z=slice(300, None))
     da_pt = ds_.where(ds_.w == ds_.w.max(), drop=True)
 
     # n_timesteps = int(ds.time.count())

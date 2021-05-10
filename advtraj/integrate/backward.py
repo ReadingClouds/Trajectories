@@ -1,7 +1,10 @@
+"""
+Functionality for computing trajectories backward from a set of starting points
+at a single point in time using the position scalars.
+"""
 from ..utils.grid_mapping import (
     estimate_initial_grid_indecies,
     estimate_3d_position_from_grid_indecies,
-    map_1d_grid_index_to_position,
 )
 from ..utils.interpolation import interpolate_3d_fields
 
@@ -9,9 +12,17 @@ import xarray as xr
 from tqdm import tqdm
 
 
-def _extrapolate_single_timestep(
+def calc_trajectory_previous_position(
     ds_position_scalars, ds_traj_posn, grid_interpolation_order=5
 ):
+    """
+    The algorithm is as follows:
+
+    1) for a trajectory position `(x,y,z)` at a time `t` interpolate the
+    "position scalars" to find their value at `(x,y,z,t)`
+    2) estimate the initial indecies that the fluid at `(x,y,z,t)` came from by
+    converting the "position scalars" back to position
+    """
     # interpolate the position scalar values at the current trajectory
     # position
     ds_initial_position_scalar_locs = interpolate_3d_fields(
@@ -45,28 +56,22 @@ def backward(ds_position_scalars, ds_starting_point, da_times, interp_order=1):
     """
     Using the position scalars `ds_position_scalars` integrate backwards from
     `ds_starting_point` to the times in `da_times`
-
-    The algorithm is as follows:
-
-    1) for a trajectory position `(x,y,z)` at a time `t` interpolate the
-    "position scalars" to find their value at `(x,y,z,t)`
-    2) estimate the initial indecies that the fluid at `(x,y,z,t)` came from by
-    converting the "position scalars" back to position
     """
     # create a list into which we will accumulate the trajectory points
     # while doing this we turn the time variable into a coordinate
     datasets = [ds_starting_point]
 
-    # step back in time
+    # step back in time, `t_current` represents the time we're of the next
+    # point (backwards) of the trajectory
     for t_current in tqdm(da_times.values[1:][::-1], desc="backward"):
-        ds_traj_posn_current = datasets[-1].drop_vars("time")
+        ds_traj_posn_origin = datasets[-1].drop_vars("time")
         ds_position_scalars_current = ds_position_scalars.sel(time=t_current).drop_vars(
             "time"
         )
 
-        ds_traj_posn_est = _extrapolate_single_timestep(
+        ds_traj_posn_est = calc_trajectory_previous_position(
             ds_position_scalars=ds_position_scalars_current,
-            ds_traj_posn=ds_traj_posn_current,
+            ds_traj_posn=ds_traj_posn_origin,
         )
         # find the previous time so that we can construct a new dataset to contain
         # the trajectory position at the previous time

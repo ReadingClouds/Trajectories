@@ -89,7 +89,7 @@ def test_linear_trajectory_y_direction():
     dt = 25.0  # [s]
     u = 0.0  # [m/s]
     v = -1.0  # [m/s]
-    t_max = L / v * 1.5
+    t_max = L / abs(v) * 1.5
     _single_trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max)
 
 
@@ -113,9 +113,9 @@ def _single_trajectory_integration(
 
     ds_initial = create_initial_dataset(dL=(dx, dy, dz), L=(Lx, Ly, Lz))
 
-    n_timesteps = int(t_max / dt)
+    n_timesteps = int(t_max / dt) + 1
     datasets_timesteps = [ds_initial]
-    for n in range(n_timesteps):
+    for n in range(n_timesteps - 1):
         ds_prev = datasets_timesteps[-1]
         ds_prev_reset = init_position_scalars(ds=ds_prev.copy())
         # the position scalars are reset every time the 3D output is generated
@@ -135,7 +135,7 @@ def _single_trajectory_integration(
     ds_starting_points.y.attrs["units"] = "m"
     ds_starting_points["z"] = Lz / 2.0
     ds_starting_points.z.attrs["units"] = "m"
-    t0 = ds.time.isel(time=-1).values
+    t0 = ds.time.isel(time=int(ds.time.count()) // 2).values
     ds_starting_points["time"] = ("trajectory_number"), [t0, t0, t0]
 
     ds_starting_points = ds_starting_points.isel(trajectory_number=0)
@@ -156,6 +156,9 @@ def _single_trajectory_integration(
 
     x_est = ds_traj.x.values
     y_est = ds_traj.y.values
+
+    assert len(x_truth) == n_timesteps
+    assert len(x_est) == n_timesteps
 
     # the estimates for the grid-position aren't perfect, allow for a small
     # error for now
