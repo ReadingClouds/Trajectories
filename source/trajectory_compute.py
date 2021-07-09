@@ -134,7 +134,7 @@ class Trajectory_Family :
         Returns:
             dictionary pointing to arrays of mean properties and meta data::
 
-                Dictionary keys::
+                Dictionary keys:
                   "master_ref"       : master_ref actually used.
                   "objects"          : object numbers selected.
                   "matching_objects" : List described below.
@@ -2181,7 +2181,6 @@ def label_3D_cyclic(mask) :
         return labs, nobjs
 
     def find_objects_at_edge(minflag, x_or_y, n, labs, nobjs) :
-#        for minflag in (True,False) :
         i = 0
         while i < (nobjs-2) :
             posi = np.where(labs == i)
@@ -2197,7 +2196,7 @@ def label_3D_cyclic(mask) :
                     print('Object {:03d} on {}={} border?'.\
                           format(i,['x','y'][x_or_y],border))
                 j = i+1
-                while j < (nobjs-1) :
+                while j < nobjs :
                     posj = np.where(labs == j)
 
                     if minflag :
