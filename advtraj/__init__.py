@@ -1,1 +1,1 @@
-from .integrate import integrate_trajectories
+from .integrate import integrate_trajectories  # noqa

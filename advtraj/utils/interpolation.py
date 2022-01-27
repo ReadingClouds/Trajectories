@@ -3,10 +3,11 @@ Routines for interpolating 3D scalar fields to arbitrary positions in domains
 with (optional) cyclic boundary conditions
 """
 
-from ..lib import fast_interp
-from .grid import find_grid_spacing
 import numpy as np
 import xarray as xr
+
+from ..lib import fast_interp
+from .grid import find_grid_spacing
 
 
 def map_1d_grid_index_to_position(idx_grid, da_coord):

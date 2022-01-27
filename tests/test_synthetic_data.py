@@ -1,9 +1,8 @@
-import xarray as xr
 import numpy as np
-
+import xarray as xr
+from utils import create_initial_dataset, init_position_scalars
 
 from advtraj.integrate import integrate_trajectories
-from utils import create_initial_dataset, init_position_scalars
 
 
 def _advect_fields(ds_scalars, u, v, dt):

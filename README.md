@@ -9,24 +9,20 @@ https://github.com/ReadingClouds/Trajectories
 trajectories (for example inside clouds) are implemented. That will be added
 next.
 
+See the [changelog](CHANGELOG.md) for a summary of changes.
+
 
 ## Installation
 
-If you are not going to modify `advtraj` it can be installed directly from github with `pip`
+If you are not going to modify `advtraj` it can be installed directly from
+github with `pip`
 
 ```bash
-$> pip install git+https://github.com/leifdenby/advtraj
+$> pip install git+https://github.com/ParaConUK/advtraj
 ```
 
-Otherwise you will want to first clone the repository locally and then install
-with `pip` (note the `-e` flag which ensures any changes you make to `advtraj`
-will be picked up by pip)
-
-```bash
-$> git clone https://github.com/leifdenby/advtraj
-$> cd advtraj
-$> pip install -e .
-```
+Otherwise have a look at the [development notes](DEVELOPING.md) to learn how to
+get a local copy and contribute back to the central repository on github
 
 ## Usage
 
@@ -83,7 +79,7 @@ optional arguments:
   --output OUTPUT
 ```
 
-E.g. 
+E.g.
 
 ```bash
 $> python -m advtraj.cli.uclales ~/Desktop/exp_data rico

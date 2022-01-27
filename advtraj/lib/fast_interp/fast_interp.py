@@ -5,8 +5,8 @@ Fixed issues relative to `master` on `dbstein`'s repo:
     - `f.shape[1]` should be `f.shape[2]` in `_extrapolate1d_z`
 
 """
-import numpy as np
 import numba
+import numpy as np
 
 ################################################################################
 # 1D Extrapolation Routines
@@ -919,7 +919,7 @@ INTERP_1D = [
     _interp1d_k9,
 ]
 
-# extrapolation routines
+
 def _extrapolate1d(f, k, p, c, e):
     pad = (not p) and c
     if pad:
@@ -2107,7 +2107,7 @@ INTERP_2D = [
     _interp2d_k9,
 ]
 
-# extrapolation routines
+
 def _extrapolate2d(f, k, p, c, e):
     padx = (not p[0]) and c[0]
     pady = (not p[1]) and c[1]
@@ -3824,7 +3824,7 @@ INTERP_3D = [
     _interp3d_k9,
 ]
 
-# extrapolation routines
+
 def _extrapolate3d(f, k, p, c, e):
     padx = (not p[0]) and c[0]
     pady = (not p[1]) and c[1]

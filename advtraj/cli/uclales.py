@@ -4,9 +4,10 @@ Interface for producing trajectories from UCLA-LES model output
 Model version with advective tracer trajectories implemented:
 https://github.com/leifdenby/uclales/tree/advective-trajectories
 """
-from pathlib import Path
-import xarray as xr
 from collections import OrderedDict
+from pathlib import Path
+
+import xarray as xr
 
 from .. import integrate_trajectories
 from ..utils.cli import optional_debugging

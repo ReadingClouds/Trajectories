@@ -1,9 +1,9 @@
-import pytest
-from advtraj.utils import grid as grid_utils
-
-from utils import create_uniform_grid
-import xarray as xr
 import numpy as np
+import pytest
+import xarray as xr
+from utils import create_uniform_grid
+
+from advtraj.utils import grid as grid_utils
 
 
 def test_wrap_coord_posn():

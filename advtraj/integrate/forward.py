@@ -2,13 +2,13 @@
 Calculations for forward trajectory from a point in space and time using the
 position scalars
 """
-from ..utils.grid import wrap_periodic_grid_coords
-from .backward import calc_trajectory_previous_position
-
-import scipy.optimize
 import numpy as np
+import scipy.optimize
 import xarray as xr
 from tqdm import tqdm
+
+from ..utils.grid import wrap_periodic_grid_coords
+from .backward import calc_trajectory_previous_position
 
 
 def _extrapolate_single_timestep(

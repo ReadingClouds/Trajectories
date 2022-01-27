@@ -2,14 +2,14 @@
 Functionality for computing trajectories backward from a set of starting points
 at a single point in time using the position scalars.
 """
-from ..utils.grid_mapping import (
-    estimate_initial_grid_indecies,
-    estimate_3d_position_from_grid_indecies,
-)
-from ..utils.interpolation import interpolate_3d_fields
-
 import xarray as xr
 from tqdm import tqdm
+
+from ..utils.grid_mapping import (
+    estimate_3d_position_from_grid_indecies,
+    estimate_initial_grid_indecies,
+)
+from ..utils.interpolation import interpolate_3d_fields
 
 
 def calc_trajectory_previous_position(

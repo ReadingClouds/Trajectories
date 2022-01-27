@@ -1,5 +1,6 @@
-import numpy as np
 import warnings
+
+import numpy as np
 
 
 def wrap_posn(x, x_min, x_max):

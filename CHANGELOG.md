@@ -7,6 +7,12 @@
 
 *maintenance*
 
+- Switch to using pre-commit for linting (to automatically have linting run on
+  each git commit) and use pre-commit for linting during continuous
+  integration. Also update README and add development notes to give
+  instructions on how to use pre-commit and contribute to advtraj.
+  [\#4](https://github.com/ParaConUK/advtraj/pull/4)
+
 - fix to support xarray version `>=0.19.0`
   [\#5](https://github.com/ParaConUK/advtraj/pull/5) @leifdenby
 
