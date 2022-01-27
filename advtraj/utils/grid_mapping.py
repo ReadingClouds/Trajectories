@@ -168,9 +168,9 @@ def grid_locations_to_position_scalars(ds_grid, ds_pts=None):
         k_ = (ds_pts.z - ds_grid.z.min()) / dz
 
         ds_indecies = ds_pts.copy()
-        ds_indecies["i"] = ds_pts.x.dims, i_
-        ds_indecies["j"] = ds_pts.y.dims, j_
-        ds_indecies["k"] = ds_pts.z.dims, k_
+        ds_indecies["i"] = i_
+        ds_indecies["j"] = j_
+        ds_indecies["k"] = k_
 
     xy_periodic = ds_grid.xy_periodic
 
