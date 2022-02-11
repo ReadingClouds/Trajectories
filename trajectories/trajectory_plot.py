@@ -1,17 +1,12 @@
 import os
 from netCDF4 import Dataset
-#from scipy.io import netcdf
 import numpy as np
 import matplotlib.pyplot as plt
-#from pylab import *
 import matplotlib.colors as mcolors
 
-#from getch import *
-#from datetime import datetime, timedelta
-#from netCDF4 import num2date, date2num
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import animation
-from trajectory_compute import file_key
+from trajectories.trajectory_compute import file_key, find_time_in_files
 L_vap = 2.501E6
 Cp = 1005.0
 L_over_cp = L_vap / Cp
@@ -84,7 +79,7 @@ def plot_trajectory_history(tr, select_obj, fn) :
              data[:,i,tr.var("q_cloud_liquid_mass")]
 #        print qt,data[:,var("q_vapour"),i],data[:,var("q_cloud_liquid_mass"),i]
         ax.plot( qt,z[:,i])
-#    ax.set_xlabel(r"$q_t$ kg/kg",fontsize=16)
+    ax.set_xlabel(r"$q_t$ kg/kg",fontsize=16)
     ax.set_ylabel(r"$z$ m",fontsize=16)
     ax.set_title('Cloud %2.2d'%select_obj)
 
@@ -584,7 +579,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
 	@author: Peter Clark
 
     """
-
+    plt.ioff()
     ntraj = traj.ntimes
     nobj = traj.nobjects
 
@@ -643,6 +638,10 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
     ax.set_xlim(x_min-10,x_max+10)
     ax.set_ylim(y_min-10,y_max+10)
     ax.set_zlim(0, traj.coords['zcoord'][-1])
+
+    ax.set_box_aspect((np.ptp(traj.coords['xcoord']*traj.coords['deltax']),
+                      np.ptp(traj.coords['xcoord']*traj.coords['deltax']),
+                      np.ptp(traj.coords['z'])))
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     if title is not None :
@@ -689,8 +688,11 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
 
     if legend : plt.legend()
 
+#    print('Axes set up')
+
     # initialization function: plot the background of each frame
-    def init():
+    def init_trplt():
+#        print(f'init: {select}')
         if plot_field :
             line_field.set_data([], [])
         nplt = 0
@@ -703,10 +705,12 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
                     box_list[nplt].set_data([], [])
 
                 nplt +=1
+#        print('Return from init')
         return
 
     # animation function.  This is called sequentially
-    def animate(i):
+    def animate_trplt(i):
+#        print(f'Frame {i}')
     #    j = traj.ntimes-i-1
         j = i
     #    print 'Frame %d Time %d'%(i,j)
@@ -749,6 +753,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
 
             if np.isin(iobj,select) :
 
+#                print(f'Plotting object {iobj}')
                 x = traj.trajectory[j,traj.labels == iobj,0]
                 y = traj.trajectory[j,traj.labels == iobj,1]
                 z = traj.trajectory[j,traj.labels == iobj,2]
@@ -791,7 +796,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
                     box.set_3d_properties(z)
 
                 nplt +=1
-#        plt.title('Time index {:03d}'.format(ntraj-j-1))
+        plt.title(f'Time index {i:03d}')
 
         return
 
@@ -802,29 +807,39 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
     # call the animator.  blit=True means only re-draw the parts that have changed.
     if fps > 0 :
         list_class_numbers = False
-        anim = animation.FuncAnimation(fig, animate, init_func=init,
+        anim = animation.FuncAnimation(fig, animate_trplt, init_func=init_trplt,
                                  frames=ntraj, interval=1000./fps, blit=False)
         if save_anim : anim.save(anim_name+'.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
-        plt.show()
     else :
         list_class_numbers = True
-        ioff()
-        init()
+#        plt.ioff()
+        plt.ion()
+        init_trplt()
         frame = 0
-        animate(frame)
-        ion()
-        plt.show()
+#        rep = 0
+#        while rep < 10 :
+#            for frame in range(ntraj):
+                # animate_trplt(frame)
+                # fig.canvas.draw()
+                # fig.canvas.flush_events()
+#            rep += 1
+#        plt.show()
         x = "z"
-#        getch = _Getch()
         while True :
+            animate_trplt(frame)
+            fig.canvas.draw()
+            fig.canvas.flush_events()
             x =  input("Enter T, f or b")
             if x == "T" : break
-            if x == "p" : plt.savefig('frame_{:03d}.png'.format(frame))
+            if x == "p" : plt.savefig(f'frame_{frame:03d}.png')
             if x == "f" and frame < ntraj : frame += 1
             if x == "b" and frame > 0 : frame -= 1
-            animate(frame)
+#            animate_trplt(frame)
 
-    return
+        anim = None
+        plt.ioff()
+
+    return anim
 
 def plot_traj_family_members(traj_family, selection_list, galilean = None, \
                              with_boxes = False, asint = True, \
@@ -1403,4 +1418,3 @@ def conform_plot(x, nx, xlim ) :
     if xlim[0] > 0 and xlim[1] > nx:
         x[x <= xlim[0]] += nx
     return x
-

@@ -6,7 +6,7 @@ Created on Thu Aug 27 16:32:10 2020
 """
 
 import numpy as np
-from trajectory_compute import *
+from .trajectory_compute import compute_derived_variables
 
 #debug_mean = True
 debug_mean = False
