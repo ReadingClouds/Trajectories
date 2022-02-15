@@ -5,6 +5,7 @@ Created on Wed Feb  9 19:00:59 2022
 @author: paclk
 """
 import numpy as np
+from trajectories.object_tools import label_3D_cyclic
 
 def trajectory_cstruct_ref(dataset, time_index, thresh=0.00001,
                            find_objects=False) :

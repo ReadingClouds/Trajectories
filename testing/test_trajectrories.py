@@ -15,7 +15,7 @@ import xarray as xr
 import trajectories.trajectory_compute as tc
 import trajectories.trajectory_plot as tp
 import trajectories.cloud_selection as cl
-import trajectories.compute_cloud_properties as cp
+import trajectories.cloud_properties as cp
 
 import time
 
@@ -25,7 +25,7 @@ from subfilter.io.MONC_utils import options_database
 #from trajectory_plot import *
 
 #%%
-test_case = 2
+test_case = 0
 
 if test_case == 0:
 #    config_file = 'config_test_case_0.yaml'
@@ -87,6 +87,9 @@ with xr.open_dataset(files[len(files)//2]) as dataset:
     [xvar, yvar, zvar, tvar] = [list(dataset.dims)[i] for i in [iix, iiy, iiz, iit]]
 
     times = dataset.coords[tvar].values
+    nx = len(dataset.coords[xvar].values)
+    ny = len(dataset.coords[yvar].values)
+    nz = len(dataset.coords[zvar].values)
 
 if test_case == 0:
     ref_time = times[len(times)//2]
@@ -106,13 +109,19 @@ print(start_time, ref_time, end_time)
 kwa={'thresh':1.0E-5}
 
 #%%
+interp_method = "tri_lin"
+interp_order = 1
 
 time1 = time.perf_counter()
 
-traj = tc.Trajectories(files, ref_prof_file, start_time, ref_time, end_time,
-                       dx, dy, dz,
-                       cl.trajectory_cloud_ref, cl.in_cloud, kwargs=kwa,
-                       variable_list=variable_list)
+traj_ref = tc.Trajectories(files, ref_prof_file,
+                           start_time, ref_time, end_time,
+                           dx, dy, dz,
+                           cl.trajectory_cloud_ref, cl.in_cloud, kwargs=kwa,
+                           interp_method = "tri_lin",
+                           interp_order = 1,
+                           variable_list = variable_list,
+                           unsplit = True)
 
 time2 = time.perf_counter()
 
@@ -121,18 +130,109 @@ delta_t = time2 - time1
 print(f'Elapsed time = {delta_t}')
 
 #%%
+# for it in range(np.shape(traj_ref.trajectory)[0]):
+#     tp.plot_traj_pos(traj_ref, it, 'ref')
+# plt.show()
 
-anim = tp.plot_traj_animation(traj,
+#%%
+
+#%%
+trsz = [np.size(np.where(traj_ref.labels == i)[0]) for i in range(traj_ref.nobjects)]
+
+sel = np.argmax(trsz)
+
+anim = tp.plot_traj_animation(traj_ref,
                               fps = 10,
-#                              select = [19],
+                              select = [sel],
                               galilean = np.array([-7.6,-1.5]),
-                              plot_field = False,
-#                              with_boxes = True,
+                              plot_field = True,
+                              with_boxes = True,
+                              var = "tracer_rad1",
                               )
 
 plt.show()
 
 #%%
-traj_class = cp.set_cloud_class(traj, version = 1)
-mean_prop = cp.cloud_properties(traj, traj_class)
-tp.plot_trajectory_mean_history(traj, traj_class, mean_prop, 'test')
+tp.plot_trajectory_history(traj_ref, sel, 'ref')
+plt.show()
+
+#%%
+traj_class = cp.set_cloud_class(traj_ref, version = 1)
+mean_prop = cp.cloud_properties(traj_ref, traj_class)
+tp.plot_trajectory_mean_history(traj_ref, traj_class, mean_prop, 'ref')
+plt.show()
+cp.print_cloud_class(traj_ref, traj_class, sel, list_classes=True)
+
+#%%
+mask = (traj_ref.labels == sel)
+
+tracer1 = traj_ref.data[:,mask,traj_ref.var("tracer_rad1")]
+tracer2 = traj_ref.data[:,mask,traj_ref.var("tracer_rad2")]
+dtrbydt1 = tracer1[1:,:] - tracer1[:-1,:]
+dtrbydt2 = tracer2[1:,:] - tracer2[:-1,:]
+#plt.plot(dtrbydt2/dtrbydt1)
+
+#plt.show()
+#%%
+
+if True:
+    time1 = time.perf_counter()
+
+    traj_test = tc.Trajectories(files, ref_prof_file,
+                               start_time, ref_time, end_time,
+                               dx, dy, dz,
+                               cl.trajectory_cloud_ref, cl.in_cloud, kwargs=kwa,
+                               interp_method = "grid_interp",
+                               interp_order = 5,
+                               variable_list = variable_list,
+                               unsplit = True)
+
+    time2 = time.perf_counter()
+
+    delta_t = time2 - time1
+
+    print(f'Elapsed time = {delta_t}')
+    #%%
+
+    anim2 = tp.plot_traj_animation(traj_test,
+                                  fps = 10,
+    #                              select = [sel],
+                                  galilean = np.array([-7.6,-1.5]),
+    #                              plot_field = True,
+    #                              with_boxes = True,
+                                  var = "tracer_rad1",
+                                  )
+
+    plt.show()
+#%%
+    tp.plot_trajectory_history(traj_ref, sel, 'ref')
+    plt.show()
+
+#%%
+    traj_class_test = cp.set_cloud_class(traj_test, version = 1)
+    mean_prop_test = cp.cloud_properties(traj_test, traj_class_test)
+    tp.plot_trajectory_mean_history(traj_test, traj_class_test, mean_prop_test, 'test')
+    plt.show()
+    #%%
+
+    diff = traj_test.trajectory-traj_ref.trajectory
+
+    for i, n in enumerate([nx, ny]):
+    #    d = np.round(diff[..., i], 8) % n
+    #    print(np.max(d))
+    #    diff[..., i] = d
+        k = diff [..., i] > n /2
+        diff [..., i][k] -= n
+        k = diff [..., i] < -n /2
+        diff [..., i][k] += n
+        print(np.max(diff[..., i], axis = 1))
+
+    #%%
+
+    fig, ax = plt.subplots(1,1, figsize=(5,5))
+    for i, dim in enumerate(["x", "y", "z"]):
+    #    ax.plot(np.std(diff,axis=1)[:, i], label = dim)
+        d = np.abs(diff[..., i])
+        ax.plot(np.percentile(d, 95, axis=1), label = dim)
+    plt.legend()
+    plt.show()

@@ -1,12 +1,20 @@
-# -*- coding: utf-8 -*-
+"""
+Module trajectory_compute.
+
+@author Peter Clark
+"""
 import os
 
 from netCDF4 import Dataset
 import numpy as np
 from scipy import ndimage
-from sklearn.cluster import KMeans
 from scipy.optimize import minimize
-import random as rnd
+import numpy.random as rnd
+
+from trajectories.grid_interpolation import (tri_lin_interp,
+                                             multi_dim_lagrange_interp,
+                                             fast_interp_3D)
+from trajectories.object_tools import unsplit_objects
 #import matplotlib.pyplot as plt
 
 L_vap = 2.501E6
@@ -29,24 +37,20 @@ var_properties = {"u":[True,False,False],\
                   "q_cloud_liquid_mass":[False,False,False],\
                   "tracer_rad1":[False,False,False],\
                   "tracer_rad2":[False,False,False],\
+                  "tracer_rad3":[False,False,False],\
                   }
 
 
-#debug_unsplit = True
-debug_unsplit = False
-#debug_label = True
-debug_label = False
 #debug_mean = True
 debug_mean = False
 #debug = True
 debug = False
 
 cyclic_xy = True
-#use_bilin = False
-use_bilin = True
-interp_order = 1
-#use_corrected_positions = False
-use_corrected_positions = True
+
+
+use_corrected_positions = False
+#use_corrected_positions = True
 
 ind=""
 
@@ -121,31 +125,44 @@ class Trajectories :
         length of ycoord
     nz: int
         length of zcoord
-
     deltat: float
         time spacing in trajectories.
-    ref_func           : function to return reference trajectory positions and labels.
-    in_obj_func        : function to determine which points are inside an object.
+    ref_func: function
+        to return reference trajectory positions and labels.
+    in_obj_func: function
+        to determine which points are inside an object.
     ref_func_kwargs: dict
         Any additional keyword arguments to ref_func (dict).
-    files: Input file list.
-    ref: Index of reference time in trajectory array.
+    files: list
+        Input file list.
+    ref: int
+        Index of reference time in trajectory array.
     end: Index of end time in trajectory array. (start is always 0)
-    ntimes: Number of times in trajectory array.
-    npoints: Number of points in trajectory array.
-    variable_list: variable_list corresponding to data.
-    data_mean: mean of in_obj points data.
-    num_in_obj: number of in_obj points.
-    centroid: centroid of in_objy points
-    bounding_box: box containing all trajectory points.
-    in_obj_box: box containing all in_obj trajectory points.
-    max_at_ref: list of objects which reach maximum LWC at reference time.
+    ntimes: int
+        Number of times in trajectory array.
+    npoints: int
+        Number of points in trajectory array.
+    variable_list: dict
+        variable_list corresponding to data.
+    data_mean: numpy array
+        mean of in_obj points data.
+    num_in_obj: numpy array
+        number of in_obj points.
+    centroid: numpy array
+        centroid of in_objy points
+    bounding_box: numpy array
+        box containing all trajectory points.
+    in_obj_box: numpy array
+        box containing all in_obj trajectory points.
+    max_at_ref: list(int)
+        list of objects which reach maximum LWC at reference time.
 
     """
+
     def __init__(self, files, ref_prof_file, start_time, ref, end_time,
                  deltax, deltay, deltaz, ref_func, in_obj_func,
-                 kwargs={}, variable_list=None ) :
-
+                 kwargs={}, variable_list=None,  interp_method = "tri_lin",
+                 interp_order = 1, unsplit = True) :
         """
         Create an instance of a set of trajectories with a given reference.
 
@@ -154,7 +171,6 @@ class Trajectories :
         @author: Peter Clark
 
         """
-
         if variable_list == None :
             variable_list = { \
                   "u":r"$u$ m s$^{-1}$", \
@@ -178,33 +194,36 @@ class Trajectories :
                         'pi'  : piref,
                         'th': thref}
 
-        self.data, trajectory, self.traj_error, self.times, self.ref, \
+        self.data, self.trajectory, self.traj_error, self.times, self.ref, \
         self.labels, self.nobjects, self.coords, self.deltat = \
         compute_trajectories(files, start_time, ref, end_time,
                              deltax, deltay, deltaz, variable_list.keys(),
-                             self.refprof,
-                             ref_func, kwargs=kwargs)
-
+                             self.refprof, ref_func, kwargs=kwargs,
+                             interp_method = interp_method,
+                             interp_order = interp_order,
+                             )
+        self.interp_method = interp_method
+        self.interp_order = interp_order
         self.ref_func=ref_func
         self.in_obj_func=in_obj_func
         self.ref_func_kwargs=kwargs
         self.files = files
 #        self.ref   = (ref-start_time)//self.deltat
         self.end = len(self.times)-1
-        self.ntimes = np.shape(trajectory)[0]
-        self.npoints = np.shape(trajectory)[1]
+        self.ntimes = np.shape(self.trajectory)[0]
+        self.npoints = np.shape(self.trajectory)[1]
         self.nx = np.size(self.coords['xcoord'])
         self.ny = np.size(self.coords['ycoord'])
         self.nz = np.size(self.coords['zcoord'])
         self.variable_list = variable_list
-
-        self.trajectory = unsplit_objects(trajectory, self.labels, \
+        if unsplit:
+            self.trajectory = unsplit_objects(self.trajectory, self.labels,
                                           self.nobjects, self.nx, self.ny)
 
         self.data_mean, self.in_obj_data_mean, self.objvar_mean, \
             self.num_in_obj, \
             self.centroid, self.in_obj_centroid, self.bounding_box, \
-            self.in_obj_box = compute_traj_boxes(self, in_obj_func, \
+            self.in_obj_box = compute_traj_boxes(self, in_obj_func,
                                                 kwargs=kwargs)
 
         max_objvar = (self.objvar_mean == np.max(self.objvar_mean, axis=0))
@@ -214,18 +233,18 @@ class Trajectories :
 
     def var(self, v) :
         """
-        Method to convert variable name to numerical pointer.
+        Convert variable name to numerical pointer.
 
         Args:
             v (string):  variable name.
 
-        Returns:
+        Returns
+        -------
             Numerical pointer to data in data array.
 
         @author: Peter Clark
 
         """
-
         i = list(self.variable_list.keys()).index(v)
 
         for ii, vr in enumerate(list(self.variable_list)) :
@@ -235,24 +254,32 @@ class Trajectories :
 
     def select_object(self, iobj) :
         """
-        Method to find trajectory and associated data corresponding to iobj.
+        Find trajectory and associated data corresponding to iobj.
 
         Args:
             iobj(integer) : object id .
 
-        Returns:
+        Returns
+        -------
             trajectory_array, associated _data.
 
         @author: Peter Clark
 
         """
-
         in_object = (self.labels == iobj)
         obj = self.trajectory[:, in_object, ...]
         dat = self.data[:, in_object, ...]
         return obj, dat
 
     def __str__(self):
+        """
+        Generate string representation.
+
+        Returns
+        -------
+        rep : str
+
+        """
         rep = "Trajectories centred on reference Time : {}\n".\
         format(self.times[self.ref])
         rep += "Times : {}\n".format(self.ntimes)
@@ -261,6 +288,14 @@ class Trajectories :
         return rep
 
     def __repr__(self):
+        """
+        Generate string retresentation.
+
+        Returns
+        -------
+        rep : str
+
+        """
         rep = "Trajectory Reference time: {0}, Times:{1}, Points:{2}, Objects:{3}\n".format(\
           self.times[self.ref],self.ntimes,self.npoints, self.nobjects)
         return rep
@@ -268,29 +303,34 @@ class Trajectories :
 
 def dict_to_index(variable_list, v) :
     """
-    Method to convert variable name to numerical pointer.
+    Convert variable name to numerical pointer.
 
     Args:
         v (string):  variable name.
 
-    Returns:
+    Returns
+    -------
         Numerical pointer to v in variable list.
 
     @author: Peter Clark
 
     """
-
     ii = list(variable_list.keys()).index(v)
 
 #    for ii, vr in enumerate(list(self.variable_list)) :
 #        if vr==v : break
     return ii
 
-def compute_trajectories(files, start_time, ref_time, end_time,
+def compute_trajectories(files,
+                         start_time, ref_time, end_time,
                          deltax, deltay, deltaz,
-                         variable_list, refprof, ref_func, kwargs={}) :
+                         variable_list,
+                         refprof, ref_func, kwargs={},
+                         interp_method = "tri_lin",
+                         interp_order = 1
+                         ) :
     """
-    Function to compute forward and back trajectories plus associated data.
+    Compute forward and back trajectories plus associated data.
 
     Args:
         files         : Ordered list of netcdf files containing 3D MONC output.
@@ -300,7 +340,8 @@ def compute_trajectories(files, start_time, ref_time, end_time,
         variable_list : List of variables to interpolate to trajectory points.
         refprof        : ref profile.
 
-    Returns:
+    Returns
+    -------
         Set of variables defining trajectories::
 
             data_val: Array [nt, m, n] where nt is total number of times,
@@ -326,7 +367,6 @@ def compute_trajectories(files, start_time, ref_time, end_time,
     @author: Peter Clark
 
     """
-
     print('Computing trajectories from {} to {} with reference {}.'.\
           format(start_time, end_time, ref_time))
 
@@ -347,12 +387,12 @@ def compute_trajectories(files, start_time, ref_time, end_time,
     traj_pos, labels, nobjects = ref_func(dataset, time_index, **kwargs)
 
     times = ref_times
-#    print(time_index)
-#    input("Press enter")
     trajectory, data_val, traj_error, traj_times, coords \
       = trajectory_init(dataset, time_index, variable_list,
-                        deltax, deltay, deltaz, refprof, traj_pos)
-#    input("Press enter")
+                        deltax, deltay, deltaz, refprof, traj_pos,
+                        interp_method = interp_method,
+                        interp_order = interp_order,
+                        )
     ref_index = 0
 
     print("Computing backward trajectories.")
@@ -364,7 +404,10 @@ def compute_trajectories(files, start_time, ref_time, end_time,
                    os.path.basename(files[file_number])))
             trajectory, data_val, traj_error, traj_times = \
             back_trajectory_step(dataset, time_index, variable_list, refprof,
-                  coords, trajectory, data_val, traj_error, traj_times)
+                  coords, trajectory, data_val, traj_error, traj_times,
+                  interp_method = interp_method,
+                  interp_order = interp_order,
+                  )
             ref_index += 1
         else :
             file_number -= 1
@@ -399,7 +442,10 @@ def compute_trajectories(files, start_time, ref_time, end_time,
                 forward_trajectory_step(dataset, time_index,
                                  variable_list, refprof,
                                  coords, trajectory, data_val, traj_error,
-                                 traj_times, vertical_boundary_option=2)
+                                 traj_times,
+                                 interp_method = interp_method,
+                                 interp_order = interp_order,
+                                 vertical_boundary_option=2)
         else :
             file_number += 1
             if file_number == len(files) :
@@ -444,18 +490,18 @@ def compute_trajectories(files, start_time, ref_time, end_time,
 
 def extract_pos(nx, ny, dat) :
     """
-    Function to extract 3D position from data array.
+    Extract 3D position from data array.
 
     Args:
         nx        : Number of points in x direction.
         ny        : Number of points in y direction.
         dat       : Array[m,n] where n>=5 if cyclic_xy or 3 if not.
 
-    Returns:
+    Returns
+    -------
         pos       : Array[m,3]
         n_pvar    : Number of dimensions in input data used for pos.
     """
-
     global cyclic_xy
     if cyclic_xy :
         n_pvar = 5
@@ -491,9 +537,12 @@ def get_z_zn(dataset, default_z):
 
 def trajectory_init(dataset, time_index, variable_list,
                     deltax, deltay, deltaz,
-                    refprof, traj_pos) :
+                    refprof, traj_pos,
+                    interp_method = "tri_lin",
+                    interp_order = 1
+                    ) :
     """
-    Function to set up origin of back and forward trajectories.
+    Set up origin of back and forward trajectories.
 
     Args:
         dataset       : Netcdf file handle.
@@ -502,7 +551,8 @@ def trajectory_init(dataset, time_index, variable_list,
         refprof       : Dict with reference theta profile arrays.
         traj_pos      : array[n,3] of initial 3D positions.
 
-    Returns:
+    Returns
+    -------
         Trajectory variables::
 
             trajectory     : position of origin point.
@@ -521,8 +571,6 @@ def trajectory_init(dataset, time_index, variable_list,
     @author: Peter Clark
 
     """
-
-
     th = dataset.variables['th'][0,...]
     (nx, ny, nz) = np.shape(th)
 
@@ -548,14 +596,11 @@ def trajectory_init(dataset, time_index, variable_list,
     print("Starting at time {}".format(time))
 
     out = data_to_pos(data_list, varp_list, traj_pos,
-                      xcoord, ycoord, zcoord)
+                      xcoord, ycoord, zcoord,
+                      interp_method = interp_method,
+                      interp_order = interp_order,
+                      )
     traj_pos_new, n_pvar = extract_pos(nx, ny, out)
-#    print data_list
-
-#    data_val = list([])
-#    for data in data_list[n_pvar:]:
-#        data_val.append(data[logical_pos])
-#    data_val=[np.vstack(data_val).T]
 
     data_val = list([np.vstack(out[n_pvar:]).T])
 
@@ -576,16 +621,15 @@ def trajectory_init(dataset, time_index, variable_list,
     traj_error.insert(0,np.zeros_like(traj_pos_new))
     traj_times = list([time])
 
-#    print 'init'
-#    print 'trajectory:',len(trajectory[:-1]), len(trajectory[0]), np.size(trajectory[0][0])
-#    print 'traj_error:',len(traj_error[:-1]), len(traj_error[0]), np.size(traj_error[0][0])
-
     return trajectory, data_val, traj_error, traj_times, coords
 
 def back_trajectory_step(dataset, time_index, variable_list, refprof, \
-                         coords, trajectory, data_val, traj_error, traj_times) :
+                         coords, trajectory, data_val, traj_error, traj_times,
+                         interp_method = "tri_lin",
+                         interp_order = 1
+                         ) :
     """
-    Function to execute backward timestep of set of trajectories.
+    Execute backward timestep of set of trajectories.
 
     Args:
         dataset        : netcdf file handle.
@@ -598,7 +642,8 @@ def back_trajectory_step(dataset, time_index, variable_list, refprof, \
         traj_error     : estimated trajectory errors to far.
         traj_times     : trajectory times so far.
 
-    Returns:
+    Returns
+    -------
         Inputs updated to new location::
 
             trajectory, data_val, traj_error, traj_times
@@ -606,7 +651,6 @@ def back_trajectory_step(dataset, time_index, variable_list, refprof, \
     @author: Peter Clark
 
     """
-
     data_list, varlist, varp_list, time = load_traj_step_data(dataset,
                                           time_index, variable_list, refprof,
                                           coords)
@@ -618,7 +662,10 @@ def back_trajectory_step(dataset, time_index, variable_list, refprof, \
 #    print "traj_pos ", np.shape(traj_pos), traj_pos[:,0:5]
 
     out = data_to_pos(data_list, varp_list, traj_pos,
-                      coords['xcoord'], coords['ycoord'], coords['zcoord'])
+                      coords['xcoord'], coords['ycoord'], coords['zcoord'],
+                      interp_method = interp_method,
+                      interp_order = interp_order,
+                      )
     traj_pos_new, n_pvar = extract_pos(nx, ny, out)
 
     data_val.insert(0, np.vstack(out[n_pvar:]).T)
@@ -629,27 +676,55 @@ def back_trajectory_step(dataset, time_index, variable_list, refprof, \
     return trajectory, data_val, traj_error, traj_times
 
 def confine_traj_bounds(pos, nx, ny, nz, vertical_boundary_option=1):
+    """
+    Confine trajectory position to domain.
 
-    pos[:,0][ pos[:,0] <   0 ] += nx
-    pos[:,0][ pos[:,0] >= nx ] -= nx
-    pos[:,1][ pos[:,1] <   0 ] += ny
-    pos[:,1][ pos[:,1] >= ny ] -= ny
+    Parameters
+    ----------
+    pos : numpy array
+        trajectory positions (n, 3).
+    nx : int or float
+        max value of x.
+    ny : int or float
+        max value of y.
+    nz :  int or float
+        max value of z.
+    vertical_boundary_option : int, optional
+        DESCRIPTION. The default is 1.
+
+    Returns
+    -------
+    pos : TYPE
+        DESCRIPTION.
+
+    """
+    pos[:,0] = pos[:,0] % nx
+    pos[:,0] = pos[:,0] % ny
+
     if vertical_boundary_option == 1:
-        pos[:,2][ pos[:,2] <   0 ]  = 0
-        pos[:,2][ pos[:,2] >= nz ]  = nz
+
+        pos[:, 2] = np.clip(pos[:, 2], 0, nz)
+
     elif vertical_boundary_option == 2:
+
         lam = 1.0 / 0.5
-        pos[:,2][ pos[:,2] <=   1.0 ]  = 1.0 + rnd.expovariate(lam)
-        pos[:,2][ pos[:,2] >= (nz-1) ]  = nz-1-rnd.expovariate(lam)
+        k1 = np.where(pos[:,2] <=   1.0 )
+        k2 = np.where(pos[:,2] >= (nz-1))
+        pos[:,2][k1]  = 1.0 + rnd.exponential(scale=lam, size = np.shape(k1))
+        pos[:,2][k2]  = nz - (1.0
+                            + rnd.exponential(scale=lam, size = np.shape(k2)))
 
     return pos
 
 def forward_trajectory_step(dataset, time_index, variable_list, refprof,
                             coords,
                             trajectory, data_val, traj_error, traj_times,
-                            vertical_boundary_option=1) :
+                            vertical_boundary_option=1,
+                            interp_method = "tri_lin",
+                            interp_order = 1
+                            ) :
     """
-    Function to execute forward timestep of set of trajectories.
+    Execute forward timestep of set of trajectories.
 
     Args:
         dataset        : netcdf file handle.
@@ -662,7 +737,8 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
         traj_error     : estimated trajectory errors to far.
         traj_times     : trajectory times so far.
 
-    Returns:
+    Returns
+    -------
         Inputs updated to new location::
 
             trajectory, data_val, traj_error, traj_times
@@ -670,7 +746,6 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
     @author: Peter Clark
 
     """
-
     global cyclic_xy
     def print_info(kk):
         print('kk = {} Error norm :{} Error :{}'.format(kk, mag_diff[kk], \
@@ -725,11 +800,6 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
                             vertical_boundary_option=vertical_boundary_option)
 
 
-#    traj_pos_next_est = 60.0*np.array([1/100., 1/100., 1/40.])[:,None]*traj_pos*data_val[0][:,2]
-#    traj_pos_est = trajectory[1]
-
-#    print "traj_pos ", np.shape(traj_pos), traj_pos#[:,0:5]
-#    print "traj_pos_prev ",np.shape(trajectory[1]), trajectory[1]#[:,0:5]
     use_mean_abs_error = True
     use_point_iteration = True
     limit_gradient = True
@@ -746,11 +816,12 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
 
         out = data_to_pos(data_list, varp_list, traj_pos_next_est,
                           coords['xcoord'], coords['ycoord'], coords['zcoord'],
+                          interp_method = interp_method,
+                          interp_order = interp_order,
                           maxindex = n_pvar)
 
         traj_pos_at_est, n_pvar = extract_pos(nx, ny, out)
 
-#        print("traj_pos_at_est ", np.shape(traj_pos_at_est), traj_pos_at_est)#[:,0:5]
         diff = traj_pos_at_est - traj_pos
 
 # Deal with wrap around.
@@ -958,7 +1029,10 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
 
 #    print("No. with z<=1.01 ", np.sum(traj_pos_next_est[:,2] <= 1.01))
     out = data_to_pos(data_list, varp_list, traj_pos_next_est,
-                      coords['xcoord'], coords['ycoord'], coords['zcoord'])
+                      coords['xcoord'], coords['ycoord'], coords['zcoord'],
+                      interp_method = interp_method,
+                      interp_order = interp_order,
+                      )
     data_val.append(np.vstack(out[n_pvar:]).T)
     trajectory.append(traj_pos_next_est)
     traj_error.append(diff)
@@ -968,170 +1042,13 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
     return trajectory, data_val, traj_error, traj_times
 
 
-def coord_wrap(c, cmax):
-    c[c<0] += cmax
-    c[c>=cmax] -= cmax
-    return c
-
-def tri_lin_interp(data, varp_list, pos,
-                   xcoord, ycoord, zcoord, maxindex=None) :
-
-    """
-    Tri-linear interpolation with cyclic wrapround in x and y.
-
-    Args:
-        data: list of Input data arrays on 3D grid.
-        varp_list: list of grid info lists.
-        pos(Array[n,3]): Positions to interpolate to (in grid units) .
-        xcoord: 1D coordinate vector.
-        ycoord: 1D coordinate vector.
-        zcoord: 1D coordinate vector.
-
-    Returns:
-        list of 1D arrays of data interpolated to pos.
-
-    @author : Peter Clark
-    """
-
-    nx = len(xcoord)
-    ny = len(ycoord)
-    nz = len(zcoord)
-
-    x = coord_wrap(pos[:,0], nx)
-    y = coord_wrap(pos[:,1], ny)
-    z = pos[:,2]
-
-    ix = np.floor(x).astype(int)
-    iy = np.floor(y).astype(int)
-    iz = np.floor(z).astype(int)
-
-    iz[iz>(nz-2)] -= 1
-
-    xp = (x-ix)
-    yp = (y-iy)
-    zp = (z-iz)
-
-    wx = [1.0 - xp, xp]
-    wy = [1.0 - yp, yp]
-    wz = [1.0 - zp, zp]
-
-    if use_corrected_positions :
-
-        x_u = coord_wrap(pos[:,0] - 0.5, nx)
-        y_v = coord_wrap(pos[:,1] - 0.5, ny)
-        z_w = pos[:,2] - 0.5
-
-        ix_u = np.floor(x_u).astype(int)
-        iy_v = np.floor(y_v).astype(int)
-        iz_w = np.floor(z_w).astype(int)
-        iz_w[iz_w>(nz-2)] -= 1
-
-        xp_u = (x_u-ix_u)
-        yp_v = (y_v-iy_v)
-        zp_w = (z_w-iz_w)
-
-        wx_u = [1.0 - xp_u, xp_u]
-        wy_v = [1.0 - yp_v, yp_v]
-        wz_w = [1.0 - zp_w, zp_w]
-
-    else:
-
-        x_u = x
-        y_v = y
-        z_w = z
-
-        ix_u = ix
-        iy_v = iy
-        iz_w = iz
-
-        xp_u = xp
-        yp_v = yp
-        zp_w = zp
-
-        wx_u = wx
-        wy_v = wy
-        wz_w = wz
-
-
-    if maxindex is None :
-        maxindex = len(data)
-
-    output= list([])
-    for l in range(maxindex) :
-        output.append(np.zeros_like(x))
-#    t = 0
-
-    for i in range(0,2):
-#        wi = wx[i]
-        ii = (ix + i) % nx
-        if  use_corrected_positions :
-            ii_u = (ix_u + i) % nx
-        else :
-            ii_u = ii
-
-        for j in range(0,2):
-
-#            wi_wj = wx[i] * wy[j]
-            jj = (iy + j) % ny
-
-            if  use_corrected_positions :
-                jj_v = (iy_v + j) % ny
-#                wi_u_wj = wx_u[i] * wy[j]
-#                wi_wj_v = wx[i] * wy_v[j]
-            else :
-                jj_v = jj
-#                wi_u_wj = wi_wj
-#                wi_wj_v = wi_wj
-
-            for k in range(0,2):
-
-#                w = wi_wj * wz[k]
-                kk = iz + k
-
-                if  use_corrected_positions :
-                    kk_w = iz_w + k
-#                    w_u = wi_u_wj * wz[k]
-#                    w_v = wi_wj_v * wz[k]
-#                    w_w = wi_wj * wz_w[k]
-                else :
-                    kk_w = kk
-#                    w_u = w
-#                    w_v = w
-#                    w_w = w
-
-#                t += w
-                for l in range(maxindex) :
-                    if varp_list[l][0]:
-                        II = ii_u
-                        WX = wx_u
-                    else:
-                        II = ii
-                        WX = wx
-
-                    if varp_list[l][1]:
-                        JJ = jj_v
-                        WY = wy_v
-                    else:
-                        JJ = jj
-                        WY = wy
-
-                    if varp_list[l][2]:
-                        KK = kk_w
-                        WZ = wz_w
-                    else:
-                        KK = kk
-                        WZ = wz
-
-#                    print(l, variable_list[l])
-                    output[l] +=  data[l][II, JJ, KK] * WX[i] * WY[j] * WZ[k]
-
-    return output
-
 def data_to_pos(data, varp_list, pos,
-                xcoord, ycoord, zcoord, maxindex=None):
-
+                xcoord, ycoord, zcoord,
+                interp_method = "tri_lin",
+                interp_order = 1,
+                maxindex=None):
     """
-    Function to interpolate data to pos.
+    Interpolate data to pos.
 
     Args:
         data      : list of data array.
@@ -1139,18 +1056,29 @@ def data_to_pos(data, varp_list, pos,
         pos       : array[n,3] of n 3D positions.
         xcoord,ycoord,zcoord: 1D arrays giving coordinate spaces of data.
 
-    Returns:
+    Returns
+    -------
         list of arrays containing interpolated data.
 
     @author: Peter Clark
 
     """
-
-    global interp_order
-    if use_bilin :
+    if interp_method ==  "tri_lin":
+        if interp_order != 1:
+            raise ValueError(
+              f"Variable interp_order must be set to 1 for tri_lin_interp; "
+              f"currently {interp_order}.")
         output = tri_lin_interp(data, varp_list, pos,
                                 xcoord, ycoord, zcoord,
                                 maxindex=maxindex )
+    elif interp_method ==  "grid_interp":
+        output = multi_dim_lagrange_interp(data, pos,
+                                           order = interp_order,
+                                           wrap = [True, True, False])
+    elif interp_method ==  "fast_interp":
+        output = fast_interp_3D(data, pos,
+                                order = interp_order,
+                                wrap = [True, True, False])
     else:
         output= list([])
         for l in range(len(data)) :
@@ -1163,19 +1091,19 @@ def data_to_pos(data, varp_list, pos,
 
 def load_traj_pos_data(dataset, it) :
     """
-    Function to read trajectory position variables from file.
+    Read trajectory position variables from file.
+
     Args:
         dataset        : netcdf file handle.
         it             : time index in netcdf file.
 
-    Returns:
+    Returns
+    -------
         List of arrays containing interpolated data.
 
     @author: Peter Clark
 
     """
-
-
     if 'CA_xrtraj' in dataset.variables.keys() :
         # Circle-A Version
         trv = {'xr':'CA_xrtraj', \
@@ -1230,8 +1158,9 @@ def load_traj_pos_data(dataset, it) :
 
 def d_by_dx_field(field, dx, varp, xaxis=0):
     """
-    Numerically differentiate field in x direction assuming cyclic,
-    mofiying grid descriptor.
+    Numerically differentiate field in x direction.
+
+    Assuming cyclic, modifying grid descriptor.
 
     Parameters
     ----------
@@ -1244,12 +1173,12 @@ def d_by_dx_field(field, dx, varp, xaxis=0):
     xaxis: int
         Pointer to x dimension - usually 0 but can be set to, e.g., 1 if time-
         dimension included in data.
+
     Returns
     -------
-    None.
+    differentiated field, grid indicator
 
     """
-
     d = field[...]
     newfield = (d - np.roll(d,1,axis=xaxis)) / dx
     varp[0] = not varp[0]
@@ -1257,8 +1186,9 @@ def d_by_dx_field(field, dx, varp, xaxis=0):
 
 def d_by_dy_field(field, dy, varp, yaxis=1):
     """
-    Numerically differentiate field in y direction assuming cyclic,
-    mofiying grid descriptor.
+    Numerically differentiate field in y direction.
+
+    Assuming cyclic, modifying grid descriptor.
 
     Parameters
     ----------
@@ -1271,22 +1201,22 @@ def d_by_dy_field(field, dy, varp, yaxis=1):
     xaxis: int
         Pointer to y dimension - usually 1 but can be set to, e.g., 2 if time-
         dimension included in data.
+
     Returns
     -------
     None.
 
     """
-
     d = field[...]
     newfield = (d - np.roll(d,1,axis=yaxis)) / dy
     varp[1] = not varp[1]
     return newfield, varp
 
-
 def d_by_dz_field(field, z, zn, varp):
     """
-    Numerically differentiate field in z direction,
-    mofiying grid descriptor.
+    Numerically differentiate field in z direction.
+
+    Modifying grid descriptor.
 
     Parameters
     ----------
@@ -1300,12 +1230,12 @@ def d_by_dz_field(field, z, zn, varp):
     xaxis: int
         Pointer to y dimension - usually 1 but can be set to, e.g., 2 if time-
         dimension included in data.
+
     Returns
     -------
     None.
 
     """
-
     zaxis = field.ndim - 1
 
     d = field[...]
@@ -1323,18 +1253,18 @@ def d_by_dz_field(field, z, zn, varp):
 
 def padleft(f, zt, axis=0) :
     """
-    Add dummy field at bottom of nD array
+    Add dummy field at bottom of nD array.
 
     Args:
         f : nD field
         zt: 1D zcoordinates
         axis=0: Specify axis to extend
 
-    Returns:
+    Returns
+    -------
         extended field, extended coord
     @author: Peter Clark
     """
-
     s = list(np.shape(f))
     s[axis] += 1
 #    print(zt)
@@ -1348,18 +1278,18 @@ def padleft(f, zt, axis=0) :
 
 def padright(f, zt, axis=0) :
     """
-    Add dummy field at top of nD array
+    Add dummy field at top of nD array.
 
     Args:
         f : nD field
         zt: 1D zcoordinates
         axis=0: Specify axis to extend
 
-    Returns:
+    Returns
+    -------
         extended field, extended coord
     @author: Peter Clark
     """
-
     s = list(np.shape(f))
     s[axis] += 1
 #    print(zt)
@@ -1400,13 +1330,13 @@ def get_data(source_dataset, var_name, it, refprof, coords) :
         refprof: Dict containg reference profile.
         coords: Dict containing model coords.
 
-    Returns:
+    Returns
+    -------
         variable, variable_grid_properties
 
     @author: Peter Clark and George Efstathiou
 
     """
-
     global ind
 
     # This is the list of supported operators.
@@ -1521,8 +1451,9 @@ def get_data(source_dataset, var_name, it, refprof, coords) :
 
 def load_traj_step_data(dataset, it, variable_list, refprof, coords) :
     """
-    Function to read trajectory variables and additional data from file
-    for interpolation to trajectory.
+    Read trajectory variables and additional data from file.
+
+    For interpolation to trajectory.
 
     Args:
         dataset        : netcdf file handle.
@@ -1530,13 +1461,13 @@ def load_traj_step_data(dataset, it, variable_list, refprof, coords) :
         variable_list  : List of variable names.
         refprof        : Dict with reference theta profile arrays.
 
-    Returns:
+    Returns
+    -------
         List of arrays containing interpolated data.
 
     @author: Peter Clark
 
     """
-
     global ind
     data_list, var_list, varp_list, time = load_traj_pos_data(dataset, it)
 
@@ -1552,244 +1483,38 @@ def load_traj_step_data(dataset, it, variable_list, refprof, coords) :
 
 def phase(vr, vi, n) :
     """
-    Function to convert real and imaginary points to location on grid
-    size n.
+    Convert real and imaginary points to location on grid size n.
 
     Args:
         vr,vi  : real and imaginary parts of complex location.
         n      : grid size
 
-    Returns:
+    Returns
+    -------
         Real position in [0,n)
 
     @author: Peter Clark
 
     """
-
     vr = np.asarray(vr)
     vi = np.asarray(vi)
-    vpos = np.asarray(((np.arctan2(vi,vr))/(2.0*np.pi)) * n )
-    vpos[vpos<0] += n
+    vpos = np.asarray((((np.arctan2(vi,vr))/(2.0*np.pi)) * n) % n )
+#    vpos[vpos<0] += n
     return vpos
-
-def label_3D_cyclic(mask) :
-    """
-    Function to label 3D objects taking account of cyclic boundary
-    in x and y. Uses ndimage(label) as primary engine.
-
-    Args:
-        mask: 3D logical array with object mask (i.e. objects are
-            contiguous True).
-
-    Returns:
-        Object identifiers::
-
-            labs  : Integer array[nx,ny,nz] of labels. -1 denotes unlabelled.
-            nobjs : number of distinct objects. Labels range from 0 to nobjs-1.
-
-    @author: Peter Clark
-
-    """
-
-#    print np.shape(mask)
-    (nx, ny, nz) = np.shape(mask)
-    labels, nobjects = ndimage.label(mask)
-    labels -=1
-#    print 'labels', np.shape(labels)
-    def relabel(labs, nobjs, i,j) :
-#        if debug_label :
-#            print('Setting label {:3d} to {:3d}'.format(j,i))
-        lj = (labs == j)
-        labs[lj] = i
-        for k in range(j+1,nobjs) :
-            lk = (labs == k)
-            labs[lk] = k-1
-#            if debug_label :
-#                print('Setting label {:3d} to {:3d}'.format(k,k-1))
-        nobjs -= 1
-#        if debug_label : print('nobjects = {:d}'.format(nobjects))
-        return labs, nobjs
-
-    def find_objects_at_edge(minflag, x_or_y, n, labs, nobjs) :
-        i = 0
-        while i < (nobjs-2) :
-            posi = np.where(labs == i)
-#        print(np.shape(posi))
-            if minflag :
-                test1 = (np.min(posi[x_or_y][:]) == 0)
-                border = '0'
-            else:
-                test1 = (np.max(posi[x_or_y][:]) == (n-1))
-                border = 'n{}-1'.format(['x','y'][x_or_y])
-            if test1 :
-                if debug_label :
-                    print('Object {:03d} on {}={} border?'.\
-                          format(i,['x','y'][x_or_y],border))
-                j = i+1
-                while j < nobjs :
-                    posj = np.where(labs == j)
-
-                    if minflag :
-                        test2 = (np.max(posj[x_or_y][:]) == (n-1))
-                        border = 'n{}-1'.format(['x','y'][x_or_y])
-                    else:
-                        test2 = (np.min(posj[x_or_y][:]) == 0)
-                        border = '0'
-
-                    if test2 :
-                        if debug_label :
-                            print('Match Object {:03d} on {}={} border?'\
-                                  .format(j,['x','y'][x_or_y],border))
-
-                        if minflag :
-                            ilist = np.where(posi[x_or_y][:] == 0)
-                            jlist = np.where(posj[x_or_y][:] == (n-1))
-                        else :
-                            ilist = np.where(posi[x_or_y][:] == (n-1))
-                            jlist = np.where(posj[x_or_y][:] == 0)
-
-                        if np.size( np.intersect1d(posi[1-x_or_y][ilist], \
-                                           posj[1-x_or_y][jlist]) ) :
-                            if np.size( np.intersect1d(posi[2][ilist], \
-                                           posj[2][jlist]) ) :
-
-                                if debug_label :
-                                    print('Yes!',i,j)
-#                                    for ii in range(3) :
-#                                        print(ii, posi[ii][posi[x_or_y][:] \
-#                                                       == 0])
-#                                    for ii in range(3) :
-#                                        print(ii, posj[ii][posj[x_or_y][:] \
-#                                                       == (n-1)])
-                                labs, nobjs = relabel(labs, nobjs, i, j)
-                    j += 1
-            i += 1
-        return labs, nobjs
-
-    labels, nobjects = find_objects_at_edge(True,  0, nx, labels, nobjects)
-    labels, nobjects = find_objects_at_edge(False, 0, nx, labels, nobjects)
-    labels, nobjects = find_objects_at_edge(True,  1, ny, labels, nobjects)
-    labels, nobjects = find_objects_at_edge(False, 1, ny, labels, nobjects)
-
-    return labels, nobjects
-
-def unsplit_object( pos, nx, ny ) :
-    """
-    Function to gather together points in object separated by cyclic boundaries.
-        For example, if an object spans the 0/nx boundary, so some
-        points are close to zero, some close to nx, they will be adjusted to
-        either go from negative to positive, close to 0, or less than nx to
-        greater than. The algorithm tries to group on the larges initial set.
-        Uses sklearn.cluster.KMeans as main engine.
-
-    Args:
-        pos      : grid positions of points in object.
-        nx,ny    : number of grid points in x and y directions.
-    Returns:
-        Adjusted grid positions of points in object.
-
-    @author: Peter Clark
-
-    """
-
-    global debug_unsplit
-    if debug_unsplit : print('pos:', pos)
-    n_clust = np.min([4,np.shape(pos)[0]])
-    if debug_unsplit : print('Shape(pos):',np.shape(pos), \
-                             'Number of clutsters:', n_clust)
-    kmeans = KMeans(n_clusters=n_clust)
-#    print(kmeans)
-    kmeans.fit(pos)
-#    print(kmeans)
-
-    if debug_unsplit : print('Shape(cluster centres):', \
-                            np.shape(kmeans.cluster_centers_))
-    if debug_unsplit : print('Cluster centres: ',kmeans.cluster_centers_)
-    counts = np.zeros(n_clust,dtype=int)
-    for i in range(n_clust):
-        counts[i] = np.count_nonzero(kmeans.labels_ == i)
-    if debug_unsplit : print(counts)
-    main_cluster = np.where(counts == np.max(counts))[0]
-    def debug_print(j) :
-        print('Main cluster:', main_cluster, 'cluster number: ', i, \
-              'dist:', dist)
-        print('Cluster centres:', kmeans.cluster_centers_)
-        print('Changing ', pos[kmeans.labels_ == i,j])
-        return
-
-    for i in range(n_clust):
-        dist = kmeans.cluster_centers_[i] - kmeans.cluster_centers_[main_cluster]
-#        print 'dist', dist
-        dist = dist[0]
-        if (dist[0] < -nx/2) :
-            if debug_unsplit : debug_print(0)
-            pos[kmeans.labels_ == i,0] = pos[kmeans.labels_ == i,0] + nx
-        if (dist[0] >  nx/2) :
-            if debug_unsplit : debug_print(0)
-            pos[kmeans.labels_ == i,0] = pos[kmeans.labels_ == i,0] - nx
-        if (dist[1] < -ny/2) :
-            if debug_unsplit : debug_print(1)
-            pos[kmeans.labels_ == i,1] = pos[kmeans.labels_ == i,1] + ny
-        if (dist[1] >  ny/2) :
-            if debug_unsplit : debug_print(1)
-            pos[kmeans.labels_ == i,1] = pos[kmeans.labels_ == i,1] - ny
-
-    return pos
-
-def unsplit_objects(trajectory, labels, nobjects, nx, ny) :
-    """
-    Function to unsplit a set of objects at a set of times using
-    unsplit_object on each.
-
-    Args:
-        trajectory     : Array[nt, np, 3] of trajectory points, with nt \
-                         times and np points.
-        labels         : labels of trajectory points.
-        nx,ny   : number of grid points in x and y directions.
-    Returns:
-        Trajectory array with modified positions.
-
-    @author: Peter Clark
-
-    """
-
-    global debug_unsplit
-#    print np.shape(trajectory)
-    if nobjects < 2:
-        return trajectory
-
-    print('Unsplitting Objects:')
-
-    for iobj in range(0,nobjects):
-        if debug_unsplit : print('Unsplitting Object: {:03d}'.format(iobj))
-#        if iobj == 15 :
-#            debug_unsplit = True
-#        else :
-#            debug_unsplit = False
-
-        for it in range(0,np.shape(trajectory)[0]) :
-            if debug_unsplit : print('Time: {:03d}'.format(it))
-            tr = trajectory[it,labels == (iobj),:]
-            if ((np.max(tr[:,0])-np.min(tr[:,0])) > nx/2 ) or \
-               ((np.max(tr[:,1])-np.min(tr[:,1])) > ny/2 ) :
-                trajectory[it, labels == iobj,:] = \
-                unsplit_object(trajectory[it,labels == iobj,:], \
-                                               nx, ny)
-                if debug_unsplit : print('New object:',\
-                    trajectory[it,labels == iobj,:])
-    return trajectory
 
 def compute_traj_boxes(traj, in_obj_func, kwargs={}) :
     """
-    Function to compute two rectangular boxes containing all and in_obj
-    points for each trajectory object and time, plus some associated data.
+    Compute two rectangular boxes containing all and in_obj points.
+
+    For each trajectory object and time, plus some associated data.
 
     Args:
         traj               : trajectory object.
         in_obj_func        : function to determine which points are inside an object.
         kwargs             : any additional keyword arguments to ref_func (dict).
 
-    Returns:
+    Returns
+    -------
         Properties of in_obj boxes::
 
             data_mean        : mean of points (for each data variable) in in_obj.
@@ -1803,7 +1528,6 @@ def compute_traj_boxes(traj, in_obj_func, kwargs={}) :
     @author: Peter Clark
 
     """
-
     scalar_shape = (np.shape(traj.data)[0], traj.nobjects)
     centroid_shape = (np.shape(traj.data)[0], traj.nobjects, \
                       3)
@@ -1849,16 +1573,15 @@ def compute_traj_boxes(traj, in_obj_func, kwargs={}) :
 
 def print_boxes(traj) :
     """
-        Function to print information provided by compute_traj_boxes stored
-        as attributes of traj.
+    Print information provided by compute_traj_boxes.
 
-        Args:
-            traj : trajectory object.
+    Args
+    ----
+        traj : trajectory object.
 
-        @author: Peter Clark
+    @author: Peter Clark
 
     """
-
     varns = list(traj.variable_list)
     for iobj in range(traj.nobjects) :
         print('Object {:03d}'.format(iobj))
@@ -1875,21 +1598,22 @@ def print_boxes(traj) :
 
 def box_overlap_with_wrap(b_test, b_set, nx, ny) :
     """
-        Function to compute whether rectangular boxes intersect.
+    Compute whether rectangular boxes intersect.
 
-        Args:
-            b_test: box for testing array[8,3]
-            b_set: set of boxes array[n,8,3]
-            nx: number of points in x grid.
-            ny: number of points in y grid.
+    Args
+    ----
+        b_test: box for testing array[8,3]
+        b_set: set of boxes array[n,8,3]
+        nx: number of points in x grid.
+        ny: number of points in y grid.
 
-        Returns:
-            indices of overlapping boxes
+    Returns
+    -------
+        indices of overlapping boxes
 
-        @author: Peter Clark
+    @author: Peter Clark
 
     """
-
     # Wrap not yet implemented
 
     t1 = np.logical_and( \
@@ -1926,7 +1650,8 @@ def file_key(file):
 
 def find_time_in_files(files, ref_time, nodt = False) :
     """
-    Function to find file containing data at required time.
+    Find file containing data at required time.
+
         Assumes file names are of form \*_tt.0\* where tt is model output time.
 
     Args:
@@ -1934,7 +1659,8 @@ def find_time_in_files(files, ref_time, nodt = False) :
         ref_time: required time.
         nodt: if True do not look for next time to get delta_t
 
-    Returns:
+    Returns
+    -------
         Variables defining location of data in file list::
 
             ref_file: Index of file containing required time in files.
@@ -1944,7 +1670,6 @@ def find_time_in_files(files, ref_time, nodt = False) :
     @author: Peter Clark
 
     """
-
     file_times = np.zeros(len(files))
     for i, file in enumerate(files) : file_times[i] = file_key(file)
 
@@ -2017,6 +1742,21 @@ def find_time_in_files(files, ref_time, nodt = False) :
     return ref_file, it, delta_t.astype(int)
 
 def compute_derived_variables(traj, derived_variable_list=None) :
+    """
+    Compute required variables from model input.
+
+    Parameters
+    ----------
+    traj : Trajectory
+        DESCRIPTION.
+    derived_variable_list : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Returns
+    -------
+    dict list of variables, data (numpy array)
+
+    """
     if derived_variable_list is None :
         derived_variable_list = { \
                            "q_total":r"$q_{t}$ kg/kg", \
@@ -2024,7 +1764,6 @@ def compute_derived_variables(traj, derived_variable_list=None) :
                            "th_v":r"$\theta_v$ K", \
                            "MSE":r"MSE J kg$^{-1}$", \
                            }
-    data_list = list([])
     zn = traj.coords['zn']
     tr_z = np.interp(traj.trajectory[...,2], traj.coords['zcoord'], zn)
 
@@ -2066,8 +1805,5 @@ def compute_derived_variables(traj, derived_variable_list=None) :
 #        print(variable, np.min(data),np.max(data),np.shape(data))
 
         out[...,i] = data
-#        data_list.append(data)
-#    out = np.vstack(data_list).T
-#    out = np.array(data_list).T
-#    print(np.shape(out))
+
     return derived_variable_list, out

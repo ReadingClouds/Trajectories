@@ -5,7 +5,7 @@ Created on Wed Feb  9 18:57:30 2022
 @author: paclk
 """
 import numpy as np
-from trajectories.trajectory_compute import label_3D_cyclic
+from trajectories.object_tools import label_3D_cyclic
 
 
 def trajectory_cloud_ref(dataset, time_index, thresh=0.00001) :

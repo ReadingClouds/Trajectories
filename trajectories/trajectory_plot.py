@@ -84,7 +84,7 @@ def plot_trajectory_history(tr, select_obj, fn) :
     ax.set_title('Cloud %2.2d'%select_obj)
 
     plt.tight_layout()
-    plt.savefig(fn+'_Cloud_traj_%3.3d'%select_obj+'.png')
+    fig1.savefig(fn+'_Cloud_traj_%3.3d'%select_obj+'.png')
 
     fig2, axa = plt.subplots(3,2,figsize=(8,10))
 
@@ -147,8 +147,38 @@ def plot_trajectory_history(tr, select_obj, fn) :
     ax.set_xlabel(r"time h$^{-1}$",fontsize=16)
     ax.set_ylabel(r"$z$ m",fontsize=16)
     ax.set_title('Cloud %2.2d'%select_obj)
-    plt.savefig(fn+'_Cloud_traj_z_%3.3d'%select_obj+'.png')
+    fig3.savefig(fn+'_Cloud_traj_z_%3.3d'%select_obj+'.png')
 #    plt.close(fig2)
+
+    ntr = 1
+    while True:
+        if f"tracer_rad{ntr}" in tr.variable_list:
+            ntr += 1
+        else:
+            ntr -= 1
+            break
+
+    if ntr > 0:
+        fig4, axa = plt.subplots(2, ntr,figsize=(ntr*4,12))
+        for n in range(1, ntr+1):
+            v = f"tracer_rad{n}"
+            print(f"Plotting {v}")
+
+            ax = axa[0, n-1]
+            for i in range(np.shape(z)[1]-1) :
+                ax.plot(data[:,i,tr.var(v)],z[:,i])
+            ax.set_xlabel(tr.variable_list[v],fontsize=16)
+            ax.set_ylabel(r"$z$ m",fontsize=16)
+            ax.set_title('Cloud %2.2d'%select_obj)
+
+            ax = axa[1, n-1]
+            for i in range(np.shape(z)[1]-1) :
+                ax.plot( times, data[:,i,tr.var(v)])
+            ax.plot(times[tr.ref]*np.ones(2),ax.get_ylim(),'--k')
+            ax.set_ylabel(tr.variable_list[v],fontsize=16)
+            ax.set_xlabel(r"time h$^{-1}$",fontsize=16)
+            ax.set_title('Cloud %2.2d'%select_obj)
+        fig4.savefig(fn+'_Cloud_tracer_z_%3.3d'%select_obj+'.png')
 
     return
 
@@ -457,9 +487,9 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
                             '_Cloud_mean_traj_{:01d}_{:02d}_v{:01d}.png'.\
                             format(fig.number,figs, traj_cl['version']))
 
-                plt.show()
-                for (ax, fig) in figlist :
-                    plt.close(fig)
+                # plt.show()
+                # for (ax, fig) in figlist :
+                #     plt.close(fig)
 
                 new_fig = True
         iobj +=1
@@ -503,8 +533,8 @@ def plot_traj_pos(traj, index, fn, save=False) :
     plt.title('Time {:6.0f} index {:03d}'.format(traj.times[index]/60,index))
 
     if save : plt.savefig(fn+'_pos_{:03d}.png'.format(index))
-    plt.show()
-    plt.close(fig)
+#    plt.show()
+#    plt.close(fig)
     return
 
 def gal_trans(x, y, galilean, j, timestep, traj) :
@@ -537,14 +567,15 @@ def get_file_times(infiles, dir_override=None) :
     for i, file in enumerate(files) : file_times[i] = file_key(file)
     return files, file_times
 
-def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
-                        legend = False, select = None, \
-                        galilean = None, plot_field = False, \
-                        dir_override = None, \
-                        title = None, \
-                        plot_class = None, \
-                        no_cloud_size = 0.2, cloud_size = 2.0, \
-                        field_size = 0.5, fps = 10, with_boxes = False, \
+def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
+                        legend = False, select = None,
+                        galilean = None, plot_field = False,
+                        dir_override = None,
+                        title = None,
+                        plot_class = None,
+                        no_cloud_size = 0.2, cloud_size = 2.0,
+                        field_size = 0.5, fps = 10, with_boxes = False,
+                        var = None,
                         ) :
     """
     Function to plot animation of trajectories.
@@ -584,6 +615,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
     nobj = traj.nobjects
 
     files, file_times = get_file_times(traj.files, dir_override=dir_override)
+    timestep = traj.times[1]-traj.times[0]
 #                print(filename)
 #    print(files)
     if select is None : select = np.arange(0, nobj)
@@ -607,8 +639,10 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
 #    print(select)
     #input("Press any key...")
     # First set up the figure, the axis, and the plot element we want to animate
-    fig = plt.figure(2,figsize=(10,6))
+    fig = plt.figure(figsize=(10,6))
     ax = fig.add_subplot(111, projection='3d')
+
+ #   fig, ax = plt.subplots(1, figsize=(10,6), projection='3d')
 
     if np.size(select) > 1 :
         x_min = traj.coords['xcoord'][0]
@@ -618,30 +652,31 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
 
     else :
         iobj = select[0]
-        x = traj.trajectory[0,traj.labels == iobj,0]
-        y = traj.trajectory[0,traj.labels == iobj,1]
 
-        xm = np.mean(x)
-        xr = np.max(x)- np.min(x)
-#        print(np.min(x),np.max(x))
-        ym = np.mean(y)
-        yr = np.max(y)- np.min(y)
-        xr = np.min([xr,yr])/2
-        x_min = xm-xr
-        x_max = xm+xr
-        y_min = ym-xr
-        y_max = ym+xr
-#        print(xm,xr,ym,yr)
+        x = traj.trajectory[0,traj.labels == iobj,0]%traj.nx
+        y = traj.trajectory[0,traj.labels == iobj,1]%traj.ny
+        x_min = np.min(x)
+        x_max = np.max(x)
+        y_min = np.min(y)
+        y_max = np.max(y)
+        if galilean is not None :
+            for j in range(1, np.shape(traj.trajectory)[0]):
+                x, y = gal_trans(x, y,  galilean, j, timestep, traj)
+                x_min = min(x_min, np.min(x))
+                x_max = max(x_max, np.max(x))
+                y_min = min(y_min, np.min(y))
+                y_max = max(y_max, np.max(y))
 
-#    print(x_min-10,x_max+10,y_min-10,y_max+10)
+#    print(x_min,x_max,y_min,y_max)
 
-    ax.set_xlim(x_min-10,x_max+10)
-    ax.set_ylim(y_min-10,y_max+10)
+
+    ax.set_xlim(x_min,x_max)
+    ax.set_ylim(y_min,y_max)
     ax.set_zlim(0, traj.coords['zcoord'][-1])
 
-    ax.set_box_aspect((np.ptp(traj.coords['xcoord']*traj.coords['deltax']),
-                      np.ptp(traj.coords['xcoord']*traj.coords['deltax']),
-                      np.ptp(traj.coords['z'])))
+    ax.set_box_aspect((np.ptp(ax.get_xlim()) * traj.coords['deltax'],
+                       np.ptp(ax.get_ylim()) * traj.coords['deltay'],
+                       np.ptp(traj.coords['z'])))
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     if title is not None :
@@ -658,7 +693,6 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
         xg, yg, zg = np.meshgrid(traj.coords['xcoord'],traj.coords['ycoord'],traj.coords['zcoord'], \
                                  indexing = 'ij')
     nplt = 0
-    timestep = traj.times[1]-traj.times[0]
     for iobj in range(0,traj.nobjects):
         if np.isin(iobj,select) :
             if plot_class is None :
@@ -796,7 +830,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim', \
                     box.set_3d_properties(z)
 
                 nplt +=1
-        plt.title(f'Time index {i:03d}')
+        ax.set_title(f'Time index {i:03d}')
 
         return
 
@@ -1414,7 +1448,9 @@ def plot_traj_family_animation(traj_family, match_index, \
 
 def conform_plot(x, nx, xlim ) :
     if xlim[0] < 0 and xlim[1] < nx:
-        x[x >= xlim[1]] -= nx
+        pass
+        # x[x >= xlim[1]] -= nx
     if xlim[0] > 0 and xlim[1] > nx:
-        x[x <= xlim[0]] += nx
+        pass
+        # x[x <= xlim[0]] += nx
     return x
