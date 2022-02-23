@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 Created on Wed Feb  9 14:58:36 2022
 
-@author: paclk
+@author: Peter Clark
 """
 
 import glob
@@ -137,16 +136,20 @@ print(f'Elapsed time = {delta_t}')
 #%%
 
 #%%
+traj_class = cp.set_cloud_class(traj_ref, version = 1)
 trsz = [np.size(np.where(traj_ref.labels == i)[0]) for i in range(traj_ref.nobjects)]
 
 sel = np.argmax(trsz)
+sel = 9
 
 anim = tp.plot_traj_animation(traj_ref,
                               fps = 10,
                               select = [sel],
                               galilean = np.array([-7.6,-1.5]),
-                              plot_field = True,
-                              with_boxes = True,
+                              plot_class = traj_class,
+                              legend = True,
+#                              plot_field = True,
+#                              with_boxes = True,
                               var = "tracer_rad1",
                               )
 
@@ -157,7 +160,6 @@ tp.plot_trajectory_history(traj_ref, sel, 'ref')
 plt.show()
 
 #%%
-traj_class = cp.set_cloud_class(traj_ref, version = 1)
 mean_prop = cp.cloud_properties(traj_ref, traj_class)
 tp.plot_trajectory_mean_history(traj_ref, traj_class, mean_prop, 'ref')
 plt.show()
@@ -225,7 +227,7 @@ if True:
         diff [..., i][k] -= n
         k = diff [..., i] < -n /2
         diff [..., i][k] += n
-        print(np.max(diff[..., i], axis = 1))
+#        print(np.max(diff[..., i], axis = 1))
 
     #%%
 

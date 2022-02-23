@@ -639,7 +639,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
 #    print(select)
     #input("Press any key...")
     # First set up the figure, the axis, and the plot element we want to animate
-    fig = plt.figure(figsize=(10,6))
+    fig = plt.figure(figsize=(10,6), tight_layout=True)
     ax = fig.add_subplot(111, projection='3d')
 
  #   fig, ax = plt.subplots(1, figsize=(10,6), projection='3d')
@@ -651,6 +651,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
         y_max = traj.coords['ycoord'][-1]
 
     else :
+
         iobj = select[0]
 
         x = traj.trajectory[0,traj.labels == iobj,0]%traj.nx
@@ -661,6 +662,8 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
         y_max = np.max(y)
         if galilean is not None :
             for j in range(1, np.shape(traj.trajectory)[0]):
+                x = traj.trajectory[j,traj.labels == iobj,0]%traj.nx
+                y = traj.trajectory[j,traj.labels == iobj,1]%traj.ny
                 x, y = gal_trans(x, y,  galilean, j, timestep, traj)
                 x_min = min(x_min, np.min(x))
                 x_max = max(x_max, np.max(x))

@@ -386,6 +386,8 @@ def compute_trajectories(files,
     # Find initial positions and labels using user-defined function.
     traj_pos, labels, nobjects = ref_func(dataset, time_index, **kwargs)
 
+#    print(traj_pos)
+
     times = ref_times
     trajectory, data_val, traj_error, traj_times, coords \
       = trajectory_init(dataset, time_index, variable_list,
@@ -699,7 +701,7 @@ def confine_traj_bounds(pos, nx, ny, nz, vertical_boundary_option=1):
 
     """
     pos[:,0] = pos[:,0] % nx
-    pos[:,0] = pos[:,0] % ny
+    pos[:,1] = pos[:,1] % ny
 
     if vertical_boundary_option == 1:
 
@@ -800,13 +802,14 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
                             vertical_boundary_option=vertical_boundary_option)
 
 
-    use_mean_abs_error = True
+#    norm = 'max_abs_error'
+    norm = 'mean_abs_error'
     use_point_iteration = True
     limit_gradient = True
-    max_iter = 20
+    max_iter = 100
     errtol_iter = 0.05
     errtol = 0.05
-    relax_param = 1
+    relax_param = 0.75
 
     err = 1000.0
     niter = 0
@@ -833,7 +836,6 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
         traj_pos_at_est[:,0][diff_gt_plus_nx] -= nx
         diff[:,0][diff_gt_plus_nx] -= nx
 
-
         diff_lt_minus_ny = diff[:,1]<(-ny/2)
         traj_pos_at_est[:,1][diff_lt_minus_ny] += ny
         diff[:,1][diff_lt_minus_ny] += ny
@@ -841,7 +843,6 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
         diff_gt_plus_ny = diff[:,1]>=(ny/2)
         traj_pos_at_est[:,1][diff_gt_plus_ny] -= ny
         diff[:,1][diff_gt_plus_ny] -= ny
-
 
         mag_diff = 0
         for i in range(3):
@@ -851,12 +852,16 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
 
 #        err = np.amax(mag_diff)
         err_prev = err
-        if use_mean_abs_error:
-            err = np.mean(np.abs(diff))
+        if norm == 'mean_abs_error':
+           err = np.mean(np.abs(diff))
+        if norm == 'max_abs_error':
+            err = np.max(np.abs(diff))
         else:
             err = np.sqrt(np.mean(diff*diff))
 #        print(niter, err, np.sum(np.abs(diff)>errtol_iter/10.), \
 #                          np.sum(np.abs(diff)>errtol_iter))
+#        print(f"niter: {niter:3d} dist: {np.max(np.abs(diff), axis=0)} err: {err} relax_param: {relax_param}")
+
 
         if correction_cycle :
             print('After correction cycle {}'.format(err))
@@ -870,10 +875,14 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
                     print('No k')
             break
 
-        if err <= errtol_iter or err >= err_prev :
+#        if err <= errtol_iter or err >= err_prev :
+        if err <= errtol_iter :
             not_converged = False
             print("Converged in {} iterations with error {}."\
                   .format(niter, err))
+#        elif niter > 10 and err > err_prev : relax_param *= 0.9
+        elif niter%10==0: relax_param *= 0.9
+
 
         if niter <= max_iter :
 #            traj_pos_prev_est = traj_pos_next_est
@@ -889,7 +898,7 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
 
             else :
 
-                # Attempt at 'Newton-Raphson' wil numerical gradients, or
+                # Attempt at 'Newton-Raphson' with numerical gradients, or
                 # Secant method.
                 # At present, this does not converge.
 
@@ -922,7 +931,9 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
             niter +=1
         else :
             print('Iterations exceeding {} {}'.format(max_iter, err))
-            if err > errtol :
+            if err <= errtol or not correction_cycle:
+                not_converged = False
+            else:
                 bigerr = (mag_diff > errtol)
                 if np.size(diff[bigerr,:]) > 0 :
                     k = np.where(bigerr)[0]
@@ -979,16 +990,6 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
                             print('Nearest point is ({},{},{},{})'.\
                                   format(lxm,lym,lzm, dist[lxm,lym,lzm]))
                             print(xpos[lxm,lym,lzm],ypos[lxm,lym,lzm],zpos[lxm,lym,lzm])
-#                            ix = (lx+lxm-nd)%nx
-#                            iy = (ly+lym-nd)%ny
-#                            print(phase(x_real[ix, iy, lz+lzm-nd],\
-#                                        x_imag[ix, iy, lz+lzm-nd],nx))
-#                            print(phase(y_real[ix, iy, lz+lzm-nd],\
-#                                        y_imag[ix, iy, lz+lzm-nd],ny))
-#                            print(z_dat[ix, iy, lz+lzm-nd])
-
-#                            ndimage.map_coordinates(data[l], traj_pos, mode='wrap', \
-#                                          order=interp_order)
                         envsize = 2
                         nx1=lxm-envsize
                         nx2=lxm+envsize+1
@@ -1013,26 +1014,17 @@ def forward_trajectory_step(dataset, time_index, variable_list, refprof,
                         traj_pos_next_est[kk,:] = np.array([newx,newy,newz])
                     # end kk loop
                 #  correction
-            correction_cycle = True
+            # correction_cycle = True
         confine_traj_bounds(traj_pos_next_est, nx, ny, nz,
                             vertical_boundary_option=vertical_boundary_option)
-#        traj_pos_next_est[:,0][ traj_pos_next_est[:,0] <   0 ] += nx
-#        traj_pos_next_est[:,0][ traj_pos_next_est[:,0] >= nx ] -= nx
-#        traj_pos_next_est[:,1][ traj_pos_next_est[:,1] <   0 ] += ny
-#        traj_pos_next_est[:,1][ traj_pos_next_est[:,1] >= ny ] -= ny
-#        if vertical_boundary_option == 1 :
-#            traj_pos_next_est[:,2][ traj_pos_next_est[:,2] <   0 ]  = 0
-#            traj_pos_next_est[:,2][ traj_pos_next_est[:,2] >= nz ]  = nz
-#        else :
-#            traj_pos_next_est[:,2][ traj_pos_next_est[:,2] <   0 ]  = 0.5
-#            traj_pos_next_est[:,2][ traj_pos_next_est[:,2] >= nz ]  = nz-0.5
-
-#    print("No. with z<=1.01 ", np.sum(traj_pos_next_est[:,2] <= 1.01))
     out = data_to_pos(data_list, varp_list, traj_pos_next_est,
                       coords['xcoord'], coords['ycoord'], coords['zcoord'],
                       interp_method = interp_method,
                       interp_order = interp_order,
                       )
+    confine_traj_bounds(traj_pos_next_est, nx, ny, nz,
+                            vertical_boundary_option=vertical_boundary_option)
+
     data_val.append(np.vstack(out[n_pvar:]).T)
     trajectory.append(traj_pos_next_est)
     traj_error.append(diff)
