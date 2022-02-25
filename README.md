@@ -1,12 +1,15 @@
 # Trajectories
 Trajectory code for MONC data
-Current version 0.4 Released xx/02/2022 Peter Clark
 
-Currently only the PAC_development branch is pip installable.
+For documentation see http://www.met.reading.ac.uk/~xm904103/code/trajectories/index.html.
+
+* Current version 0.5 Released 22/02/2022 Peter Clark
+* Current version 0.4 Released 28/08/2020 Peter Clark
+* Previous version 0.3 Released 19/02/2020 Peter Clark
 
 Users should pip install to a suitable environment using
 
-    pip install  git+https://github.com/ReadingClouds/Trajectories.git@PAC_development
+    pip install  git+https://github.com/ReadingClouds/Trajectories.git
 
 This will install into the standard library.
 
