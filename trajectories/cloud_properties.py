@@ -1,26 +1,29 @@
-# -*- coding: utf-8 -*-
 """
+Module cloud_properties.
+
 Created on Thu Aug 27 16:32:10 2020
 
-@author: paclk
+@author: Peter Clark
 """
 
 import numpy as np
-from trajectory_compute import *
+from .trajectory_compute import compute_derived_variables
 
 #debug_mean = True
 debug_mean = False
 
 
 def set_cloud_class(traj, thresh=None, version=1) :
-    '''
-    Function to compute trajectory class and mean cloud properties.
+    """
+    Compute trajectory class and mean cloud properties.
 
-    Args:
+    Args
+    ----
         thresh: Threshold if LWC to define cloud. Default is traj.thresh.
         version: Which version of classification. (Currently only 1).
 
-    Returns:
+    Returns
+    -------
         Dictionary containing trajectory class points, key and useful derived data::
 
           Dictionary keys:
@@ -33,9 +36,7 @@ def set_cloud_class(traj, thresh=None, version=1) :
           "cloud_dissipate_time"
           "version":version
 
-    @author: Peter Clark
-
-    '''
+    """
     if version == 1 :
         PRE_CLOUD_ENTR_FROM_BL = 1
         PRE_CLOUD_ENTR_FROM_ABOVE_BL = 2
@@ -93,33 +94,27 @@ def set_cloud_class(traj, thresh=None, version=1) :
 
         qcl = data[:,:,traj.var("q_cloud_liquid_mass")]
         mask_qcl = (qcl >= thresh)
-        w = data[:,:,traj.var("w")]
-        mask_w = (w >= 0.1)
+#        w = data[:,:,traj.var("w")]
+#        mask_w = (w >= 0.1)
 #        mask = np.logical_and(mask_qcl, mask_w)
         mask = mask_qcl
-#        print("Object ",iobj, np.size(np.where(mask[traj.ref,:])[0]))
 
         if np.size(np.where(mask[traj.ref,:])[0]) == 0 :
             print("Object {} is not active at reference time.".format(iobj))
             continue
 
-        # Original extracted variables)
-
-#        min_cloud_base[iobj] = (np.min(tr[mask,2])-0.5)*traj.deltaz
         min_cloud_base[iobj] = np.interp(np.min(tr[mask,2]),
                                          np.arange(len(zn)), zn)
-#        data_class = traj_class[:,traj.labels == iobj]
-        if debug_mean : print('Version ',version)
 
-#        if version == 1 :
+        if debug_mean : print('Version ',version)
 
         in_main_cloud = True
 
         for it in range(traj.ref,-1,-1) :
 
-            if debug_mean : print("it = {}".format(it))
+            if debug_mean : print(f"it = {it}")
 
-            cloud_bottom = traj.in_obj_box[it, iobj, 0, 2]
+#            cloud_bottom = traj.in_obj_box[it, iobj, 0, 2]
 
             cloud = mask[it,:]
             where_cloud = np.where(cloud)[0]
@@ -130,18 +125,16 @@ def set_cloud_class(traj, thresh=None, version=1) :
             if it > 0 :
 
                 cloud_at_prev_step = mask[it-1,:]
-                not_cloud_at_prev_step = np.logical_not(\
-                                            cloud_at_prev_step)
+                not_cloud_at_prev_step = np.logical_not(cloud_at_prev_step)
 
-                new_cloud = np.logical_and(cloud, \
-                                           not_cloud_at_prev_step)
+                new_cloud = np.logical_and(cloud, not_cloud_at_prev_step)
                 where_newcloud = np.where(new_cloud)[0]
 
-                not_new_cloud = np.logical_and(cloud, \
-                                               cloud_at_prev_step)
+                not_new_cloud = np.logical_and(cloud, cloud_at_prev_step)
                 where_not_newcloud = np.where(not_new_cloud)[0]
-#                            print(np.size(where_newcloud),np.size(where_not_newcloud))
+
             else :
+                # First time so no previous data.
                 where_newcloud = np.array([])
 
                 not_new_cloud = cloud
@@ -149,25 +142,28 @@ def set_cloud_class(traj, thresh=None, version=1) :
 
             if np.size(where_cloud) > 0 :
                 # There are cloudy points
-                # Find new cloudy points
 
                 if np.size(where_newcloud) > 0 : # Entrainment
+                    # New cloudy points
                     if debug_mean : print('Entraining air')
 
                     # New cloud in air that starts below cloud base.
-                    newcl_from_bl = np.logical_and( new_cloud,\
+                    newcl_from_bl = np.logical_and( new_cloud,
                                       obj_z[0, :] < min_cloud_base[iobj])
+
                     where_newcl_from_bl = np.where(newcl_from_bl)[0]
-                    class_set_from_bl = where_obj_ptrs[ \
-                                      where_newcl_from_bl]
+
+                    class_set_from_bl = where_obj_ptrs[where_newcl_from_bl]
 
                     # New cloud in air that starts above cloud base.
-                    newcl_from_above_bl = np.logical_and( new_cloud,\
+                    newcl_from_above_bl = np.logical_and( new_cloud,
                                      obj_z[0, :] >= min_cloud_base[iobj])
-                    where_newcl_from_above_bl = np.where( \
-                                                newcl_from_above_bl)[0]
+
+                    where_newcl_from_above_bl = np.where(
+                                                 newcl_from_above_bl)[0]
+
                     class_set_from_above_bl = where_obj_ptrs[ \
-                                            where_newcl_from_above_bl]
+                                                where_newcl_from_above_bl]
 
                     traj_class[0:it, class_set_from_bl] = \
                                 PRE_CLOUD_ENTR_FROM_BL
@@ -182,13 +178,12 @@ def set_cloud_class(traj, thresh=None, version=1) :
                     if debug_mean :
                         print("From BL",class_set_from_bl)
                         print("From above BL",class_set_from_above_bl)
-#                        input("Press Enter to continue...")
 
                 # Set traj_class flag for those points in cloud.
                 if np.size(where_not_newcloud) > 0 : # Not entrainment
+                    # Pre-existing cloudy points
                     if debug_mean :
-                        print("Setting Cloud",it,\
-                              np.size(where_not_newcloud))
+                        print("Setting Cloud", it, np.size(where_not_newcloud))
 
                     class_set = where_obj_ptrs[where_not_newcloud]
 
@@ -204,19 +199,17 @@ def set_cloud_class(traj, thresh=None, version=1) :
                             print("PREV CLOUD",class_set)
 
             else : # np.size(where_cloud) == 0
+
                 if in_main_cloud : cloud_trigger_time[iobj] = it+1
                 in_main_cloud = False
 
             # Now what about detraining air?
             if np.size(where_not_cloud) > 0 :
 
-#                    if it == traj.ref :
-#                        print("Problem - reference not all cloud",iobj)
-
-
                 # Find points that have ceased to be cloudy
                 if it > 0 :
-                    detr_cloud = np.logical_and(not_cloud, \
+
+                    detr_cloud = np.logical_and(not_cloud,
                                                 cloud_at_prev_step)
                     where_detrained = np.where(detr_cloud)[0]
 
@@ -224,36 +217,58 @@ def set_cloud_class(traj, thresh=None, version=1) :
                         if debug_mean : print('Detraining air')
 
                         class_set = where_obj_ptrs[where_detrained]
+
                         if in_main_cloud :
+
                             traj_class[it, class_set] = DETRAINED
+
                             if debug_mean :
                                 print("Detrained",class_set)
+
                             for iit in range(it+1,traj.ref) :
-                                post_detr = np.logical_and(detr_cloud, \
-                                                   np.logical_not(mask[iit,:]))
+
+                                not_cloud_at_iit = np.logical_not(mask[iit,:])
+
+                                post_detr = np.logical_and(detr_cloud,
+                                                           not_cloud_at_iit)
+
                                 where_post_detr = np.where(post_detr)[0]
-                                class_set_post_detr = where_obj_ptrs[ \
-                                                where_post_detr]
+
+                                class_set_post_detr = where_obj_ptrs[
+                                                      where_post_detr]
+
                                 traj_class[iit, class_set_post_detr] = \
                                     POST_DETR
+
                                 if debug_mean :
                                     print("Post detr",iit, class_set_post_detr)
                         else :
+
                             traj_class[it, class_set] = DETR_PREV
+
                             if debug_mean :
                                 print("Detrained prev",class_set)
+
                             for iit in range(it+1,traj.ref) :
-                                post_detr_prev = np.logical_and(detr_cloud, \
-                                                   np.logical_not(mask[iit,:]))
-                                where_post_detr_prev = np.where(post_detr_prev)[0]
-                                class_set_post_detr_prev = where_obj_ptrs[ \
+
+                                not_cloud_at_iit = np.logical_not(mask[iit,:])
+
+                                post_detr_prev = np.logical_and(
+                                                        detr_cloud,
+                                                        not_cloud_at_iit)
+
+                                where_post_detr_prev = np.where(
+                                                         post_detr_prev)[0]
+
+                                class_set_post_detr_prev = where_obj_ptrs[
                                                 where_post_detr_prev]
+
                                 traj_class[iit, class_set_post_detr_prev] = \
                                     POST_DETR_PREV
+
                                 if debug_mean :
-                                    print("Post detr prev",iit, class_set_post_detr_prev)
-                        if debug_mean :
-                            input("Press Enter to continue...")
+                                    print("Post detr prev", iit,
+                                          class_set_post_detr_prev)
 
         in_main_cloud = True
         after_cloud_dissipated = False
@@ -262,7 +277,7 @@ def set_cloud_class(traj, thresh=None, version=1) :
 
             if debug_mean : print("it = {}".format(it))
 
-            cloud_bottom = traj.in_obj_box[it, iobj, 0, 2]
+#            cloud_bottom = traj.in_obj_box[it, iobj, 0, 2]
 
             cloud = mask[it,:]
             where_cloud = np.where(cloud)[0]
@@ -271,36 +286,23 @@ def set_cloud_class(traj, thresh=None, version=1) :
             where_not_cloud = np.where(not_cloud)[0]
 
             cloud_at_prev_step = mask[it-1,:]
-            not_cloud_at_prev_step = np.logical_not(\
-                                        cloud_at_prev_step)
+            not_cloud_at_prev_step = np.logical_not(cloud_at_prev_step)
 
-            new_cloud = np.logical_and(cloud, \
-                                       not_cloud_at_prev_step)
+            new_cloud = np.logical_and(cloud, not_cloud_at_prev_step)
             where_newcloud = np.where(new_cloud)[0]
 
-            not_new_cloud = np.logical_and(cloud, \
-                                           cloud_at_prev_step)
+            not_new_cloud = np.logical_and(cloud, cloud_at_prev_step)
             where_not_newcloud = np.where(not_new_cloud)[0]
 
-            new_not_cloud = np.logical_and(not_cloud, \
-                                       cloud_at_prev_step)
+            new_not_cloud = np.logical_and(not_cloud, cloud_at_prev_step)
             where_new_not_cloud = np.where(new_not_cloud)[0]
 
-            not_new_not_cloud = np.logical_and(not_cloud, \
-                                       not_cloud_at_prev_step)
+            not_new_not_cloud = np.logical_and(not_cloud, not_cloud_at_prev_step)
             where_not_new_not_cloud = np.where(not_new_not_cloud)[0]
-
-
-#            if debug_mean :
-#                print('it', it, np.shape(where_cloud))
-#                print(qcl[it,mask[it,:]])
-#                print(new_cloud)
-#                print(qcl[it-1,new_cloud],qcl[it,new_cloud])
-
-                # Find new cloudy points
 
             if np.size(where_newcloud) > 0 : # Entrainment
                 if debug_mean : print('Entraining air')
+                # New cloudy points
 
                 class_set = where_obj_ptrs[where_newcloud]
 
@@ -310,43 +312,36 @@ def set_cloud_class(traj, thresh=None, version=1) :
                             ENTR_FROM_ABOVE_BL
 
                 if debug_mean :
-#                                print("From BL",class_set_from_bl)
                     print("From above BL",class_set)
 
 
             # Set traj_class flag for those points in cloud.
             if np.size(where_not_newcloud) > 0 : # Existing cloud
-
-                if debug_mean : print("Setting Cloud",it,np.size(where_not_newcloud))
+                if debug_mean : print("Setting Cloud",it,
+                                      np.size(where_not_newcloud))
+                # Pre-existing cloud
 
                 class_set = where_obj_ptrs[where_not_newcloud]
 
                 if in_main_cloud :
                     # Still in cloud contiguous with reference time.
                     traj_class[it, class_set] = CLOUD
-                    if debug_mean :
-                        print("Cloud",class_set)
+                    if debug_mean : print("Cloud",class_set)
                 else :
                     # Must be cloud points that were present before.
                     traj_class[it, class_set] = SUBSEQUENT_CLOUD
-                    if debug_mean :
-                        print("Subs Cloud",class_set)
-
-#                          (np.max(tr[it-1,cloud_at_prev_step,2])-0.5) * traj.deltaz
-
+                    if debug_mean : print("Subs Cloud",class_set)
 
             # Now what about detraining and detraining air?
             if np.size(where_new_not_cloud) > 0 :
                 class_set = where_obj_ptrs[where_new_not_cloud]
                 traj_class[it, class_set] = DETRAINED
-                if debug_mean :
-                    print("DETRAINED",class_set)
+                if debug_mean : print("DETRAINED",class_set)
 
             if np.size(where_not_new_not_cloud) > 0 :
                 class_set = where_obj_ptrs[where_not_new_not_cloud]
                 traj_class[it, class_set] = POST_DETR
-                if debug_mean :
-                    print("POST DETRAINED",class_set)
+                if debug_mean : print("POST DETRAINED",class_set)
 
             if np.size(where_cloud) == 0 :
                 # There are cloudy points
@@ -356,35 +351,34 @@ def set_cloud_class(traj, thresh=None, version=1) :
                     cloud_top[iobj] = np.max(obj_z[it-1,cloud_at_prev_step])
                     in_main_cloud = False
                     after_cloud_dissipated = True
-                if debug_mean :
-                    input("Press Enter to continue...")
 
-
-    traj_class = { \
-                   "class":traj_class, \
-                   "key":class_key, \
-                   "first_cloud_base":first_cloud_base, \
-                   "min_cloud_base":min_cloud_base, \
-                   "cloud_top":cloud_top, \
-                   "cloud_trigger_time":cloud_trigger_time, \
-                   "cloud_dissipate_time":cloud_dissipate_time, \
-                   "version":version, \
+    traj_class = {
+                   "class": traj_class,
+                   "key": class_key,
+                   "first_cloud_base": first_cloud_base,
+                   "min_cloud_base": min_cloud_base,
+                   "cloud_top": cloud_top,
+                   "cloud_trigger_time": cloud_trigger_time,
+                   "cloud_dissipate_time": cloud_dissipate_time,
+                   "version": version,
                  }
     return traj_class
 
 
 
 def cloud_properties(traj, traj_cl, thresh=None, use_density = False) :
-    '''
-    Function to compute trajectory class and mean cloud properties.
+    """
+    Compute trajectory class and mean cloud properties.
 
-    Args:
+    Args
+    ----
         traj       : Trajectory object
         traj_cl    : Dict of Classifications of trajectory points
             provided by set_cloud_class function.
         thresh     : Threshold if LWC to define cloud. Default is traj.thresh.
 
-    Returns:
+    Returns
+    -------
         dictionary pointing to arrays of mean properties and meta data::
 
             Dictionary keys:
@@ -406,10 +400,7 @@ def cloud_properties(traj, traj_cl, thresh=None, use_density = False) :
                 "entrainment"
                 "derived_variable_list"
 
-    @author: Peter Clark
-
-    '''
-
+    """
     if thresh == None : thresh = traj.ref_func_kwargs["thresh"]
     version = traj_cl["version"]
     if version == 1 :
@@ -444,8 +435,7 @@ def cloud_properties(traj, traj_cl, thresh=None, use_density = False) :
     npts_ptr = cv_ptr + 1 # Index of variable in mean_prop which is
     w_ptr = traj.var('w')
     mse_ptr = nvars + list(derived_variable_list.keys()).index("MSE")
-    qt_ptr = nvars + list(derived_variable_list.keys()).index("q_total")
-
+#    qt_ptr = nvars + list(derived_variable_list.keys()).index("q_total")
 
 #    print(nvars, ndvars, nposvars)
     # These possible slices are set for ease of maintenance.
@@ -835,9 +825,9 @@ def cloud_properties(traj, traj_cl, thresh=None, use_density = False) :
         delta_n_over_n[some_cl] = n_new_cloud[some_cl,0] / n_cloud[some_cl,0]
 
 #        z1 = (mean_prop_by_class[1:, iobj, z_ptr, CLOUD]-0.5)*traj.deltaz
-        z1 = np.interp(mean_prop_by_class[1:, iobj, z_ptr, CLOUD],
-                       traj.coords['zcoord'],
-                       traj.coords['zn'])
+#        z1 = np.interp(mean_prop_by_class[1:, iobj, z_ptr, CLOUD],
+#                       traj.coords['zcoord'],
+#                       traj.coords['zn'])
 
         entr_rate = delta_n_over_n / delta_t
 # Side Entrainment rate per m
@@ -953,18 +943,16 @@ def cloud_properties(traj, traj_cl, thresh=None, use_density = False) :
     return mean_properties
 
 def print_cloud_class(traj, traj_cl, sel_obj, list_classes=True) :
-    '''
-    Function to compute trajectory class and mean cloud properties.
+    """
+    Print cloud classifiaction properties.
 
-    Args:
+    Args
+    ---
         traj       : Trajectory object
         traj_cl    : Dict of Classifications of trajectory points
             provided by set_cloud_class function.
 
-    @author: Peter Clark
-
-    '''
-
+    """
     tr_class = traj_cl["class"][:,traj.labels == sel_obj]
     if list_classes :
         for (iclass,key) in enumerate(traj_cl["key"]) :
