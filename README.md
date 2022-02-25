@@ -22,5 +22,3 @@ required, cd to the Subfilter directory and
 This will install as if into the standard library but using the cloned code 
 which can be edited. Please commit code improvements and discuss merging with 
 the master branch with Peter Clark and other users.
-
-
