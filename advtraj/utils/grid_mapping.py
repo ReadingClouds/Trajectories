@@ -6,7 +6,7 @@ as grid indecies) to positions in real space
 import numpy as np
 import xarray as xr
 
-from .interpolation import map_1d_grid_index_to_position
+from advtraj.utils.interpolation import map_1d_grid_index_to_position
 
 
 def _calculate_phase(vr, vi, n_grid):
@@ -135,9 +135,9 @@ def grid_indecies_to_position_scalars(i, j, k, nx, ny, nz, xy_periodic):
         ds["traj_tracer_yr"] = np.cos(2.0 * pi * j / ny)
         ds["traj_tracer_yi"] = np.sin(2.0 * pi * j / ny)
     else:
-        ds["traj_tracer_xr"] = i
-        ds["traj_tracer_yr"] = j
-    ds["traj_tracer_zr"] = k
+        ds["traj_tracer_xr"] = i * 1.0
+        ds["traj_tracer_yr"] = j * 1.0
+    ds["traj_tracer_zr"] = k * 1.0
     ds.attrs["xy_periodic"] = xy_periodic
     return ds
 

@@ -10,11 +10,15 @@ def wrap_posn(x, x_min, x_max):
     lx = x_max - x_min
     x_ = x - x_min
 
-    r = x_ / lx
+    # r = x_ / lx
 
-    N_wrap = np.where(r >= 0.0, r.astype(int), r.astype(int) - 1.0)
+    # N_wrap = np.where(r >= 0.0, r.astype(int), r.astype(int) - 1.0)
 
-    x_wrapped = x - lx * N_wrap
+    # x_wrapped = x - lx * N_wrap
+
+    # Faster version, I think!
+
+    x_wrapped = x_ % lx + x_min
     return x_wrapped
 
 
@@ -58,13 +62,22 @@ def wrap_periodic_grid_coords(
         da_coord = ds_grid[c]
         dx = find_coord_grid_spacing(da_coord=da_coord)
 
+        # Cyclic data has domain one grid box beyond last grid point.
         x_min, x_max = da_coord.min().data, da_coord.max().data
+
         if c in cell_centered_coords:
             x_min -= dx / 2.0
             x_max += dx / 2.0
+        else:
+            x_max += dx
 
-        ds_posn_copy[c].values = wrap_posn(
+        wrapped_x = wrap_posn(
             ds_posn_copy[c].values, x_min=x_min, x_max=x_max
         )
+        d = ds_posn_copy[c].dims
+        if len(d) > 0:
+            ds_posn_copy =ds_posn_copy.update({c:(d[0], wrapped_x)})
+        else:
+            ds_posn_copy =ds_posn_copy.update({c:wrapped_x})
 
     return ds_posn_copy

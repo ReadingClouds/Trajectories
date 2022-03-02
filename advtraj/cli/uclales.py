@@ -8,6 +8,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 import xarray as xr
+import numpy as np
 
 from .. import integrate_trajectories
 from ..utils.cli import optional_debugging
@@ -89,6 +90,10 @@ def load_data(files, fields_to_keep=["w"]):
         ds[c].attrs[f"d{c}"] = find_coord_grid_spacing(
             da_coord=ds[c], show_warnings=False
         )
+        if c in "xy":
+            ds[c].attrs[f"L{c}"]= np.ptp(ds[c].values) + ds[c].attrs[f"d{c}"]
+        else:
+            ds[c].attrs[f"L{c}"]= np.ptp(ds[c].values)
 
     return ds
 
@@ -99,14 +104,23 @@ def main(data_path, file_prefix, output_path):
     ds = load_data(files=files, fields_to_keep=["w"])
 
     ds_ = ds.isel(time=int(ds.time.count()) // 2).sel(z=slice(300, None))
-    da_pt = ds_.where(ds_.w == ds_.w.max(), drop=True)
 
-    # n_timesteps = int(ds.time.count())
-    ds_starting_points = xr.Dataset()
-    ds_starting_points["x"] = da_pt.x.item()
-    ds_starting_points["y"] = da_pt.y.item()
-    ds_starting_points["z"] = da_pt.z.item()
-    ds_starting_points["time"] = da_pt.time
+    X, Y, Z = np.meshgrid(ds_.x, ds_.y, ds_.z, indexing='ij')
+
+    mask = np.where(ds_.w.values == ds_.w.max().values)
+
+    tv = ds_.coords['time'].values
+    x = xr.DataArray(X[mask])
+    y = xr.DataArray(Y[mask])
+    z = xr.DataArray(Z[mask])
+
+    data = {
+        "x": x,
+        "y": y,
+        "z": z,
+    }
+
+    ds_starting_points = xr.Dataset(data_vars = data, coords={'time':tv})
 
     ds_traj = integrate_trajectories(
         ds_position_scalars=ds, ds_starting_points=ds_starting_points

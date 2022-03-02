@@ -2,8 +2,15 @@
 
 ## [Unreleased](https://github.com/ParaConUK/advtraj/tree/HEAD)
 
-[Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.4.0...HEAD)
+[Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.5.0...HEAD)
 
+ - Addition of point iteration to forward calculation.
+ - Uses 'time' as a coord everywhere (rather than a data_var).
+ - Uses 'trajectory_number' as a dimension for the trajectories.
+ - Adaptation for MONC grid.
+ - Other minor efficiencies.
+
+[Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.4.0...HEAD)
 
 *maintenance*
 
