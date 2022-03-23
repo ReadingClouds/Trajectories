@@ -90,15 +90,16 @@ def main(data_path, file_prefix, ref_file, output_path, interp_order=1):
 
     X, Y, Z = np.meshgrid(ds_.x, ds_.y, ds_.z, indexing='ij')
 
-#    mask = np.where(ds_.w.values == ds_.w.max().values)
-    mask = np.where(ds_.w >= 0.9 * ds_.w.max())
+    mask = np.where(ds_.w.values == ds_.w.max().values)
+    # mask = np.where(ds_.w >= 0.9 * ds_.w.max())
 
     print(ds_.w.values[mask])
 
-    tv = ds_.coords['time'].values
-    x = xr.DataArray(X[mask])
-    y = xr.DataArray(Y[mask])
-    z = xr.DataArray(Z[mask])
+    # tv = ds_.coords['time'].values
+    tv = ds_.coords['time'].item()
+    x = xr.DataArray(X[mask]).rename({'dim_0':'trajectory_number'})
+    y = xr.DataArray(Y[mask]).rename({'dim_0':'trajectory_number'})
+    z = xr.DataArray(Z[mask]).rename({'dim_0':'trajectory_number'})
 
     data = {
         "x": x,
@@ -109,6 +110,10 @@ def main(data_path, file_prefix, ref_file, output_path, interp_order=1):
 #    print(x/ds_.x.attrs['dx'], y/ds_.y.attrs['dy'], (z/ds_.z.attrs['dz']+0.5))
 
     ds_starting_points = xr.Dataset(data_vars = data, coords={'time':tv})
+
+    ds_starting_points = ds_starting_points.assign_coords(
+        {'trajectory_number':np.arange(x.values.size)})
+
 
     print(ds_starting_points)
 
