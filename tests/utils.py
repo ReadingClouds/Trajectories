@@ -62,7 +62,7 @@ def orange(*args, **kwargs):
     return cust_range(*args, **kwargs, include=[True, False])
 
 
-def create_uniform_grid(dL, L, cell_centered=True):
+def create_uniform_grid(dL, L, grid_style="cell_centred"):
     """
     Create a grid with uniform resolution in x,y and z with domain spanning
     [0,0,0] to `L` with grid resolution `dL`
@@ -70,14 +70,20 @@ def create_uniform_grid(dL, L, cell_centered=True):
     Lx, Ly, Lz = L
     dx, dy, dz = dL
 
-    if cell_centered:
-        # create cell-center positions
+    if grid_style == "cell_centred":
+        # create cell-centre positions
         x_ = crange(dx / 2.0, Lx - dx / 2.0, dx)
         y_ = crange(dy / 2.0, Ly - dy / 2.0, dy)
         z_ = crange(dz / 2.0, Lz - dz / 2.0, dz)
+    elif grid_style == "monc":
+        # create wrapped positions starting at 0.
+        x_ = crange(0, Lx - dx, dx)
+        y_ = crange(0, Ly - dy, dy)
+        # create cell-centred including virtual point below surface.
+        z_ = crange(-dz / 2.0, Lz - dz / 2.0, dz)
     else:
-        x_ = crange(0.0, Lx, dx)
-        y_ = crange(0.0, Ly, dy)
+        x_ = crange(0.0, Lx - dx, dx)
+        y_ = crange(0.0, Ly - dy, dy)
         z_ = crange(0.0, Lz, dz)
 
     ds = xr.Dataset(coords=dict(x=x_, y=y_, z=z_))
@@ -97,15 +103,20 @@ def create_uniform_grid(dL, L, cell_centered=True):
 def create_initial_dataset(dL, L, xy_periodic=True):
     """
     Create an initial dataset with a uniform grid and the position scalars
-    initiatied to the locations in the grid
+    initiated to the locations in the grid.
     """
     dx, dy, dz = dL
     ds_grid = create_uniform_grid(dL=dL, L=L)
 
-    ds_grid["xy_periodic"] = xy_periodic
+    ds_grid.attrs["xy_periodic"] = xy_periodic
 
     ds = init_position_scalars(ds=ds_grid)
     ds["time"] = np.datetime64("2020-01-01T00:00")
+
+    for i, c in enumerate("xyz"):
+
+        ds[c].attrs[f"d{c}"] = dL[i]
+        ds[c].attrs[f"L{c}"] = L[i]
 
     return ds
 
@@ -113,7 +124,7 @@ def create_initial_dataset(dL, L, xy_periodic=True):
 def init_position_scalars(ds):
     """
     Add or replace the position scalars in the dataset `ds` using the grid
-    defined in there (through the coordinates `x`, `y` and `z`)
+    defined in there (through the coordinates `x`, `y` and `z`).
     """
     ds_position_scalars = advtraj_gm_utils.grid_locations_to_position_scalars(
         ds_grid=ds, ds_pts=None
@@ -125,8 +136,6 @@ def init_position_scalars(ds):
         if v in ds.data_vars:
             ds = ds.drop(v)
 
-    xy_periodic = ds.xy_periodic
     ds = xr.merge([ds, ds_position_scalars])
-    ds.attrs["xy_periodic"] = xy_periodic
 
     return ds

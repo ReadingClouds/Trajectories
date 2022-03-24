@@ -15,6 +15,7 @@ def wrap_posn(x, x_min, x_max):
     N_wrap = np.where(r >= 0.0, r.astype(int), r.astype(int) - 1.0)
 
     x_wrapped = x - lx * N_wrap
+
     return x_wrapped
 
 
@@ -62,9 +63,10 @@ def wrap_periodic_grid_coords(
         if c in cell_centered_coords:
             x_min -= dx / 2.0
             x_max += dx / 2.0
+        else:
+            x_max += dx
 
         ds_posn_copy[c].values = wrap_posn(
             ds_posn_copy[c].values, x_min=x_min, x_max=x_max
         )
-
     return ds_posn_copy

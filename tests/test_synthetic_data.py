@@ -10,7 +10,7 @@ def _advect_fields(ds_scalars, u, v, dt):
     Perform poor-mans advection by rolling all variables in `ds_scalars` by a
     finite number of grid positions, requiring that the time-increment `dt`
     causes exactly grid-aligned shifts using grid resolution `dx_grid`,
-    `dy_grid` with x- and y-velocity (`u`, `v`)
+    `dy_grid` with x- and y-velocity (`u`, `v`).
     """
     dx_grid = ds_scalars.x.dx
     dy_grid = ds_scalars.y.dy
