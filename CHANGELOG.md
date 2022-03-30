@@ -5,12 +5,8 @@
 [Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.4.0...HEAD)
 
 *Support for MONC*
-Primarily changes to support the MONC grid. This has:
-- First u point at first p point + dx/2, so it makes sense to have p[0] at x=0.
-- First v point at first p point + dy/2, so it makes sense to have p[0] at y=0.
-- Virtual p point at z = -dz/2.
-
-Main changes are in creating synthetic data fro testing.
+Add support for MONC grid by implementing its c-grid configuration for where
+the position scalars are stored.
 
 *maintenance*
 

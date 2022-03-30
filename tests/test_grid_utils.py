@@ -51,6 +51,8 @@ def test_cyclic_coord_wrapping(grid_style):
 
     if grid_style == "cell_centered":
         cell_centered_coords = ["x", "y", "z"]
+    elif grid_style == "monc":
+        cell_centered_coords = ["x", "y"]
     else:
         cell_centered_coords = []
 

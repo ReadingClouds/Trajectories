@@ -66,6 +66,8 @@ def create_uniform_grid(dL, L, grid_style="cell_centred"):
     """
     Create a grid with uniform resolution in x,y and z with domain spanning
     [0,0,0] to `L` with grid resolution `dL`
+
+
     """
     Lx, Ly, Lz = L
     dx, dy, dz = dL
@@ -77,8 +79,8 @@ def create_uniform_grid(dL, L, grid_style="cell_centred"):
         z_ = crange(dz / 2.0, Lz - dz / 2.0, dz)
     elif grid_style == "monc":
         # create wrapped positions starting at 0.
-        x_ = crange(0, Lx - dx, dx)
-        y_ = crange(0, Ly - dy, dy)
+        x_ = crange(dx / 2.0, Lx - dx / 2.0, dx)
+        y_ = crange(dy / 2.0, Ly - dy / 2.0, dy)
         # create cell-centred including virtual point below surface.
         z_ = crange(-dz / 2.0, Lz - dz / 2.0, dz)
     else:

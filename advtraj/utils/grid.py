@@ -1,3 +1,27 @@
+"""
+    grid.py
+
+    Utilities to deal with grid wrapping etc.
+
+    Currently, caters for the following grid styles:
+
+    "cell_centred"
+    - p-point (cell centre) p[0, 0, 0]] at x = dx/2, y = dy/2, z = dz/2.
+    - u-point (cell face) u[0, 0, 0] at p[0, 0, 0] - dx/2, i.e. x = 0.
+    - v-point (cell face) v[0, 0, 0] at p[0, 0, 0] - dy/2, i.e. y = 0.
+    - w-point (cell face) w[0, 0, 0] at p[0, 0, 0] - dz/2, i.e. z = 0.
+    - Virtual p point at z = -dz/2.
+
+    "monc"
+    - Virtual p points at z = -dz/2 so:
+    - p-point (cell centre) p[0, 0, 0]] at x = dx/2, y = dy/2, z = -dz/2.
+    - u-point (cell face) u[0, 0, 0] at p[0, 0, 0] + dx/2, i.e. x = dx.
+    - v-point (cell face) v[0, 0, 0] at p[0, 0, 0] + dy/2, i.e. y = dy.
+    - w-point (cell face) w[0, 0, 0] at p[0, 0, 0] + dz/2, i.e. z = 0.
+
+    ""
+    - All points [0, 0, 0] at x = 0, y = 0, z = 0.
+"""
 import warnings
 
 import numpy as np
