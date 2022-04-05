@@ -17,6 +17,8 @@ def _calculate_phase(vr, vi, n_grid):
     correspond to the left-most of the domain). To support staggered variables
     this should be adapted.
 
+    Note: assumes zeroth grid point has zero phase.
+
     Args:
         vr, vi  : real and imaginary parts of complex location.
         n_grid  : grid size
@@ -40,7 +42,9 @@ def _estimate_dim_initial_grid_indecies(ds_position_scalars, dim, xy_periodic, n
     """
     Using the position scalars in `ds_position_scalars` estimate the grid
     locations (in indecies) where the fluid was initially located when the
-    position scalars were initiated
+    position scalars were initiated.
+
+    Note: assumes zeroth grid point has zero phase.
     """
     if dim in ["x", "y"] and xy_periodic:
         da_vr = ds_position_scalars[f"traj_tracer_{dim}r"]

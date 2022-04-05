@@ -14,12 +14,12 @@ def test_wrap_coord_posn():
     np.testing.assert_allclose(x_wrapped_true, x_wrapped)
 
 
-@pytest.mark.parametrize("cell_centered", [True, False])
-def test_cyclic_coord_wrapping(cell_centered):
+@pytest.mark.parametrize("grid_style", ["cell_centered", "monc", ""])
+def test_cyclic_coord_wrapping(grid_style):
     dx = 25.0
     dL = (dx, dx, dx)
     L = (1.0e3, 1.0e3, 500.0)
-    ds_grid = create_uniform_grid(dL=dL, L=L, cell_centered=cell_centered)
+    ds_grid = create_uniform_grid(dL=dL, L=L, grid_style=grid_style)
 
     Lx_c, Ly_c, Lz_c = [L[0] / 2.0, L[1] / 2.0, L[2] / 2.0]
     Lx, Ly, Lz = L
@@ -49,8 +49,10 @@ def test_cyclic_coord_wrapping(cell_centered):
     def _pt_from_dataset(ds_pt):
         return np.array([ds_pt[v] for v in ["x", "y", "z"]])
 
-    if cell_centered:
+    if grid_style == "cell_centered":
         cell_centered_coords = ["x", "y", "z"]
+    elif grid_style == "monc":
+        cell_centered_coords = ["x", "y"]
     else:
         cell_centered_coords = []
 

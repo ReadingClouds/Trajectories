@@ -4,6 +4,9 @@
 
 [Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.4.0...HEAD)
 
+*Support for MONC*
+Add support for MONC grid by implementing its c-grid configuration for where
+the position scalars are stored.
 
 *maintenance*
 
