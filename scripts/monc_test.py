@@ -90,8 +90,8 @@ def main(data_path, file_prefix, ref_file, output_path, interp_order=1):
 
     X, Y, Z = np.meshgrid(ds_.x, ds_.y, ds_.z, indexing='ij')
 
-    mask = np.where(ds_.w.values == ds_.w.max().values)
-    # mask = np.where(ds_.w >= 0.9 * ds_.w.max())
+    # mask = np.where(ds_.w.values == ds_.w.max().values)
+    mask = np.where(ds_.w >= 0.9 * ds_.w.max())
 
     print(ds_.w.values[mask])
 
@@ -130,6 +130,7 @@ def main(data_path, file_prefix, ref_file, output_path, interp_order=1):
 
     print(f'Elapsed time = {delta_t}')
 
+    print(ds_traj["time"] - ds_traj["ref_time"])
 
     output_path = output_path.format(file_prefix=file_prefix)
     ds_traj.to_netcdf(output_path)
@@ -144,7 +145,7 @@ def main(data_path, file_prefix, ref_file, output_path, interp_order=1):
     ax[1].set_ylim([0,7000])
     ax[2].set_ylim([0,2000])
     fig.tight_layout()
-    fig.savefig(f"C:/Users/paclk\OneDrive - University of Reading/Git/python/advtraj/scripts/advtraj_{interp_order}.png")
+    fig.savefig(f"advtraj_{interp_order}.png")
     plt.show()
 
 

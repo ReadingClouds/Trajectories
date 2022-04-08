@@ -64,72 +64,6 @@ def _validate_starting_points(ds):
             "The starting position dataset is missing the trajectory coord."
         )
 
-
-def _integrate_single_trajectory(ds_starting_point,
-                                 ds_position_scalars,
-                                 da_times,
-                                 interp_order = 1
-):
-    """
-    Integrate single trajectory forwards and back.
-
-    Integrate a single trajectory both forward and backward from
-    `ds_starting_point` using `ds_position_scalars` and times in `da_times`
-    """
-    da_times_backward = da_times.sel(time=slice(None, ds_starting_point.time))
-    da_times_forward = da_times.sel(time=slice(ds_starting_point.time, None)).isel(
-        time=slice(1, None)
-    )
-
-    ds_traj_backward = integrate_backward(
-        ds_position_scalars=ds_position_scalars,
-        ds_starting_point=ds_starting_point,
-        da_times=da_times_backward,
-        interp_order=interp_order,
-    )
-
-    ds_traj = integrate_forward(
-        ds_position_scalars=ds_position_scalars,
-        ds_back_trajectory=ds_traj_backward,
-        da_times=da_times_forward,
-        interp_order=interp_order,
-    )
-
-    return ds_traj
-
-def _integrate_trajectories(ds_starting_point,
-                                     ds_position_scalars,
-                                     da_times,
-                                     interp_order = 1
-):
-    """
-    Integrate multiple trajectories forwards and back.
-
-    Integrate a trajectories both forward and backward from
-    `ds_starting_point` using `ds_position_scalars` and times in `da_times`
-    """
-    ref_time = ds_starting_point.time
-    da_times_backward = da_times.sel(time=slice(None, ref_time))
-    da_times_forward = da_times.sel(time=slice(ref_time, None)).isel(
-        time=slice(1, None)
-    )
-
-    ds_traj_backward = integrate_backward(
-        ds_position_scalars=ds_position_scalars,
-        ds_starting_point=ds_starting_point,
-        da_times=da_times_backward,
-        interp_order=interp_order,
-    )
-
-    ds_traj = integrate_forward(
-        ds_position_scalars=ds_position_scalars,
-        ds_back_trajectory=ds_traj_backward,
-        da_times=da_times_forward,
-        interp_order=interp_order,
-    )
-
-    return ds_traj
-
 def integrate_trajectories(ds_position_scalars,
                            ds_starting_points,
                            times="position_scalars",
@@ -150,14 +84,29 @@ def integrate_trajectories(ds_position_scalars,
     else:
         raise NotImplementedError(times)
 
+    ref_time = ds_starting_points.time
+    ds_starting_points = ds_starting_points.assign_coords(
+        {'ref_time':ref_time})
+    
+    da_times_backward = da_times.sel(time=slice(None, ref_time))
+    da_times_forward = da_times.sel(time=slice(ref_time, None)).isel(
+        time=slice(1, None)
+    )
     # all coordinates that are defined for the starting position variables will
     # be treated as if they represent different trajectories
-    ds_traj = _integrate_trajectories(
+    
+    ds_traj_backward = integrate_backward(
         ds_position_scalars=ds_position_scalars,
         ds_starting_point=ds_starting_points,
-        da_times=da_times,
+        da_times=da_times_backward,
         interp_order=interp_order,
     )
 
+    ds_traj = integrate_forward(
+        ds_position_scalars=ds_position_scalars,
+        ds_back_trajectory=ds_traj_backward,
+        da_times=da_times_forward,
+        interp_order=interp_order,
+    )
 
     return ds_traj
