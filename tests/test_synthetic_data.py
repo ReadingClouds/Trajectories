@@ -27,7 +27,8 @@ def _advect_fields(ds_scalars, u, v, dt):
     i_shift = _calc_shift(dx_grid, u)
     j_shift = _calc_shift(dy_grid, v)
     ds_new = ds_scalars.roll(dict(x=i_shift, y=j_shift), roll_coords=False)
-    ds_new["time"] = ds_scalars.time + np.timedelta64(int(dt), "s")
+
+    ds_new = ds_new.assign_coords(time=ds_scalars.time + np.timedelta64(int(dt), "s"))
     return ds_new
 
 
@@ -113,10 +114,14 @@ def _single_trajectory_integration(
     ds_initial = create_initial_dataset(dL=(dx, dy, dz), L=(Lx, Ly, Lz))
 
     n_timesteps = int(t_max / dt) + 1
-    datasets_timesteps = [ds_initial]
-    for n in range(n_timesteps - 1):
-        ds_prev = datasets_timesteps[-1]
-        ds_prev_reset = init_position_scalars(ds=ds_prev.copy())
+    datasets_timesteps = []
+    ds_new = None
+    for n in range(n_timesteps):
+        # ds_prev = datasets_timesteps[-1]
+        ds_prev_reset = init_position_scalars(ds=ds_initial.copy())
+        if datasets_timesteps:
+            ds_prev_reset = ds_prev_reset.assign_coords(time=ds_new["time"])
+
         # the position scalars are reset every time the 3D output is generated
         ds_new = _advect_fields(ds_prev_reset, u=u, v=v, dt=dt)
         datasets_timesteps.append(ds_new)
@@ -126,18 +131,35 @@ def _single_trajectory_integration(
     position_scalars = [f"traj_tracer_{s}" for s in ["xr", "xi", "yr", "yi", "zr"]]
     ds_position_scalars = ds[position_scalars]
 
+    nrep = 3
     # make up some starting points for the trajectories, making three trajectories for now
     ds_starting_points = xr.Dataset()
-    ds_starting_points["x"] = Lx / 2.0 + 0.25 * dx
+    ds_starting_points["x"] = xr.DataArray(
+        np.repeat(Lx / 2.0 + 0.25 * dx, nrep),
+        dims=["trajectory_number"],
+        coords={"trajectory_number": np.arange(nrep)},
+    )
     ds_starting_points.x.attrs["units"] = "m"
-    ds_starting_points["y"] = Ly / 2.0 + 0.25 * dy
+    ds_starting_points["y"] = xr.DataArray(
+        np.repeat(Ly / 2.0 + 0.25 * dy, nrep),
+        dims=["trajectory_number"],
+        coords={"trajectory_number": np.arange(nrep)},
+    )
     ds_starting_points.y.attrs["units"] = "m"
-    ds_starting_points["z"] = Lz / 2.0
+    ds_starting_points["z"] = xr.DataArray(
+        np.repeat(Lz / 2.0, nrep),
+        dims=["trajectory_number"],
+        coords={"trajectory_number": np.arange(nrep)},
+    )
     ds_starting_points.z.attrs["units"] = "m"
-    t0 = ds.time.isel(time=int(ds.time.count()) // 2).values
-    ds_starting_points["time"] = ("trajectory_number"), [t0, t0, t0]
 
-    ds_starting_points = ds_starting_points.isel(trajectory_number=0)
+    #    ds_starting_points = ds_starting_points.rename({'dim_0':'trajectory_number'})
+    t0 = ds.time.isel(time=int(ds.time.count()) // 2).values
+
+    #    ds_starting_points["time"] = ("trajectory_number"), [t0, t0, t0]
+    ds_starting_points = ds_starting_points.assign_coords(time=t0)
+
+    ds_starting_points = ds_starting_points.isel(trajectory_number=0, drop=False)
 
     ds_traj = integrate_trajectories(
         ds_position_scalars=ds_position_scalars, ds_starting_points=ds_starting_points
