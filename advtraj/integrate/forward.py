@@ -67,6 +67,9 @@ def _extrapolate_single_timestep(
         ds_pt = xr.Dataset()
         for n, c in enumerate("xyz"):
             ds_pt[c] = arr_pt[n]
+
+        ds_pt = ds_pt.rename({"dim_0": "trajectory_number"})
+
         return ds_pt
 
     # for the minimizsation we will be using just a numpy-array containing the
