@@ -184,8 +184,8 @@ def _single_trajectory_integration(
     # the estimates for the grid-position aren't perfect, allow for a small
     # error for now
     atol = 0.1
-    np.testing.assert_allclose(x_truth, x_est, atol=atol)
-    np.testing.assert_allclose(y_truth, y_est, atol=atol)
+    np.testing.assert_allclose(x_truth, x_est.squeeze(), atol=atol)
+    np.testing.assert_allclose(y_truth, y_est.squeeze(), atol=atol)
 
 
 def _test_trajectory_integration_diagonal_advection():
