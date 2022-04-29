@@ -70,7 +70,7 @@ def test_stationary_trajectory():
     dt = 120.0  # [s]
     u = 0.0  # [m/s]
     v = 0.0  # [m/s]
-    _single_trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L)
+    _trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L)
 
 
 def test_linear_trajectory_x_direction():
@@ -80,7 +80,7 @@ def test_linear_trajectory_x_direction():
     u = 1.0  # [m/s]
     v = 0.0  # [m/s]
     t_max = L / u * 1.5
-    _single_trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max)
+    _trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max)
 
 
 def test_linear_trajectory_y_direction():
@@ -90,7 +90,7 @@ def test_linear_trajectory_y_direction():
     u = 0.0  # [m/s]
     v = -1.0  # [m/s]
     t_max = L / abs(v) * 1.5
-    _single_trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max)
+    _trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max)
 
 
 def test_linear_trajectory_diagonal():
@@ -100,12 +100,10 @@ def test_linear_trajectory_diagonal():
     u = 2.0  # [m/s]
     v = -2.0  # [m/s]
     t_max = L / u * 1.5
-    _single_trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max)
+    _trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max)
 
 
-def _single_trajectory_integration(
-    u=4.0, v=-3.0, dt=5 * 60.0, dx=25.0, L=5.0e3, t_max=5 * 60
-):
+def _trajectory_integration(u=4.0, v=-3.0, dt=5 * 60.0, dx=25.0, L=5.0e3, t_max=5 * 60):
     Lx = Ly = L  # [m]
     dy = dz = dx  # [m]
 
@@ -159,11 +157,7 @@ def _single_trajectory_integration(
     #    ds_starting_points["time"] = ("trajectory_number"), [t0, t0, t0]
     ds_starting_points = ds_starting_points.assign_coords(time=t0)
 
-    ds_starting_points = ds_starting_points.isel(trajectory_number=0, drop=False)
-
-    ds_traj = integrate_trajectories(
-        ds_position_scalars=ds_position_scalars, ds_starting_points=ds_starting_points
-    )
+    # Calculate 'Truth'.
 
     # work out how far the points should have moved
     def _get_dt64_total_seconds(arr):
@@ -175,6 +169,18 @@ def _single_trajectory_integration(
     x_truth = _wrap_add(ds_starting_points.x.item(), u * dt_steps, 0.0, Lx)
     y_truth = _wrap_add(ds_starting_points.y.item(), v * dt_steps, 0.0, Ly)
 
+    # Test for single trajectory first
+
+    ds_starting_points_single = ds_starting_points.isel(
+        trajectory_number=0,
+        drop=False,
+    )
+
+    ds_traj = integrate_trajectories(
+        ds_position_scalars=ds_position_scalars,
+        ds_starting_points=ds_starting_points_single,
+    )
+
     x_est = ds_traj.x.values
     y_est = ds_traj.y.values
 
@@ -184,6 +190,20 @@ def _single_trajectory_integration(
     # the estimates for the grid-position aren't perfect, allow for a small
     # error for now
     atol = 0.1
+
+    np.testing.assert_allclose(x_truth, x_est.squeeze(), atol=atol)
+    np.testing.assert_allclose(y_truth, y_est.squeeze(), atol=atol)
+
+    # Test for multiple trajectories.
+
+    x_truth = np.repeat(x_truth, nrep).reshape((-1, nrep))
+    y_truth = np.repeat(y_truth, nrep).reshape((-1, nrep))
+
+    ds_traj = integrate_trajectories(
+        ds_position_scalars=ds_position_scalars,
+        ds_starting_points=ds_starting_points,
+    )
+
     np.testing.assert_allclose(x_truth, x_est.squeeze(), atol=atol)
     np.testing.assert_allclose(y_truth, y_est.squeeze(), atol=atol)
 

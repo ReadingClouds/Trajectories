@@ -85,7 +85,8 @@ def load_data(files, fields_to_keep=["w"]):
     # simulations with UCLA-LES always have periodic boundary conditions
     ds.attrs["xy_periodic"] = True
 
-    # add the grid-spacing as attributes to speed up calculations
+    # add the grid-spacing and domain extent as attributes
+    # dx, dy, dz and Lx, Ly, Lz respectively to speed up calculations
     for c in "xyz":
         ds[c].attrs[f"d{c}"] = find_coord_grid_spacing(
             da_coord=ds[c], show_warnings=False

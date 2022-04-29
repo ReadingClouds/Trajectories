@@ -90,13 +90,16 @@ def wrap_periodic_grid_coords(
         else:
             x_max += dx
 
+        # Now wrap the position where needed
         wrapped_x = wrap_posn(ds_posn_copy[c].values, x_min=x_min, x_max=x_max)
+
+        # Now update variable c with wrapped values, including dim[0],
+        # which should be 'trajectory_number', if available.
+        # Do not include dim if it's not in the orriginal.
+
         d = ds_posn_copy[c].dims
         if len(d) > 0:
             ds_posn_copy = ds_posn_copy.update({c: (d[0], wrapped_x)})
         else:
             ds_posn_copy = ds_posn_copy.update({c: wrapped_x})
-    #        ds_posn_copy[c].values = wrap_posn(
-    #            ds_posn_copy[c].values, x_min=x_min, x_max=x_max
-    #        )
     return ds_posn_copy
