@@ -165,10 +165,6 @@ def _trajectory_integration(u=4.0, v=-3.0, dt=5 * 60.0, dx=25.0, L=5.0e3, t_max=
             [dt64.astype("timedelta64[s]").item().total_seconds() for dt64 in arr]
         )
 
-    dt_steps = _get_dt64_total_seconds((ds.time - t0).values)
-    x_truth = _wrap_add(ds_starting_points.x.item(), u * dt_steps, 0.0, Lx)
-    y_truth = _wrap_add(ds_starting_points.y.item(), v * dt_steps, 0.0, Ly)
-
     # Test for single trajectory first
 
     ds_starting_points_single = ds_starting_points.isel(
@@ -184,25 +180,36 @@ def _trajectory_integration(u=4.0, v=-3.0, dt=5 * 60.0, dx=25.0, L=5.0e3, t_max=
     x_est = ds_traj.x.values
     y_est = ds_traj.y.values
 
-    assert len(x_truth) == n_timesteps
+    dt_steps = _get_dt64_total_seconds((ds.time - t0).values)
+    x_truth_single = _wrap_add(
+        ds_starting_points_single.x.item(), u * dt_steps, 0.0, Lx
+    )
+    y_truth_single = _wrap_add(
+        ds_starting_points_single.y.item(), v * dt_steps, 0.0, Ly
+    )
+
+    assert len(x_truth_single) == n_timesteps
     assert len(x_est) == n_timesteps
 
     # the estimates for the grid-position aren't perfect, allow for a small
     # error for now
     atol = 0.1
 
-    np.testing.assert_allclose(x_truth, x_est.squeeze(), atol=atol)
-    np.testing.assert_allclose(y_truth, y_est.squeeze(), atol=atol)
+    np.testing.assert_allclose(x_truth_single, x_est.squeeze(), atol=atol)
+    np.testing.assert_allclose(y_truth_single, y_est.squeeze(), atol=atol)
 
     # Test for multiple trajectories.
 
-    x_truth = np.repeat(x_truth, nrep).reshape((-1, nrep))
-    y_truth = np.repeat(y_truth, nrep).reshape((-1, nrep))
+    x_truth = np.repeat(x_truth_single, nrep).reshape((-1, nrep))
+    y_truth = np.repeat(y_truth_single, nrep).reshape((-1, nrep))
 
     ds_traj = integrate_trajectories(
         ds_position_scalars=ds_position_scalars,
         ds_starting_points=ds_starting_points,
     )
+
+    x_est = ds_traj.x.values
+    y_est = ds_traj.y.values
 
     np.testing.assert_allclose(x_truth, x_est.squeeze(), atol=atol)
     np.testing.assert_allclose(y_truth, y_est.squeeze(), atol=atol)
