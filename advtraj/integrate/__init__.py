@@ -4,7 +4,8 @@ Main routines for integration
 from .backward import backward as integrate_backward
 from .forward import forward as integrate_forward
 
-POSITION_COORD_NAMES = ["x", "y", "z"]
+POSITION_VAR_NAMES = ["x", "y", "z"]
+EXPECTED_STARTING_POSITION_COORDS = ["time", "trajectory_number"]
 
 
 def _validate_position_scalars(ds, xy_periodic=False):
@@ -13,7 +14,7 @@ def _validate_position_scalars(ds, xy_periodic=False):
     dataset (depending on whether we're using periodic boundaries in the
     xy-direction)
     """
-    required_coords = POSITION_COORD_NAMES
+    required_coords = POSITION_VAR_NAMES
     required_vars = ["traj_tracer_xr", "traj_tracer_yr", "traj_tracer_zr"]
 
     if xy_periodic:
@@ -41,7 +42,7 @@ def _validate_starting_points(ds):
     Ensure that starting positions dataset contains the necessary variables for
     describe the starting position
     """
-    required_vars = POSITION_COORD_NAMES
+    required_vars = POSITION_VAR_NAMES
 
     missing_vars = list(filter(lambda c: c not in ds.data_vars, required_vars))
 
@@ -54,12 +55,26 @@ def _validate_starting_points(ds):
     if "time" not in ds.coords:
         raise Exception("The starting position dataset is missing the time cooord.")
 
-    coords = [c for c in ds[POSITION_COORD_NAMES[0]].coords if "time" not in c]
-
-    if len(coords) == 0:
+    dims = set(list(ds.dims))
+    unexpected_coords = dims.difference(EXPECTED_STARTING_POSITION_COORDS)
+    if len(unexpected_coords) > 0:
         raise Exception(
-            "The starting position dataset is missing the trajectory coord."
+            "The starting position should may only contain dimensions"
+            " called `time` and/or `trajectory_number, but the starting points"
+            " contain the following unexpected coords:"
+            f" {', '.join(unexpected_coords)}"
         )
+
+
+def _promote_starting_position_vars_to_coords(ds):
+    """
+    Promote any variables in the starting position dataset to coords for
+    variables which have
+    """
+    for c in EXPECTED_STARTING_POSITION_COORDS:
+        if c in ds.data_vars:
+            ds = ds.set_coords({c: ds[c]})
+    return ds
 
 
 def integrate_trajectories(
@@ -75,6 +90,9 @@ def integrate_trajectories(
     Using "position scalars" `ds_position_scalars` integrate trajectories from
     starting points in `ds_starting_points` to times as in `times`
     """
+    ds_starting_points = _promote_starting_position_vars_to_coords(
+        ds=ds_starting_points
+    )
     _validate_position_scalars(ds=ds_position_scalars, xy_periodic=xy_periodic)
     _validate_starting_points(ds=ds_starting_points)
 
