@@ -47,16 +47,13 @@ def map_1d_grid_index_to_position(idx_grid, da_coord):
 def interpolate_3d_field(da, ds_positions, interp_order=1, cyclic_boundaries=[]):
     """
     Perform interpolation of xr.DataArray `da` at positions given by data
-    variables in `ds_posisions` with interpolation order `interp_order`. Cyclic
+    variables in `ds_positions` with interpolation order `interp_order`. Cyclic
     boundary conditions are used by providing a `list` of the coordinates which
     have cyclic boundaries, e.g. (`cyclic_boundaries = 'xy'` or
     `cyclic_boundaries = ['x', 'y']`)
     """
-#    dx, dy, dz = find_grid_spacing(da, coords="xyz")
-
     c_min = np.array([da[c].min().values for c in da.dims])
     c_max = np.array([da[c].max().values for c in da.dims])
-#    dX = np.array([dx, dy, dz])
     dX = np.array([da[c].attrs[f'd{c}'] for c in da.dims])
     periodicity = [c in cyclic_boundaries for c in da.dims]
 
@@ -88,7 +85,6 @@ def interpolate_from_interpolator(v, ds_positions, fn):
         vals,
         dims=ds_positions.dims,
         coords=ds_positions.coords,
-#        attrs=da.attrs, # do we need these?
         name=v,
     )
 

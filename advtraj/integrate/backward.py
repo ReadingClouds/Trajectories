@@ -50,13 +50,19 @@ def calc_trajectory_previous_position(
         i=ds_traj_init_grid_idxs.i,
         j=ds_traj_init_grid_idxs.j,
         k=ds_traj_init_grid_idxs.k,
-        interp_order=interp_order,
     )
 
+    # Error in back trajectory is not quantifiable. Set to 0.
+    for c in 'xyz':
+        err = np.zeros_like(ds_traj_posn_prev[f'{c}_est'].values)
+        ds_traj_posn_prev[f'{c}_err'] = xr.DataArray(err)\
+              .rename({'dim_0':'trajectory_number'})
+    
     return ds_traj_posn_prev
 
 
-def backward(ds_position_scalars, ds_starting_point, da_times, interp_order=1):
+def backward(ds_position_scalars, ds_starting_point, da_times, interp_order=1,
+             options=None):
     """
     Using the position scalars `ds_position_scalars` integrate backwards from
     `ds_starting_point` to the times in `da_times`

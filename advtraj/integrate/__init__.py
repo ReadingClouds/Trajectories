@@ -68,7 +68,9 @@ def integrate_trajectories(ds_position_scalars,
                            ds_starting_points,
                            times="position_scalars",
                            xy_periodic=True,
-                           interp_order = 1
+                           interp_order = 1,
+                           solver = 'PI',
+                           options=None,
 ):
     """
     Integrate trajectories forwards and back.
@@ -100,6 +102,7 @@ def integrate_trajectories(ds_position_scalars,
         ds_starting_point=ds_starting_points,
         da_times=da_times_backward,
         interp_order=interp_order,
+        options=options,
     )
 
     ds_traj = integrate_forward(
@@ -107,6 +110,8 @@ def integrate_trajectories(ds_position_scalars,
         ds_back_trajectory=ds_traj_backward,
         da_times=da_times_forward,
         interp_order=interp_order,
+        solver = solver,
+        options=options,
     )
 
     return ds_traj

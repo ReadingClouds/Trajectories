@@ -95,7 +95,7 @@ def estimate_initial_grid_indecies(ds_position_scalars, N_grid=dict()):
     return xr.merge([da_i_idx, da_j_idx, da_k_idx])
 
 
-def estimate_3d_position_from_grid_indecies(ds_grid, i, j, k, interp_order=1):
+def estimate_3d_position_from_grid_indecies(ds_grid, i, j, k):
     """
     Using the 3D grid positions (in real units, not grid indecies) defined in
     `ds_grid` (through coordinates `x`, `y` and `z`) interpolate the "grid
