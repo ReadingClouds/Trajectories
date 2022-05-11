@@ -121,7 +121,7 @@ def main(data_path, file_prefix, output_path):
     # where they are variables instead
     ds_starting_points = (
         ds_poi.reset_index("trajectory_number")
-        # .assign_coords(trajectory_number=np.arange(ds_poi.trajectory_number.count()))
+        .assign_coords(trajectory_number=np.arange(ds_poi.trajectory_number.count()))
         .reset_coords(["x", "y", "z"])[["x", "y", "z"]]
     )
 
