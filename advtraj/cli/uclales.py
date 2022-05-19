@@ -104,24 +104,26 @@ def main(data_path, file_prefix, output_path):
 
     ds = load_data(files=files, fields_to_keep=["w"])
 
-    ds_ = ds.isel(time=int(ds.time.count()) // 2).sel(z=slice(300, None))
+    # as an example take the timestep half-way through the available data and
+    # from 300m altitude and up
+    ds_subset = ds.isel(time=int(ds.time.count()) // 2).sel(z=slice(300, None))
 
-    X, Y, Z = np.meshgrid(ds_.x, ds_.y, ds_.z, indexing="ij")
+    # we'll use as starting points for the trajectories all points where the
+    # vertical velocity is 80% of the maximum value
+    w_max = ds_subset.w.max()
+    ds_poi = (
+        ds_subset.where(ds_subset.w > 0.8 * w_max, drop=True)
+        .stack(trajectory_number=("x", "y", "z"))
+        .dropna(dim="trajectory_number")
+    )
 
-    mask = np.where(ds_.w.values == ds_.w.max().values)
-
-    tv = ds_.coords["time"].values
-    x = xr.DataArray(X[mask])
-    y = xr.DataArray(Y[mask])
-    z = xr.DataArray(Z[mask])
-
-    data = {
-        "x": x,
-        "y": y,
-        "z": z,
-    }
-
-    ds_starting_points = xr.Dataset(data_vars=data, coords={"time": tv})
+    # now we'll turn this 1D dataset where (x, y, z) are coordinates into one
+    # where they are variables instead
+    ds_starting_points = (
+        ds_poi.reset_index("trajectory_number")
+        .assign_coords(trajectory_number=np.arange(ds_poi.trajectory_number.count()))
+        .reset_coords(["x", "y", "z"])[["x", "y", "z"]]
+    )
 
     ds_traj = integrate_trajectories(
         ds_position_scalars=ds, ds_starting_points=ds_starting_points

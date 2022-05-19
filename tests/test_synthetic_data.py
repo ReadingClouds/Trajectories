@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import xarray as xr
 from utils import create_initial_dataset, init_position_scalars
 
@@ -64,46 +65,85 @@ def _wrap_add(x, y, a, b):
     return x - (b - a) * (x >= b)
 
 
-def test_stationary_trajectory():
+@pytest.mark.parametrize("n_trajectories", [1, 3])
+def test_stationary_trajectory(n_trajectories):
     L = 5.0e3  # [m]
     dx = 25.0  # [m]
     dt = 120.0  # [s]
     u = 0.0  # [m/s]
     v = 0.0  # [m/s]
-    _trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L)
+    _trajectory_integration(n_trajectories=n_trajectories, u=u, v=v, dt=dt, dx=dx, L=L)
 
 
-def test_linear_trajectory_x_direction():
+@pytest.mark.parametrize("n_trajectories", [1, 3])
+def test_linear_trajectory_x_direction(n_trajectories):
     L = 2.0e2  # [m]
     dx = 25.0  # [m]
     dt = 25.0  # [s]
     u = 1.0  # [m/s]
     v = 0.0  # [m/s]
     t_max = L / u * 1.5
-    _trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max)
+    _trajectory_integration(
+        n_trajectories=n_trajectories, u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max
+    )
 
 
-def test_linear_trajectory_y_direction():
+@pytest.mark.parametrize("n_trajectories", [1, 3])
+def test_linear_trajectory_y_direction(n_trajectories):
     L = 2.0e2  # [m]
     dx = 25.0  # [m]
     dt = 25.0  # [s]
     u = 0.0  # [m/s]
     v = -1.0  # [m/s]
     t_max = L / abs(v) * 1.5
-    _trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max)
+    _trajectory_integration(
+        n_trajectories=n_trajectories, u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max
+    )
 
 
-def test_linear_trajectory_diagonal():
+@pytest.mark.parametrize("n_trajectories", [1, 3])
+def test_linear_trajectory_diagonal(n_trajectories):
     L = 2.0e2  # [m]
     dx = 25.0  # [m]
     dt = 25.0  # [s]
     u = 2.0  # [m/s]
     v = -2.0  # [m/s]
     t_max = L / u * 1.5
-    _trajectory_integration(u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max)
+    _trajectory_integration(
+        n_trajectories=n_trajectories, u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max
+    )
 
 
-def _trajectory_integration(u=4.0, v=-3.0, dt=5 * 60.0, dx=25.0, L=5.0e3, t_max=5 * 60):
+def _make_starting_points(n_trajectories, t0, dx, dy, dz, Lx, Ly, Lz):
+    # make up some starting points for the trajectories, making three trajectories for now
+    ds_starting_points = xr.Dataset()
+    ds_starting_points["x"] = xr.DataArray(
+        np.repeat(Lx / 2.0 + 0.25 * dx, n_trajectories),
+        dims=["trajectory_number"],
+        coords={"trajectory_number": np.arange(n_trajectories)},
+    )
+    ds_starting_points.x.attrs["units"] = "m"
+    ds_starting_points["y"] = xr.DataArray(
+        np.repeat(Ly / 2.0 + 0.25 * dy, n_trajectories),
+        dims=["trajectory_number"],
+        coords={"trajectory_number": np.arange(n_trajectories)},
+    )
+    ds_starting_points.y.attrs["units"] = "m"
+    ds_starting_points["z"] = xr.DataArray(
+        np.repeat(Lz / 2.0, n_trajectories),
+        dims=["trajectory_number"],
+        coords={"trajectory_number": np.arange(n_trajectories)},
+    )
+    ds_starting_points.z.attrs["units"] = "m"
+
+    ds_starting_points = ds_starting_points.assign_coords(time=t0)
+
+    return ds_starting_points
+
+
+def _trajectory_integration(
+    n_trajectories, u=4.0, v=-3.0, dt=5 * 60.0, dx=25.0, L=5.0e3, t_max=5 * 60
+):
     Lx = Ly = L  # [m]
     dy = dz = dx  # [m]
 
@@ -129,35 +169,10 @@ def _trajectory_integration(u=4.0, v=-3.0, dt=5 * 60.0, dx=25.0, L=5.0e3, t_max=
     position_scalars = [f"traj_tracer_{s}" for s in ["xr", "xi", "yr", "yi", "zr"]]
     ds_position_scalars = ds[position_scalars]
 
-    nrep = 3
-    # make up some starting points for the trajectories, making three trajectories for now
-    ds_starting_points = xr.Dataset()
-    ds_starting_points["x"] = xr.DataArray(
-        np.repeat(Lx / 2.0 + 0.25 * dx, nrep),
-        dims=["trajectory_number"],
-        coords={"trajectory_number": np.arange(nrep)},
-    )
-    ds_starting_points.x.attrs["units"] = "m"
-    ds_starting_points["y"] = xr.DataArray(
-        np.repeat(Ly / 2.0 + 0.25 * dy, nrep),
-        dims=["trajectory_number"],
-        coords={"trajectory_number": np.arange(nrep)},
-    )
-    ds_starting_points.y.attrs["units"] = "m"
-    ds_starting_points["z"] = xr.DataArray(
-        np.repeat(Lz / 2.0, nrep),
-        dims=["trajectory_number"],
-        coords={"trajectory_number": np.arange(nrep)},
-    )
-    ds_starting_points.z.attrs["units"] = "m"
-
-    #    ds_starting_points = ds_starting_points.rename({'dim_0':'trajectory_number'})
     t0 = ds.time.isel(time=int(ds.time.count()) // 2).values
-
-    #    ds_starting_points["time"] = ("trajectory_number"), [t0, t0, t0]
-    ds_starting_points = ds_starting_points.assign_coords(time=t0)
-
-    # Calculate 'Truth'.
+    ds_starting_points = _make_starting_points(
+        n_trajectories=n_trajectories, t0=t0, dx=dx, dy=dy, dz=dz, Lx=Lx, Ly=Ly, Lz=Lz
+    )
 
     # work out how far the points should have moved
     def _get_dt64_total_seconds(arr):
@@ -199,9 +214,12 @@ def _trajectory_integration(u=4.0, v=-3.0, dt=5 * 60.0, dx=25.0, L=5.0e3, t_max=
     np.testing.assert_allclose(y_truth_single, y_est.squeeze(), atol=atol)
 
     # Test for multiple trajectories.
-
-    x_truth = np.repeat(x_truth_single, nrep).reshape((-1, nrep))
-    y_truth = np.repeat(y_truth_single, nrep).reshape((-1, nrep))
+    if n_trajectories > 1:
+        x_truth = np.repeat(x_truth_single[..., np.newaxis], n_trajectories, axis=-1)
+        y_truth = np.repeat(y_truth_single[..., np.newaxis], n_trajectories, axis=-1)
+    else:
+        x_truth = x_truth_single
+        y_truth = y_truth_single
 
     ds_traj = integrate_trajectories(
         ds_position_scalars=ds_position_scalars,
