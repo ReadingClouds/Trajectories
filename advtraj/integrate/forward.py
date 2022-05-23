@@ -61,12 +61,17 @@ def _extrapolate_single_timestep(
     ds_traj_posn_next_est = 2 * ds_traj_posn_origin - ds_traj_posn_prev
 
     def _pt_ds_to_arr(ds_pt):
+        """Convert trajectory positions dataset to numpy array."""
         return np.array([ds_pt[c].data for c in "xyz"])
 
     def _pt_arr_to_ds(arr_pt):
+        """Convert numpy array to trajectory positions dataset."""
+        # Ensure arr_pt has 2 dimensions.
+        arr_pt = arr_pt.reshape((3, -1))
         ds_pt = xr.Dataset()
         for n, c in enumerate("xyz"):
-            ds_pt[c] = arr_pt[n]
+            ds_pt[c] = xr.DataArray(arr_pt[n, :], dims=("trajectory_number"))
+
         return ds_pt
 
     # for the minimizsation we will be using just a numpy-array containing the

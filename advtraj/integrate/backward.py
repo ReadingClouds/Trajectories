@@ -88,14 +88,10 @@ def backward(ds_position_scalars, ds_starting_point, da_times, interp_order=1):
             else:
                 raise
 
-        ds_traj_posn_prev = xr.Dataset()
-        for n, c in enumerate(["x", "y", "z"]):
-            ds_traj_posn_prev[c] = xr.DataArray(
-                ds_traj_posn_est[f"{c}_est"].item(),
-                attrs=ds_position_scalars[c].attrs,
-                name=c,
-            )
-        ds_traj_posn_prev["time"] = t_previous
+        ds_traj_posn_prev = ds_traj_posn_est.rename(
+            {"x_est": "x", "y_est": "y", "z_est": "z"}
+        ).assign_coords({"time": t_previous.values})
+
         datasets.append(ds_traj_posn_prev)
 
     ds_traj = xr.concat(datasets[::-1], dim="time")

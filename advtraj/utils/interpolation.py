@@ -62,7 +62,7 @@ def interpolate_3d_field(da, ds_positions, interp_order=1, cyclic_boundaries=[])
         a=c_min, b=c_max, h=dX, f=da.values, k=interp_order, p=periodicity
     )
 
-    vals = fn(*[ds_positions[c] for c in da.dims])
+    vals = fn(*[ds_positions[c].values for c in da.dims])
 
     da_interpolated = xr.DataArray(
         vals,

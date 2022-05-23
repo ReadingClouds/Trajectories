@@ -7,6 +7,7 @@ https://github.com/leifdenby/uclales/tree/advective-trajectories
 from collections import OrderedDict
 from pathlib import Path
 
+import numpy as np
 import xarray as xr
 
 from .. import integrate_trajectories
@@ -84,11 +85,16 @@ def load_data(files, fields_to_keep=["w"]):
     # simulations with UCLA-LES always have periodic boundary conditions
     ds.attrs["xy_periodic"] = True
 
-    # add the grid-spacing as attributes to speed up calculations
+    # add the grid-spacing and domain extent as attributes
+    # dx, dy, dz and Lx, Ly, Lz respectively to speed up calculations
     for c in "xyz":
         ds[c].attrs[f"d{c}"] = find_coord_grid_spacing(
             da_coord=ds[c], show_warnings=False
         )
+        if c in "xy":
+            ds[c].attrs[f"L{c}"] = np.ptp(ds[c].values) + ds[c].attrs[f"d{c}"]
+        else:
+            ds[c].attrs[f"L{c}"] = np.ptp(ds[c].values)
 
     return ds
 
@@ -98,15 +104,26 @@ def main(data_path, file_prefix, output_path):
 
     ds = load_data(files=files, fields_to_keep=["w"])
 
-    ds_ = ds.isel(time=int(ds.time.count()) // 2).sel(z=slice(300, None))
-    da_pt = ds_.where(ds_.w == ds_.w.max(), drop=True)
+    # as an example take the timestep half-way through the available data and
+    # from 300m altitude and up
+    ds_subset = ds.isel(time=int(ds.time.count()) // 2).sel(z=slice(300, None))
 
-    # n_timesteps = int(ds.time.count())
-    ds_starting_points = xr.Dataset()
-    ds_starting_points["x"] = da_pt.x.item()
-    ds_starting_points["y"] = da_pt.y.item()
-    ds_starting_points["z"] = da_pt.z.item()
-    ds_starting_points["time"] = da_pt.time
+    # we'll use as starting points for the trajectories all points where the
+    # vertical velocity is 80% of the maximum value
+    w_max = ds_subset.w.max()
+    ds_poi = (
+        ds_subset.where(ds_subset.w > 0.8 * w_max, drop=True)
+        .stack(trajectory_number=("x", "y", "z"))
+        .dropna(dim="trajectory_number")
+    )
+
+    # now we'll turn this 1D dataset where (x, y, z) are coordinates into one
+    # where they are variables instead
+    ds_starting_points = (
+        ds_poi.reset_index("trajectory_number")
+        .assign_coords(trajectory_number=np.arange(ds_poi.trajectory_number.count()))
+        .reset_coords(["x", "y", "z"])[["x", "y", "z"]]
+    )
 
     ds_traj = integrate_trajectories(
         ds_position_scalars=ds, ds_starting_points=ds_starting_points

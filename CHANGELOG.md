@@ -4,7 +4,15 @@
 
 [Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.4.0...HEAD)
 
+
 *new features*
+
+- Use of 'time' as DimCoord. Make 'time' the coordinate of trajectory points
+  instead of a variable. Requires addition of 'ref_time' as a coord,
+  indicating the starting point of forward and back trajectories, and
+  introduces 'trajectory_no' as DimCoord for trajectories.
+  Also removes need for .stack.apply to loop over trajectories.
+  Code now works for arbitrary number of start points. [\#8]
 
 - Add support for MONC grid by implementing its c-grid
   configuration for where the position scalars are stored.

@@ -113,7 +113,7 @@ def create_initial_dataset(dL, L, xy_periodic=True):
     ds_grid.attrs["xy_periodic"] = xy_periodic
 
     ds = init_position_scalars(ds=ds_grid)
-    ds["time"] = np.datetime64("2020-01-01T00:00")
+    ds = ds.assign_coords(time=np.datetime64("2020-01-01T00:00"))
 
     for i, c in enumerate("xyz"):
 
