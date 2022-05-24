@@ -117,6 +117,7 @@ def main(data_path, file_prefix, ref_file, output_path,
         ds = load_data(files=files, ref_dataset=ref_dataset, 
                         fields_to_keep=["w"])
     
+        # Select reference time (i.e. start of back and forward trajectories)
         ds_ = ds.isel(time=int(ds.time.count()) // 2).sel(z=slice(300, None))
     
         X, Y, Z = np.meshgrid(ds_.x, ds_.y, ds_.z, indexing='ij')
@@ -131,6 +132,7 @@ def main(data_path, file_prefix, ref_file, output_path,
         ds = load_data(files=files, ref_dataset=ref_dataset, 
                         fields_to_keep=["q_cloud_liquid_mass"])
     
+        # Select reference time (i.e. start of back and forward trajectories)
         ds_ = ds.isel(time=int(ds.time.count()) // 2)
     
         X, Y, Z = np.meshgrid(ds_.x, ds_.y, ds_.z, indexing='ij')
@@ -174,6 +176,8 @@ def main(data_path, file_prefix, ref_file, output_path,
 
     ds_traj = integrate_trajectories(ds_position_scalars=ds,
                                      ds_starting_points=ds_starting_points,
+                                     times="fixed timesteps",
+                                     time_info=(10,10),
                                      interp_order=interp_order, 
                                      solver=minim,
                                      options=options)
@@ -184,7 +188,7 @@ def main(data_path, file_prefix, ref_file, output_path,
 
     print(f'Elapsed time = {delta_t}')
 
-#    print(ds_traj["time"] - ds_traj["ref_time"])
+    print(ds_traj["time"] - ds_traj["ref_time"])
 
     attrs = {'interp_order':interp_order, 
              'solver':minim,
@@ -229,19 +233,20 @@ def main(data_path, file_prefix, ref_file, output_path,
 
 if __name__ == "__main__":
     
-    # case='w'
-    case='cloud'
+    case='w'
+    # case='cloud'
     
-    # minim = 'PI_hybrid'
-    minim = 'PI'
+    minim = 'PI_hybrid'
+    # minim = 'PI'
     # minim = 'BFGS'
     # minim = 'CG'
     # minim = 'Nelder-Mead'
     # minim = 'SLSQP'
     
     interp_order=5
+    expt = 'test_times'
     # expt = 'test_mid'
-    expt = 'test'
+    # expt = 'test'
     # expt = 'ref'
     # expt = 'std'
 

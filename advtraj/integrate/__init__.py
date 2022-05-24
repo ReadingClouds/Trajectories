@@ -67,6 +67,7 @@ def _validate_starting_points(ds):
 def integrate_trajectories(ds_position_scalars,
                            ds_starting_points,
                            times="position_scalars",
+                           time_info=(1,1),
                            xy_periodic=True,
                            interp_order = 1,
                            solver = 'PI',
@@ -80,13 +81,27 @@ def integrate_trajectories(ds_position_scalars,
     """
     _validate_position_scalars(ds=ds_position_scalars, xy_periodic=xy_periodic)
     _validate_starting_points(ds=ds_starting_points)
+    
+    ref_time = ds_starting_points.time
+    input_times = list(ds_position_scalars['time'].values)
+    if ref_time not in input_times:
+        raise ValueError(f"Reference time {ref_time} is not in dataset.")
 
+    ref_index = input_times.index(ref_time)
+    
     if times == "position_scalars":
         da_times = ds_position_scalars.time
+    elif times == "fixed timesteps":       
+        if len(time_info)!=2:
+            raise ValueError('time_info must have at least two items.')
+        start_index = max(0, ref_index-max(1,time_info[0]))
+        end_index = min(len(input_times), ref_index+max(0,time_info[1])+1)
+        da_times = ds_position_scalars.time.isel(
+            time=slice(start_index, end_index))
+                        
     else:
         raise NotImplementedError(times)
 
-    ref_time = ds_starting_points.time
     ds_starting_points = ds_starting_points.assign_coords(
         {'ref_time':ref_time})
     

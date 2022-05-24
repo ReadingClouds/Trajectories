@@ -250,6 +250,7 @@ def _extrapolate_single_timestep(
         maxiter = options.get('maxiter', 500)
         miniter = options.get('miniter', 10)
         relax = options.get('relax', 0.8)
+        relax_reduce = options.get('relax_reduce', 0.9)
         tol = options.get('tol', 0.01)
         alt_delta = options.get('alt_delta', False)
         opt_one_step = options.get('opt_one_step', False)
@@ -273,14 +274,13 @@ def _extrapolate_single_timestep(
                                            interp_order=interp_order)
 
         ndist = dist/grid_spacing
-        err = _norm(ndist)
-        niter = 0
-        not_converged = True
-        
+        err = _norm(ndist)        
         ds_traj_posn_next = ds_traj_posn_first_guess
         
         dist_prev = dist.copy()
 
+        niter = 0
+        not_converged = True
         while not_converged:
             
             
@@ -322,7 +322,7 @@ def _extrapolate_single_timestep(
             if niter >= maxiter:
                 break
             # If we need a lot of iterations, reduce the relaxation factor.
-            if niter%miniter==0: relax *= 0.9
+            if niter%miniter==0: relax *= relax_reduce
         
         if niter >= maxiter:
             # Select out those trajectories that have not converged.
@@ -333,33 +333,36 @@ def _extrapolate_single_timestep(
                   f"{np.sum(not_conv_mask)} trajectories did not converge. "
                   f"Final error = {err}")
            
-            
         if solver == 'PI_hybrid' and niter >= maxiter:
-            
+        # Use optimization solution for un-converged trajectories.
+
+            # Default options.            
             minoptions = {
                         'max_outer_loops': 1,
                         'minimize_options':{
                                             'maxiter': 50,
-                                            'disp': True,
+                                            'disp': False,
                                            }
                          }
+            # Update options.
             if options is not None and 'minoptions' in options:
                 minoptions.update(options['minoptions'])
                             
-            pt_traj_posn_next = _pt_ds_to_arr(ds_traj_posn_next)
-            
+            # Convert best estimate from point iteration to array.
+            pt_traj_posn_next = _pt_ds_to_arr(ds_traj_posn_next)  
+            # Select unconverged trajectories.
             pt_traj_posn_next_not_conv = pt_traj_posn_next[:, not_conv_mask]            
             
             print(f"Optimising {pt_traj_posn_next_not_conv.shape[1]} "
                   f"unconverged trajectories.")
-            
-                                         
-                                         
-            # Select out corresponding 'true' value.
-            
+                    
+            # Select out corresponding 'true' value.            
             ds_traj_posn_org_subset = ds_traj_posn_org[["x","y","z"]]\
                                         .isel(trajectory_number=not_conv_mask)
                                         
+            # Choice between optimising all the selected trajectories together
+            # or one at a time. 
+            # First option is likely to be deprecated in future.
             if opt_one_step:
                 pt_traj_posn_next_not_conv = pt_traj_posn_next_not_conv\
                     .flatten()
@@ -387,14 +390,13 @@ def _extrapolate_single_timestep(
                                               minoptions=minoptions)
                     
                     pt_traj_posn_next_not_conv[:,itraj] = pt_traj_posn
-                
-                        
-                
+                                    
+            # Put results back into main array.
             pt_traj_posn_next[:, not_conv_mask] = pt_traj_posn_next_not_conv\
                 .reshape((3,-1))
-                        
+            # Convert to Dataset
             ds_traj_posn_next = _pt_arr_to_ds(pt_traj_posn_next)
-            
+            # Calculate final error.
             dist = _calc_backtrack_origin_dist(ds_position_scalars,
                                                ds_traj_posn_org,
                                                ds_traj_posn_next,
@@ -508,7 +510,7 @@ def forward(ds_position_scalars, ds_back_trajectory, da_times,
     backward trajectory must contain at least two points in time as these are
     used for the initial guess for the forward extrapolation
     """
-    if not ds_back_trajectory.time.count() >= 2:
+    if ds_back_trajectory.time.count() < 2:
         raise Exception(
             "The back trajectory must contain at least two points for the forward"
             " extrapolation have an initial guess for the direction"
@@ -517,6 +519,10 @@ def forward(ds_position_scalars, ds_back_trajectory, da_times,
     # create a copy of the backward trajectory so that we have a dataset into
     # which we will accumulate the full trajectory
     ds_traj = ds_back_trajectory.copy()
+    
+    if da_times.size == 0:
+        print("No forward trajectories requested")
+        return ds_traj
 
     # step forward in time, `t_forward` represents the time we're of the next
     # point (forward) of the trajectory
