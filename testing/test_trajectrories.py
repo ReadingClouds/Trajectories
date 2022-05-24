@@ -177,7 +177,7 @@ dtrbydt2 = tracer2[1:,:] - tracer2[:-1,:]
 #plt.show()
 #%%
 
-if True:
+if False:
     time1 = time.perf_counter()
 
     traj_test = tc.Trajectories(files, ref_prof_file,
