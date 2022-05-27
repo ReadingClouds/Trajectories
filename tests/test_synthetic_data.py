@@ -65,18 +65,24 @@ def _wrap_add(x, y, a, b):
     return x - (b - a) * (x >= b)
 
 
-@pytest.mark.parametrize("n_trajectories", [1, 3])
-def test_stationary_trajectory(n_trajectories):
+testvars = "solver, n_trajectories"
+tests = [("PI", 1), ("PI", 3), ("PI_hybrid", 1), ("PI_hybrid", 3), ("BFGS", 3)]
+
+
+@pytest.mark.parametrize(testvars, tests)
+def test_stationary_trajectory(solver, n_trajectories):
     L = 5.0e3  # [m]
     dx = 25.0  # [m]
     dt = 120.0  # [s]
     u = 0.0  # [m/s]
     v = 0.0  # [m/s]
-    _trajectory_integration(n_trajectories=n_trajectories, u=u, v=v, dt=dt, dx=dx, L=L)
+    _trajectory_integration(
+        solver=solver, n_trajectories=n_trajectories, u=u, v=v, dt=dt, dx=dx, L=L
+    )
 
 
-@pytest.mark.parametrize("n_trajectories", [1, 3])
-def test_linear_trajectory_x_direction(n_trajectories):
+@pytest.mark.parametrize(testvars, tests)
+def test_linear_trajectory_x_direction(solver, n_trajectories):
     L = 2.0e2  # [m]
     dx = 25.0  # [m]
     dt = 25.0  # [s]
@@ -84,12 +90,19 @@ def test_linear_trajectory_x_direction(n_trajectories):
     v = 0.0  # [m/s]
     t_max = L / u * 1.5
     _trajectory_integration(
-        n_trajectories=n_trajectories, u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max
+        solver=solver,
+        n_trajectories=n_trajectories,
+        u=u,
+        v=v,
+        dt=dt,
+        dx=dx,
+        L=L,
+        t_max=t_max,
     )
 
 
-@pytest.mark.parametrize("n_trajectories", [1, 3])
-def test_linear_trajectory_y_direction(n_trajectories):
+@pytest.mark.parametrize(testvars, tests)
+def test_linear_trajectory_y_direction(solver, n_trajectories):
     L = 2.0e2  # [m]
     dx = 25.0  # [m]
     dt = 25.0  # [s]
@@ -97,12 +110,19 @@ def test_linear_trajectory_y_direction(n_trajectories):
     v = -1.0  # [m/s]
     t_max = L / abs(v) * 1.5
     _trajectory_integration(
-        n_trajectories=n_trajectories, u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max
+        solver=solver,
+        n_trajectories=n_trajectories,
+        u=u,
+        v=v,
+        dt=dt,
+        dx=dx,
+        L=L,
+        t_max=t_max,
     )
 
 
-@pytest.mark.parametrize("n_trajectories", [1, 3])
-def test_linear_trajectory_diagonal(n_trajectories):
+@pytest.mark.parametrize(testvars, tests)
+def test_linear_trajectory_diagonal(solver, n_trajectories):
     L = 2.0e2  # [m]
     dx = 25.0  # [m]
     dt = 25.0  # [s]
@@ -110,7 +130,14 @@ def test_linear_trajectory_diagonal(n_trajectories):
     v = -2.0  # [m/s]
     t_max = L / u * 1.5
     _trajectory_integration(
-        n_trajectories=n_trajectories, u=u, v=v, dt=dt, dx=dx, L=L, t_max=t_max
+        solver=solver,
+        n_trajectories=n_trajectories,
+        u=u,
+        v=v,
+        dt=dt,
+        dx=dx,
+        L=L,
+        t_max=t_max,
     )
 
 
@@ -138,11 +165,15 @@ def _make_starting_points(n_trajectories, t0, dx, dy, dz, Lx, Ly, Lz):
 
     ds_starting_points = ds_starting_points.assign_coords(time=t0)
 
+    ds_starting_points["x_err"] = xr.zeros_like(ds_starting_points["x"])
+    ds_starting_points["y_err"] = xr.zeros_like(ds_starting_points["y"])
+    ds_starting_points["z_err"] = xr.zeros_like(ds_starting_points["z"])
+
     return ds_starting_points
 
 
 def _trajectory_integration(
-    n_trajectories, u=4.0, v=-3.0, dt=5 * 60.0, dx=25.0, L=5.0e3, t_max=5 * 60
+    solver, n_trajectories, u=4.0, v=-3.0, dt=5 * 60.0, dx=25.0, L=5.0e3, t_max=5 * 60
 ):
     Lx = Ly = L  # [m]
     dy = dz = dx  # [m]
@@ -180,20 +211,12 @@ def _trajectory_integration(
             [dt64.astype("timedelta64[s]").item().total_seconds() for dt64 in arr]
         )
 
-    # Test for single trajectory first
+    # Use single trajectory to get 'truth' data.
 
     ds_starting_points_single = ds_starting_points.isel(
         trajectory_number=0,
         drop=False,
     )
-
-    ds_traj = integrate_trajectories(
-        ds_position_scalars=ds_position_scalars,
-        ds_starting_points=ds_starting_points_single,
-    )
-
-    x_est = ds_traj.x.values
-    y_est = ds_traj.y.values
 
     dt_steps = _get_dt64_total_seconds((ds.time - t0).values)
     x_truth_single = _wrap_add(
@@ -204,14 +227,6 @@ def _trajectory_integration(
     )
 
     assert len(x_truth_single) == n_timesteps
-    assert len(x_est) == n_timesteps
-
-    # the estimates for the grid-position aren't perfect, allow for a small
-    # error for now
-    atol = 0.1
-
-    np.testing.assert_allclose(x_truth_single, x_est.squeeze(), atol=atol)
-    np.testing.assert_allclose(y_truth_single, y_est.squeeze(), atol=atol)
 
     # Test for multiple trajectories.
     if n_trajectories > 1:
@@ -224,16 +239,22 @@ def _trajectory_integration(
     ds_traj = integrate_trajectories(
         ds_position_scalars=ds_position_scalars,
         ds_starting_points=ds_starting_points,
+        solver=solver,
     )
 
     x_est = ds_traj.x.values
     y_est = ds_traj.y.values
+    assert len(x_est) == n_timesteps
+
+    # # the estimates for the grid-position aren't perfect, allow for a small
+    # # error for now
+    atol = 0.1
 
     np.testing.assert_allclose(x_truth, x_est.squeeze(), atol=atol)
     np.testing.assert_allclose(y_truth, y_est.squeeze(), atol=atol)
 
 
-def _test_trajectory_integration_diagonal_advection():
+def _test_trajectory_integration_diagonal_advection(solver):
     Lx = Ly = 0.5e3  # [m]
     Lz = 1.0e3  # [m]
     dx = dy = dz = 25.0  # [m]
@@ -278,7 +299,9 @@ def _test_trajectory_integration_diagonal_advection():
     ds_starting_points = ds_starting_points.isel(trajectory_number=0)
 
     integrate_trajectories(
-        ds_position_scalars=ds_position_scalars, ds_starting_points=ds_starting_points
+        ds_position_scalars=ds_position_scalars,
+        ds_starting_points=ds_starting_points,
+        solver=solver,
     )
 
     raise Exception
