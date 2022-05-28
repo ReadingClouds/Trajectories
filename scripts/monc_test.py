@@ -213,8 +213,8 @@ if __name__ == "__main__":
 
     interp_order = 5
     # expt = 'test'
-    expt = "ref"
-    # expt = 'std'
+    # expt = "ref"
+    expt = "std"
 
     data_path = "C:/Users/paclk/OneDrive - University of Reading/ug_project_data/Data/"
     odir = "C:/Users/paclk/OneDrive - University of Reading/ug_project_data/Data/trajectories/"

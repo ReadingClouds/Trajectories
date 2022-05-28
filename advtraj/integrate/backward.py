@@ -107,9 +107,6 @@ def backward(
         # Error in back trajectory is not quantifiable. Set to 0.
         for c in "xyz":
             ds_traj_posn_prev[f"{c}_err"] = xr.zeros_like(ds_traj_posn_prev[c])
-            # err = np.zeros_like(ds_traj_posn_prev[f'{c}_est'].values)
-            # ds_traj_posn_prev[f'{c}_err'] = xr.DataArray(err)\
-            # .rename({'dim_0':'trajectory_number'})
 
         datasets.append(ds_traj_posn_prev)
 
