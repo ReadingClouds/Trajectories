@@ -34,7 +34,8 @@ def _calculate_phase(vr, vi, n_grid):
     if isinstance(vpos, np.ndarray):
         vpos[vpos < -0.5] += n_grid
     else:
-        vpos = vpos.where(vpos >= -0.5, vpos + n_grid)
+        #    vpos = vpos.where(vpos >= -0.5, vpos + n_grid)
+        vpos = xr.where(vpos < -0.5, vpos + n_grid, vpos)
     return vpos
 
 
