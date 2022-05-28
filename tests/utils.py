@@ -99,11 +99,6 @@ def create_uniform_grid(dL, L, grid_style="cell_centred"):
     ds.y.attrs["long_name"] = "y-horz. posn."
     ds.z.attrs["long_name"] = "height"
 
-    # Add residual errors.
-    ds["x_err"] = xr.zeros_like(ds["x"])
-    ds["y_err"] = xr.zeros_like(ds["y"])
-    ds["z_err"] = xr.zeros_like(ds["z"])
-
     return ds
 
 
@@ -144,5 +139,9 @@ def init_position_scalars(ds):
             ds = ds.drop(v)
 
     ds = xr.merge([ds, ds_position_scalars])
+    # Add residual errors.
+    ds["x_err"] = xr.zeros_like(ds["x"])
+    ds["y_err"] = xr.zeros_like(ds["y"])
+    ds["z_err"] = xr.zeros_like(ds["z"])
 
     return ds

@@ -18,9 +18,15 @@ def test_position_scalar_transforms_are_symmetric():
 
     N_pts = 5
     ds_pts = xr.Dataset(coords=dict(pt=np.arange(N_pts)))
-    ds_pts["x"] = "pt", np.linspace(ds_grid.x.min(), ds_grid.x.max(), N_pts) - dx / 2.0
-    ds_pts["y"] = "pt", np.linspace(ds_grid.y.min(), ds_grid.y.max(), N_pts) - dy / 2.0
-    ds_pts["z"] = "pt", np.linspace(ds_grid.z.min(), ds_grid.z.max(), N_pts) - dz / 2.0
+    ds_pts["x"] = "pt", np.linspace(
+        ds_grid.x.min(), ds_grid.x.max(), N_pts
+    )  # - dx / 2.0
+    ds_pts["y"] = "pt", np.linspace(
+        ds_grid.y.min(), ds_grid.y.max(), N_pts
+    )  # - dy / 2.0
+    ds_pts["z"] = "pt", np.linspace(
+        ds_grid.z.min(), ds_grid.z.max(), N_pts
+    )  # - dz / 2.0
 
     for xy_periodic in [True, False]:
         ds_grid["xy_periodic"] = xy_periodic
