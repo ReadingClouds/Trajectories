@@ -30,12 +30,12 @@ def _calculate_phase(vr, vi, n_grid):
 
     """
 
-    vpos = (np.arctan2(vi, vr) / (2.0 * np.pi)) * n_grid
-    if isinstance(vpos, np.ndarray):
-        vpos[vpos < -0.5] += n_grid
-    else:
-        #    vpos = vpos.where(vpos >= -0.5, vpos + n_grid)
-        vpos = xr.where(vpos < -0.5, vpos + n_grid, vpos)
+    vpos = ((np.arctan2(vi, vr) / (2.0 * np.pi)) * n_grid + 0.5) % n_grid - 0.5
+    #    if isinstance(vpos, np.ndarray):
+    #        vpos[vpos < -0.5] += n_grid
+    #    else:
+    #        #    vpos = vpos.where(vpos >= -0.5, vpos + n_grid)
+    #        vpos = xr.where(vpos < -0.5, vpos + n_grid, vpos)
     return vpos
 
 
