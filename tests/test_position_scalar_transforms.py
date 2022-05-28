@@ -27,15 +27,18 @@ def test_position_scalar_transforms_are_symmetric():
         ds_position_scalars_pts = advtraj_gm_utils.grid_locations_to_position_scalars(
             ds_grid=ds_grid, ds_pts=ds_pts
         )
+        print(ds_position_scalars_pts)
         ds_grid_idxs_pts = advtraj_gm_utils.estimate_initial_grid_indecies(
             ds_position_scalars=ds_position_scalars_pts, N_grid=dict(x=nx, y=ny)
         )
+        print(ds_grid_idxs_pts)
         ds_pts_est = advtraj_gm_utils.estimate_3d_position_from_grid_indecies(
             ds_grid=ds_grid,
             i=ds_grid_idxs_pts.i,
             j=ds_grid_idxs_pts.j,
             k=ds_grid_idxs_pts.k,
         )
+        print(ds_pts_est)
 
         np.testing.assert_allclose(ds_pts.x, ds_pts_est.x_est)
         np.testing.assert_allclose(ds_pts.y, ds_pts_est.y_est)
