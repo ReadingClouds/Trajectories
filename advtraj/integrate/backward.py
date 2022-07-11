@@ -2,14 +2,14 @@
 Functionality for computing trajectories backward from a set of starting points
 at a single point in time using the position scalars.
 """
+import numpy as np
 import xarray as xr
 from tqdm import tqdm
 
-from advtraj.utils.grid_mapping import (
+from ..utils.grid_mapping import (
     estimate_3d_position_from_grid_indecies,
     estimate_initial_grid_indecies,
 )
-
 from ..utils.interpolation import interpolate_3d_fields
 
 
@@ -58,7 +58,10 @@ def calc_trajectory_previous_position(
 
 
 def backward(
-    ds_position_scalars, ds_starting_point, da_times, interp_order=5, options=None
+    ds_position_scalars,
+    ds_starting_point,
+    da_times,
+    interp_order=5,
 ):
     """
     Using the position scalars `ds_position_scalars` integrate backwards from
@@ -72,7 +75,6 @@ def backward(
     # point (backwards) of the trajectory
     # start at 1 because this provides position for previous time.
     for t_current in tqdm(da_times.values[1:][::-1], desc="backward"):
-        # for t_current in tqdm(da_times.values[1:4][::-1], desc="backward"):
 
         ds_traj_posn_origin = datasets[-1].drop_vars("time")
 
@@ -104,9 +106,9 @@ def backward(
             {"x_est": "x", "y_est": "y", "z_est": "z"}
         ).assign_coords({"time": t_previous.values})
 
-        # Error in back trajectory is not quantifiable. Set to 0.
+        # Error in back trajectory is not quantifiable. Set to NaN.
         for c in "xyz":
-            ds_traj_posn_prev[f"{c}_err"] = xr.zeros_like(ds_traj_posn_prev[c])
+            ds_traj_posn_prev[f"{c}_err"] = xr.ones_like(ds_traj_posn_prev[c]) * np.NaN
 
         datasets.append(ds_traj_posn_prev)
 

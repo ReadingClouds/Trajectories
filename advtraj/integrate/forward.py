@@ -118,6 +118,35 @@ def _pt_arr_to_ds(arr_pt):
     return ds_pt
 
 
+def get_error_norm(
+    scalars,
+    pos_org,
+    pos_est,
+    grid_spacing,
+    norm="max_abs_error",
+    interpolator=None,
+    interp_order=5,
+):
+    dist = _calc_backtrack_origin_dist(
+        scalars,
+        pos_org,
+        pos_est,
+        interpolator=interpolator,
+        interp_order=interp_order,
+    )
+
+    ndist = dist / grid_spacing
+
+    if norm == "max_abs_error":
+        err = np.linalg.norm(ndist.flatten(), ord=np.inf)
+    if norm == "mean_abs_error":
+        err = np.mean(np.abs(ndist))
+    else:
+        err = np.linalg.norm(ndist.flatten()) / np.sqrt(ndist.size)
+
+    return dist, ndist, err
+
+
 def _backtrack_origin_point_iterate(
     ds_position_scalars,
     ds_traj_posn_org,
@@ -125,7 +154,17 @@ def _backtrack_origin_point_iterate(
     interpolator,
     solver,
     interp_order=5,
-    pioptions=None,
+    maxiter=200,
+    miniter=10,
+    disp=False,
+    relax=1.0,
+    relax_reduce=0.95,
+    tol=0.01,
+    opt_one_step=False,
+    norm="max_abs_error",
+    max_outer_loops=1,
+    minimizer="BFGS",
+    minim_kwargs=None,
 ):
     """
     Find the forward trajectory solutions as an Xarray DataSet.
@@ -134,7 +173,8 @@ def _backtrack_origin_point_iterate(
     at pt_traj_posn_next equals ds_traj_posn_org, with first guess
     pt_traj_posn_first_guess as a numpy array.
 
-    This uses point iteration; optionally (solver='PI_hybrid') uses
+    This uses point iteration;
+    optionally (solver='hybrid_hybrid_fixed_point_iterator') uses
     _pt_backtrack_origin_optimize to find solution for points that do not
     converge in the allowed iterations. Note that the optimizer often uses
     many hundreds of error evaluations, so it is worth letting the point
@@ -157,31 +197,28 @@ def _backtrack_origin_point_iterate(
         Pre-calculated interpolator for fields in ds_position_scalars.
         If None, interpolator is calculated on each call to the interpolation.
     solver : str
-        'PI' or 'PI_hybrid'.
+        "hybrid_fixed_point_iterator" or "hybrid_fixed_point_iterator".
     interp_order : int, optional
         Interpolation order. The default is 5.
-    pioptions : dict, optional
-        Options for solution and minimization. The default is None.
-        pioptions available::
 
-            maxiter (int)        : Maximum number of iterations. Delault=500.
-            miniter (int)        : Number of iterations to use before adjusting
-                                   relax. Default=10.
-            relax (float)        : Initial relaxation factor. Default=0.8.
-            relax_reduce (float) : Factor to mutiply relax after every miniter
-                                   iterations. Default=0.9.
-            tol (float)          : Distance in terms of grid lengths defining
-                                   convergence. Default=0.01.
-            opt_one_step (bool)  : If True, use single call to optimizer for
-                                   all trajectories. Default=False.
-            disp (bool)          : Print information on convergence.
-                                   Default=False.
-            norm (str)           : Norm to use in erro. Options are
-                                   'mean_abs_error', 'max_abs_error'
-                                   or RMS distance. Default='max_abs_error'
-            minoptions (dict)    : Options for minimiser. Default:
-                minoptions = {'max_outer_loops': 1, 'solver':'BFGS',
-                            'minimize_options':{'maxiter': 50,'disp': False,}}
+    maxiter (int)        : Maximum number of iterations. Delault=500.
+    miniter (int)        : Number of iterations to use before adjusting
+                           relax. Default=10.
+    relax (float)        : Initial relaxation factor. Default=0.8.
+    relax_reduce (float) : Factor to mutiply relax after every miniter
+                           iterations. Default=0.9.
+    tol (float)          : Distance in terms of grid lengths defining
+                           convergence. Default=0.01.
+    opt_one_step (bool)  : If True, use single call to optimizer for
+                           all trajectories. Default=False.
+    disp (bool)          : Print information on convergence.
+                           Default=False.
+    norm (str)           : Norm to use in erro. Options are
+                           'mean_abs_error', 'max_abs_error'
+                           or RMS distance. Default='max_abs_error'
+    max_outer_loops (int): Maximum number of outer loops of minimizer.
+    minimizer       (str): Minimizaer to use. Default="BFGS"
+    minim_kwargs (dict)  : Options for minimiser.
 
     Returns
     -------
@@ -189,21 +226,6 @@ def _backtrack_origin_point_iterate(
         New trajectory position and residual error vector.
 
     """
-    options = {}
-    if pioptions is not None:
-        options.update(pioptions)
-
-    # defaults
-    maxiter = options.get("maxiter", 500)
-    miniter = options.get("miniter", 10)
-    relax = options.get("relax", 0.8)
-    relax_reduce = options.get("relax_reduce", 0.9)
-    tol = options.get("tol", 0.01)
-    opt_one_step = options.get("opt_one_step", False)
-    disp = options.get("disp", False)
-    norm = options.get("norm", "max_abs_error")
-    # = options.get('', )
-
     grid_spacing = np.array(
         [
             ds_position_scalars["x"].attrs["dx"],
@@ -214,33 +236,13 @@ def _backtrack_origin_point_iterate(
 
     grid_spacing = grid_spacing[:, np.newaxis]
 
-    def get_error_norm(
-        scalars, pos_org, pos_est, interpolator=interpolator, interp_order=interp_order
-    ):
-        dist = _calc_backtrack_origin_dist(
-            scalars,
-            pos_org,
-            pos_est,
-            interpolator=interpolator,
-            interp_order=interp_order,
-        )
-
-        ndist = dist / grid_spacing
-
-        if norm == "max_abs_error":
-            err = np.linalg.norm(ndist.flatten(), ord=np.inf)
-        if norm == "mean_abs_error":
-            err = np.mean(np.abs(ndist))
-        else:
-            err = np.linalg.norm(ndist.flatten()) / np.sqrt(ndist.size)
-
-        return dist, ndist, err
-
     # First find error in first guess.
     dist, ndist, err = get_error_norm(
         ds_position_scalars,
         ds_traj_posn_org,
         ds_traj_posn_first_guess,
+        grid_spacing,
+        norm=norm,
         interpolator=interpolator,
         interp_order=interp_order,
     )
@@ -268,6 +270,8 @@ def _backtrack_origin_point_iterate(
             ds_position_scalars,
             ds_traj_posn_org,
             ds_traj_posn_next,
+            grid_spacing,
+            norm=norm,
             interpolator=interpolator,
             interp_order=interp_order,
         )
@@ -293,21 +297,8 @@ def _backtrack_origin_point_iterate(
             f"Final error = {err}"
         )
 
-    if solver == "PI_hybrid" and niter >= maxiter:
+    if solver == "hybrid_fixed_point_iterator" and niter >= maxiter:
         # Use optimization solution for un-converged trajectories.
-
-        # Default options.
-        minoptions = {
-            "max_outer_loops": 1,
-            "solver": "BFGS",
-            "minimize_options": {
-                "maxiter": 50,
-                "disp": False,
-            },
-        }
-        # Update options.
-        if options is not None and "minoptions" in options:
-            minoptions.update(options["minoptions"])
 
         # Convert best estimate from point iteration to array.
         pt_traj_posn_next = _pt_ds_to_arr(ds_traj_posn_next)
@@ -334,9 +325,9 @@ def _backtrack_origin_point_iterate(
                 ds_traj_posn_org_subset,
                 pt_traj_posn_next_not_conv,
                 interpolator,
-                minoptions["solver"],
+                minimizer,
                 interp_order=interp_order,
-                minoptions=minoptions,
+                **minim_kwargs,
             )
         else:
             for itraj in range(pt_traj_posn_next_not_conv.shape[1]):
@@ -351,9 +342,9 @@ def _backtrack_origin_point_iterate(
                     ds_traj_posn_orig,
                     pt_traj_posn,
                     interpolator,
-                    minoptions["solver"],
+                    minimizer,
                     interp_order=interp_order,
-                    minoptions=minoptions,
+                    **minim_kwargs,
                 )
 
                 pt_traj_posn_next_not_conv[:, itraj] = pt_traj_posn
@@ -369,6 +360,8 @@ def _backtrack_origin_point_iterate(
             ds_position_scalars,
             ds_traj_posn_org,
             ds_traj_posn_next,
+            grid_spacing,
+            norm=norm,
             interpolator=interpolator,
             interp_order=interp_order,
         )
@@ -390,7 +383,9 @@ def _pt_backtrack_origin_optimize(
     interpolator,
     minimization_method,
     interp_order=5,
-    minoptions=None,
+    max_outer_loops=1,
+    tol=0.01,
+    minimize_options=None,
 ):
     """
     Find the forward trajectory solutions as a numpy array of points.
@@ -419,14 +414,11 @@ def _pt_backtrack_origin_optimize(
         Methods supported by  scipy.optimize.minimize.
     interp_order : int, optional
         Interpolation order. The default is 5.
-    minoptions : dict, optional
-        Options for minimization. The default is None.
-        minoptions available::
-
-            max_outer_loops (int): Max number of calls to optimizer. Default=1.
-            tol (float)          : Distance in terms of grid lengths defining
-                convergence of outer loops. Default=0.01.
-            minimize_options (dict) : Options sent to scipy.optimize.minimize.
+    max_outer_loops (int): Max number of calls to optimizer. Default=1.
+    tol (float)          : Distance in terms of grid lengths defining
+        convergence of outer loops. Default=0.01.
+    minimize_options : dict, optional
+        Options sent to scipy.optimize.minimize.
 
     Returns
     -------
@@ -434,12 +426,14 @@ def _pt_backtrack_origin_optimize(
         New trajectory position..
 
     """
-    options = {"minimize_options": {}}
-    if minoptions is not None:
-        options.update(minoptions)
 
-    max_outer_loops = options.get("max_outer_loops", 1)
-    tol = options.get("tol", 0.01)
+    options = {
+        "maxiter": 10,
+        "disp": False,
+    }
+
+    if minimize_options is not None:
+        options.update(minimize_options)
 
     grid_spacing = np.array(
         [
@@ -476,7 +470,7 @@ def _pt_backtrack_origin_optimize(
             fun=_calc_backtrack_origin_err,
             x0=pt_traj_posn_next,
             method=minimization_method,
-            options=options["minimize_options"],
+            options=options,
         )
         pt_traj_posn_next = sol.x
         if sol.fun / np.sqrt(sol.x.size) <= grid_size * tol:
@@ -493,7 +487,7 @@ def _ds_backtrack_origin_optimize(
     interpolator,
     minimization_method,
     interp_order=5,
-    minoptions=None,
+    kwargs=None,
 ):
     """
     Find the forward trajectory solutions as an Xarray DataSet.
@@ -520,10 +514,8 @@ def _ds_backtrack_origin_optimize(
         Pre-calculated interpolator for fields in ds_position_scalars.
     minimization_method : str
         Methods supported by  scipy.optimize.minimize.
-    interp_order : int, optional
-        Interpolation order. The default is 5.
-    minoptions : dict, optional
-        Options for minimization. The default is None.
+    kwargs : dict
+        Keyword arguments sent to  _pt_backtrack_origin_optimize.
 
     Returns
     -------
@@ -531,6 +523,9 @@ def _ds_backtrack_origin_optimize(
         New trajectory position and residual error vector.
 
     """
+    if kwargs is None:
+        kwargs = {}
+
     pt_traj_posn_next = _pt_ds_to_arr(ds_traj_posn_first_guess).flatten()
 
     pt_traj_posn_next = _pt_backtrack_origin_optimize(
@@ -539,7 +534,7 @@ def _ds_backtrack_origin_optimize(
         pt_traj_posn_next,
         interpolator,
         minimization_method,
-        minoptions=minoptions,
+        **kwargs,
     )
 
     ds_traj_posn_next = _pt_arr_to_ds(pt_traj_posn_next)
@@ -564,9 +559,10 @@ def _extrapolate_single_timestep(
     ds_position_scalars_next,
     ds_traj_posn_prev,
     ds_traj_posn_origin,
-    solver="PI",
+    solver="hybrid_fixed_point_iterator",
     interp_order=5,
-    options=None,
+    point_iter_kwargs=None,
+    minim_kwargs=None,
 ):
     """
     Estimate from the trajectory position `ds_traj_posn_origin` to the next time.
@@ -591,11 +587,16 @@ def _extrapolate_single_timestep(
         Trajectory positions at previous time step.
     ds_traj_posn_origin: xarray DataArray
         Trajectory positions at current time step.
-    solver: Optional (default='PI').
+    solver: Optional (default='hybrid_fixed_point_iterator').
         Method used by scipy.optimize.minimize
     interp_order: int
         Order of interpolation from grid to trajectory.
     """
+    if point_iter_kwargs is None:
+        point_iter_kwargs = {}
+    if minim_kwargs is None:
+        minim_kwargs = {}
+
     ds_grid = ds_position_scalars_origin[["x", "y", "z"]]
 
     grid_spacing = np.array(
@@ -634,19 +635,7 @@ def _extrapolate_single_timestep(
     for c in "xyz":
         ds_traj_posn_next_est[c] = 2.0 * ds_traj_posn_origin[c] - ds_traj_posn_prev[c]
 
-    if solver == "PI" or solver == "PI_hybrid":
-
-        pioptions = {
-            "maxiter": 100,
-            "miniter": 10,
-            "disp": False,
-            "relax": 0.8,
-            "tol": 0.01,
-            "norm": "max_abs_error",
-        }
-
-        if options is not None and "pioptions" in options:
-            pioptions.update(options["pioptions"])
+    if "fixed_point_iterator" in solver:
 
         ds_traj_posn_next, err, dist = _backtrack_origin_point_iterate(
             ds_position_scalars_next,
@@ -655,20 +644,11 @@ def _extrapolate_single_timestep(
             interpolator,
             solver,
             interp_order=interp_order,
-            pioptions=pioptions,
+            minim_kwargs=minim_kwargs,
+            **point_iter_kwargs,
         )
 
     else:
-
-        minoptions = {
-            "max_outer_loops": 4,
-            "minimize_options": {
-                "maxiter": 50,
-                "disp": False,
-            },
-        }
-        if options is not None and "minoptions" in options:
-            minoptions.update(options["minoptions"])
 
         ds_traj_posn_next, dist = _ds_backtrack_origin_optimize(
             ds_position_scalars_next,
@@ -677,13 +657,11 @@ def _extrapolate_single_timestep(
             interpolator,
             solver,
             interp_order=interp_order,
-            minoptions=minoptions,
+            kwargs=minim_kwargs,
         )
 
     if ds_grid.xy_periodic:
         ds_traj_posn_next = _wrap_coords(ds_traj_posn_next, ds_grid)
-
-    # print(ds_traj_posn_next)
 
     # Copy in final error measure for each trajectory.
     for i, c in enumerate("xyz"):
@@ -692,10 +670,10 @@ def _extrapolate_single_timestep(
         )
         ds_traj_posn_next[f"{c}_err"] = derr
 
+    # Set time coordinate.
     ds_traj_posn_next = ds_traj_posn_next.assign_coords(
         time=ds_position_scalars_next.time
     )
-    # print(ds_traj_posn_next)
 
     return ds_traj_posn_next
 
@@ -705,8 +683,9 @@ def forward(
     ds_back_trajectory,
     da_times,
     interp_order=5,
-    solver="PI",
-    options=None,
+    solver="fixed_point_iterator",
+    point_iter_kwargs=None,
+    minim_kwargs=None,
 ):
     """
     Integrate trajectory forward one timestep.
@@ -728,13 +707,13 @@ def forward(
     See _ds_backtrack_origin_optimize for available options.
 
     The second uses point iteration. Selected using keyword 'solver' set to
-    'PI'. This is generally much faster than scipy.optimize.minimize, but some
-    trajectories do not converge.
+    "fixed_point_iterator". This is generally much faster than
+    scipy.optimize.minimize, but some trajectories do not converge.
 
     See _backtrack_origin_point_iterate for available options.
 
     The third is a combination of the first two, selected using keyword
-    'solver' set to 'PI_hybrid'.
+    'solver' set to 'hybrid_fixed_point_iterator'.
 
     See _backtrack_origin_point_iterate for available options.
 
@@ -777,7 +756,8 @@ def forward(
             ds_traj_posn_origin=ds_traj_posn_origin,
             interp_order=interp_order,
             solver=solver,
-            options=options,
+            point_iter_kwargs=point_iter_kwargs,
+            minim_kwargs=minim_kwargs,
         )
 
         ds_traj = xr.concat([ds_traj, ds_traj_posn_est], dim="time")

@@ -136,7 +136,7 @@ def init_position_scalars(ds):
     # we want to reset them in that case
     for v in ds_position_scalars.data_vars:
         if v in ds.data_vars:
-            ds = ds.drop(v)
+            ds = ds.drop_vars([v])
 
     ds = xr.merge([ds, ds_position_scalars])
     # Add residual errors.

@@ -39,6 +39,11 @@ def map_1d_grid_index_to_position(idx_grid, da_coord):
     if np.any(np.isnan(pos)):
         raise Exception("Found nan during interpolation")
 
+    # Note - for a uniform grid (i.e. x, y) the following would be faster:
+
+    # pos = (idx_grid.values * da_coord.attrs[f"d{da_coord.name}"]
+    #        + da_coord.values[0])
+
     return pos
 
 

@@ -65,24 +65,36 @@ def _wrap_add(x, y, a, b):
     return x - (b - a) * (x >= b)
 
 
-testvars = "solver, n_trajectories"
-tests = [("PI", 1), ("PI", 3), ("PI_hybrid", 1), ("PI_hybrid", 3), ("BFGS", 3)]
+testvars = "forward_solver, n_trajectories"
+tests = [
+    ("fixed_point_iterator", 1),
+    ("fixed_point_iterator", 3),
+    ("hybrid_fixed_point_iterator", 1),
+    ("hybrid_fixed_point_iterator", 3),
+    ("BFGS", 3),
+]
 
 
 @pytest.mark.parametrize(testvars, tests)
-def test_stationary_trajectory(solver, n_trajectories):
+def test_stationary_trajectory(forward_solver, n_trajectories):
     L = 5.0e3  # [m]
     dx = 25.0  # [m]
     dt = 120.0  # [s]
     u = 0.0  # [m/s]
     v = 0.0  # [m/s]
     _trajectory_integration(
-        solver=solver, n_trajectories=n_trajectories, u=u, v=v, dt=dt, dx=dx, L=L
+        forward_solver=forward_solver,
+        n_trajectories=n_trajectories,
+        u=u,
+        v=v,
+        dt=dt,
+        dx=dx,
+        L=L,
     )
 
 
 @pytest.mark.parametrize(testvars, tests)
-def test_linear_trajectory_x_direction(solver, n_trajectories):
+def test_linear_trajectory_x_direction(forward_solver, n_trajectories):
     L = 2.0e2  # [m]
     dx = 25.0  # [m]
     dt = 25.0  # [s]
@@ -90,7 +102,7 @@ def test_linear_trajectory_x_direction(solver, n_trajectories):
     v = 0.0  # [m/s]
     t_max = L / u * 1.5
     _trajectory_integration(
-        solver=solver,
+        forward_solver=forward_solver,
         n_trajectories=n_trajectories,
         u=u,
         v=v,
@@ -102,7 +114,7 @@ def test_linear_trajectory_x_direction(solver, n_trajectories):
 
 
 @pytest.mark.parametrize(testvars, tests)
-def test_linear_trajectory_y_direction(solver, n_trajectories):
+def test_linear_trajectory_y_direction(forward_solver, n_trajectories):
     L = 2.0e2  # [m]
     dx = 25.0  # [m]
     dt = 25.0  # [s]
@@ -110,7 +122,7 @@ def test_linear_trajectory_y_direction(solver, n_trajectories):
     v = -1.0  # [m/s]
     t_max = L / abs(v) * 1.5
     _trajectory_integration(
-        solver=solver,
+        forward_solver=forward_solver,
         n_trajectories=n_trajectories,
         u=u,
         v=v,
@@ -122,7 +134,7 @@ def test_linear_trajectory_y_direction(solver, n_trajectories):
 
 
 @pytest.mark.parametrize(testvars, tests)
-def test_linear_trajectory_diagonal(solver, n_trajectories):
+def test_linear_trajectory_diagonal(forward_solver, n_trajectories):
     L = 2.0e2  # [m]
     dx = 25.0  # [m]
     dt = 25.0  # [s]
@@ -130,7 +142,7 @@ def test_linear_trajectory_diagonal(solver, n_trajectories):
     v = -2.0  # [m/s]
     t_max = L / u * 1.5
     _trajectory_integration(
-        solver=solver,
+        forward_solver=forward_solver,
         n_trajectories=n_trajectories,
         u=u,
         v=v,
@@ -173,7 +185,14 @@ def _make_starting_points(n_trajectories, t0, dx, dy, dz, Lx, Ly, Lz):
 
 
 def _trajectory_integration(
-    solver, n_trajectories, u=4.0, v=-3.0, dt=5 * 60.0, dx=25.0, L=5.0e3, t_max=5 * 60
+    forward_solver,
+    n_trajectories,
+    u=4.0,
+    v=-3.0,
+    dt=5 * 60.0,
+    dx=25.0,
+    L=5.0e3,
+    t_max=5 * 60,
 ):
     Lx = Ly = L  # [m]
     dy = dz = dx  # [m]
@@ -239,7 +258,7 @@ def _trajectory_integration(
     ds_traj = integrate_trajectories(
         ds_position_scalars=ds_position_scalars,
         ds_starting_points=ds_starting_points,
-        solver=solver,
+        forward_solver=forward_solver,
     )
 
     x_est = ds_traj.x.values
@@ -254,7 +273,7 @@ def _trajectory_integration(
     np.testing.assert_allclose(y_truth, y_est.squeeze(), atol=atol)
 
 
-def _test_trajectory_integration_diagonal_advection(solver):
+def _test_trajectory_integration_diagonal_advection(forward_solver):
     Lx = Ly = 0.5e3  # [m]
     Lz = 1.0e3  # [m]
     dx = dy = dz = 25.0  # [m]
@@ -301,7 +320,7 @@ def _test_trajectory_integration_diagonal_advection(solver):
     integrate_trajectories(
         ds_position_scalars=ds_position_scalars,
         ds_starting_points=ds_starting_points,
-        solver=solver,
+        forward_solver=forward_solver,
     )
 
     raise Exception
