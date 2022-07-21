@@ -96,7 +96,7 @@ def backward(
         except IndexError:
             # this will happen if we're trying to integrate backwards from the
             # very first timestep, which we can't (and shouldn't). Just check
-            # we have as many trajectory points as we're aiminng for
+            # we have as many trajectory points as we're aiming for
             if len(datasets) == da_times.count():
                 break
             else:
@@ -108,7 +108,7 @@ def backward(
 
         # Error in back trajectory is not quantifiable. Set to NaN.
         for c in "xyz":
-            ds_traj_posn_prev[f"{c}_err"] = xr.ones_like(ds_traj_posn_prev[c]) * np.NaN
+            ds_traj_posn_prev[f"{c}_err"] = xr.full_like(ds_traj_posn_prev[c], np.NaN)
 
         datasets.append(ds_traj_posn_prev)
 

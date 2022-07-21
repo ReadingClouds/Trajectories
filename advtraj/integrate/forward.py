@@ -3,6 +3,7 @@ Calculations for forward trajectory from a point in space and time using the
 position scalars.
 """
 import numpy as np
+import numpy.random as rnd
 import scipy.optimize
 import xarray as xr
 from tqdm import tqdm
@@ -37,6 +38,54 @@ def _wrap_coords(ds_posn, ds_grid):
         cyclic_coords=cyclic_coords,
         cell_centered_coords=cell_centered_coords,
     )
+
+
+def _confine_traj_bounds(ds_posn, ds_grid, vertical_boundary_option=1):
+    """
+    Confine trajectory position to domain.
+
+    Parameters
+    ----------
+    pos : numpy array
+        trajectory positions (n, 3).
+    nx : int or float
+        max value of x.
+    ny : int or float
+        max value of y.
+    nz :  int or float
+        max value of z.
+    vertical_boundary_option : int, optional
+        DESCRIPTION. The default is 1.
+
+    Returns
+    -------
+    pos : TYPE
+        DESCRIPTION.
+
+    """
+    if ds_grid.xy_periodic:
+        ds_posn = _wrap_coords(ds_posn, ds_grid)
+
+    if vertical_boundary_option == 1:
+        ds_posn["z"] = np.clip(ds_posn["z"], 0, ds_grid.z.Lz)
+
+    elif vertical_boundary_option == 2:
+
+        lam = 1.0 / 0.5
+        k1 = ds_posn.z <= ds_grid.z.dz
+        k2 = ds_posn.z >= (ds_grid.z.Lz - ds_grid.z.dz)
+
+        ds_posn["z"] = xr.where(
+            k1, 1.0 + rnd.exponential(scale=lam, size=k1.shape), ds_posn["z"]
+        )
+        ds_posn["z"] = xr.where(
+            k2,
+            ds_grid.z.Lz
+            - ds_grid.z.dz * (1.0 + rnd.exponential(scale=lam, size=k2.shape)),
+            ds_posn["z"],
+        )
+
+    return ds_posn
 
 
 def _calc_backtrack_origin_dist(
@@ -561,6 +610,7 @@ def _extrapolate_single_timestep(
     ds_traj_posn_origin,
     solver="hybrid_fixed_point_iterator",
     interp_order=5,
+    vertical_boundary_option=2,
     point_iter_kwargs=None,
     minim_kwargs=None,
 ):
@@ -635,6 +685,12 @@ def _extrapolate_single_timestep(
     for c in "xyz":
         ds_traj_posn_next_est[c] = 2.0 * ds_traj_posn_origin[c] - ds_traj_posn_prev[c]
 
+    ds_traj_posn_next_est = _confine_traj_bounds(
+        ds_traj_posn_next_est,
+        ds_grid,
+        vertical_boundary_option=vertical_boundary_option,
+    )
+
     if "fixed_point_iterator" in solver:
 
         ds_traj_posn_next, err, dist = _backtrack_origin_point_iterate(
@@ -660,8 +716,9 @@ def _extrapolate_single_timestep(
             kwargs=minim_kwargs,
         )
 
-    if ds_grid.xy_periodic:
-        ds_traj_posn_next = _wrap_coords(ds_traj_posn_next, ds_grid)
+    ds_traj_posn_next = _confine_traj_bounds(
+        ds_traj_posn_next, ds_grid, vertical_boundary_option=vertical_boundary_option
+    )
 
     # Copy in final error measure for each trajectory.
     for i, c in enumerate("xyz"):
