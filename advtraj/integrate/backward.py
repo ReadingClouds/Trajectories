@@ -2,6 +2,7 @@
 Functionality for computing trajectories backward from a set of starting points
 at a single point in time using the position scalars.
 """
+import numpy as np
 import xarray as xr
 from tqdm import tqdm
 
@@ -13,7 +14,10 @@ from ..utils.interpolation import interpolate_3d_fields
 
 
 def calc_trajectory_previous_position(
-    ds_position_scalars, ds_traj_posn, grid_interpolation_order=5
+    ds_position_scalars,
+    ds_traj_posn,
+    interp_order=5,
+    interpolator=None,
 ):
     """
     The algorithm is as follows:
@@ -25,10 +29,12 @@ def calc_trajectory_previous_position(
     """
     # interpolate the position scalar values at the current trajectory
     # position
+
     ds_initial_position_scalar_locs = interpolate_3d_fields(
         ds=ds_position_scalars,
         ds_positions=ds_traj_posn,
-        interp_order=grid_interpolation_order,
+        interpolator=interpolator,
+        interp_order=interp_order,
         cyclic_boundaries="xy" if ds_position_scalars.xy_periodic else None,
     )
 
@@ -46,13 +52,17 @@ def calc_trajectory_previous_position(
         i=ds_traj_init_grid_idxs.i,
         j=ds_traj_init_grid_idxs.j,
         k=ds_traj_init_grid_idxs.k,
-        interp_order=grid_interpolation_order,
     )
 
     return ds_traj_posn_prev
 
 
-def backward(ds_position_scalars, ds_starting_point, da_times, interp_order=1):
+def backward(
+    ds_position_scalars,
+    ds_starting_point,
+    da_times,
+    interp_order=5,
+):
     """
     Using the position scalars `ds_position_scalars` integrate backwards from
     `ds_starting_point` to the times in `da_times`
@@ -63,8 +73,11 @@ def backward(ds_position_scalars, ds_starting_point, da_times, interp_order=1):
 
     # step back in time, `t_current` represents the time we're of the next
     # point (backwards) of the trajectory
+    # start at 1 because this provides position for previous time.
     for t_current in tqdm(da_times.values[1:][::-1], desc="backward"):
+
         ds_traj_posn_origin = datasets[-1].drop_vars("time")
+
         ds_position_scalars_current = ds_position_scalars.sel(time=t_current).drop_vars(
             "time"
         )
@@ -72,6 +85,7 @@ def backward(ds_position_scalars, ds_starting_point, da_times, interp_order=1):
         ds_traj_posn_est = calc_trajectory_previous_position(
             ds_position_scalars=ds_position_scalars_current,
             ds_traj_posn=ds_traj_posn_origin,
+            interp_order=interp_order,
         )
         # find the previous time so that we can construct a new dataset to contain
         # the trajectory position at the previous time
@@ -82,7 +96,7 @@ def backward(ds_position_scalars, ds_starting_point, da_times, interp_order=1):
         except IndexError:
             # this will happen if we're trying to integrate backwards from the
             # very first timestep, which we can't (and shouldn't). Just check
-            # we have as many trajectory points as we're aiminng for
+            # we have as many trajectory points as we're aiming for
             if len(datasets) == da_times.count():
                 break
             else:
@@ -91,6 +105,10 @@ def backward(ds_position_scalars, ds_starting_point, da_times, interp_order=1):
         ds_traj_posn_prev = ds_traj_posn_est.rename(
             {"x_est": "x", "y_est": "y", "z_est": "z"}
         ).assign_coords({"time": t_previous.values})
+
+        # Error in back trajectory is not quantifiable. Set to NaN.
+        for c in "xyz":
+            ds_traj_posn_prev[f"{c}_err"] = xr.full_like(ds_traj_posn_prev[c], np.NaN)
 
         datasets.append(ds_traj_posn_prev)
 

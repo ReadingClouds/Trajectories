@@ -14,13 +14,23 @@ def test_position_scalar_transforms_are_symmetric():
     dx = dy = dz = 25.0  # [m]
 
     ds_grid = create_uniform_grid(dL=(dx, dy, dz), L=(Lx, Ly, Lz))
+    # ds_grid represents location of grid box centres
+    # so goes from x = dx/2 to Lx-dx/2, y = dy/2 to Lx-dy/2
+
     nx, ny = int(ds_grid.x.count()), int(ds_grid.y.count())
 
+    # Create a set of test points.
     N_pts = 5
     ds_pts = xr.Dataset(coords=dict(pt=np.arange(N_pts)))
-    ds_pts["x"] = "pt", np.linspace(ds_grid.x.min(), ds_grid.x.max(), N_pts) - dx / 2.0
-    ds_pts["y"] = "pt", np.linspace(ds_grid.y.min(), ds_grid.y.max(), N_pts) - dy / 2.0
-    ds_pts["z"] = "pt", np.linspace(ds_grid.z.min(), ds_grid.z.max(), N_pts) - dz / 2.0
+    # Note the original tests here subtracted (dx, dy, dz)/2 from (x, y, z).
+    # Which made the first test point (x, y) = 0
+    # (and the last (x, y) = (Lx-dx, Ly-dy)).
+    # However, 0 sometimes fails the test, being mapped to Lx/y
+    # depending on platform. Note that in practice mapping to Lx/y would not
+    # be a problem as it will be picked up byth ewrapping code.
+    ds_pts["x"] = "pt", np.linspace(ds_grid.x.min(), ds_grid.x.max(), N_pts)
+    ds_pts["y"] = "pt", np.linspace(ds_grid.y.min(), ds_grid.y.max(), N_pts)
+    ds_pts["z"] = "pt", np.linspace(ds_grid.z.min(), ds_grid.z.max(), N_pts)
 
     for xy_periodic in [True, False]:
         ds_grid["xy_periodic"] = xy_periodic

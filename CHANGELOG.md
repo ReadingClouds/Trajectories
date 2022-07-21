@@ -2,8 +2,23 @@
 
 ## [Unreleased](https://github.com/ParaConUK/advtraj/tree/HEAD)
 
-[Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.4.0...HEAD)
+[Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.5.0...HEAD)
 
+## [v0.5.0](https://github.com/ParaConUK/advtraj/tree/v0.5.0)
+
+[Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.4.0...v0.5.0)
+
+*new features*
+
+- Additional, generally faster, solvers for forward step, "fixed_point_iterator"
+  and "hybrid_fixed_point_iterator".
+ [\#11](https://github.com/ParaConUK/advtraj/pull/19) @ReadingClouds
+
+- Improve handing of surface boundary, and ensure trajetories do not leave top.
+
+## [v0.4.0](https://github.com/ParaConUK/advtraj/tree/v0.4.0)
+
+[Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.3.0...v0.4.0)
 
 *new features*
 
@@ -35,9 +50,6 @@
   [\#5](https://github.com/ParaConUK/advtraj/pull/5) @leifdenby
 
 
-## [v0.4.0](https://github.com/ParaConUK/advtraj/tree/v0.4.0)
-
-[Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.3.0...v0.4.0)
 
 
 ## [v0.3.0](https://github.com/ParaConUK/advtraj/tree/v0.3.0)
