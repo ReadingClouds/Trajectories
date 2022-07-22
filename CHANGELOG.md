@@ -14,10 +14,10 @@
 
 - Utility `mask_to_positions` to aid conversion of a logical mask on a 3D data
   field to a set of initial trajectory points.
-  
+
 - Utility `data_to_traj` to interpolate 3D data to trajectory points.
 
-(https://github.com/ParaConUK/advtraj/pull/22) @ReadingClouds
+(Pull https://github.com/ParaConUK/advtraj/pull/22) @ReadingClouds
 
 ## [v0.5.0](https://github.com/ParaConUK/advtraj/tree/v0.5.0)
 
