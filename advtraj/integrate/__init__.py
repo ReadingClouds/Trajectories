@@ -80,7 +80,8 @@ def _promote_starting_position_vars_to_coords(ds):
 def integrate_trajectories(
     ds_position_scalars,
     ds_starting_points,
-    times="position_scalars",
+    steps_backward=None,
+    steps_forward=None,
     xy_periodic=True,
     interp_order=5,
     forward_solver="fixed_point_iterator",
@@ -98,19 +99,45 @@ def integrate_trajectories(
     )
     _validate_position_scalars(ds=ds_position_scalars, xy_periodic=xy_periodic)
     _validate_starting_points(ds=ds_starting_points)
-
-    if times == "position_scalars":
-        da_times = ds_position_scalars.time
-    else:
-        raise NotImplementedError(times)
-
+    
     ref_time = ds_starting_points.time
     ds_starting_points = ds_starting_points.assign_coords({"ref_time": ref_time})
+
+    input_times = list(ds_position_scalars['time'].values)
+    if ref_time not in input_times:
+        raise ValueError(f"Reference time {ref_time} is not in dataset.")
+
+    ref_index = input_times.index(ref_time)
+
+    da_times = ds_position_scalars.time
+    
+    #Select start and end time of trajectories.
+    if steps_backward is None:
+        start_index = 0
+    else:
+        if steps_backward < 0:
+            raise ValueError(
+                f'steps_backward ({steps_backward}) must be positive integer.')
+        start_index = max(0, ref_index-max(1,steps_backward))
+
+    if steps_forward is None:
+        end_index = len(input_times)
+    else:
+        if steps_forward < 0:
+            raise ValueError(
+                f'steps_forward ({steps_backward}) must be positive integer.')
+        end_index = min(len(input_times), 
+                        ref_index + max(0, int(steps_forward)) + 1)
+        
+        
+    da_times = ds_position_scalars.time.isel(
+                   time=slice(start_index, end_index))
 
     da_times_backward = da_times.sel(time=slice(None, ref_time))
     da_times_forward = da_times.sel(time=slice(ref_time, None)).isel(
         time=slice(1, None)
     )
+    
     # all coordinates that are defined for the starting position variables will
     # be treated as if they represent different trajectories
 

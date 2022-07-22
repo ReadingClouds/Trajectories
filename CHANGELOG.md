@@ -2,7 +2,20 @@
 
 ## [Unreleased](https://github.com/ParaConUK/advtraj/tree/HEAD)
 
-[Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.5.0...HEAD)
+[Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.5.1...HEAD)
+
+## [v0.5.1](https://github.com/ParaConUK/advtraj/tree/v0.5.1)
+
+[Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.5.0...v0.5.1)
+
+*new features*
+
+- Ability to select how many backward and forward timesteps to use.
+
+- Utility `mask_to_positions` to aid conversion of a logical mask on a 3D data
+  field to a set of initial trajectory points.
+  
+- Utility `data_to_traj` to interpolate 3D data to trajectory points.
 
 ## [v0.5.0](https://github.com/ParaConUK/advtraj/tree/v0.5.0)
 
