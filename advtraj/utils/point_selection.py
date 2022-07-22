@@ -8,9 +8,9 @@ import numpy as np
 import xarray as xr
 
 
-def mask_to_positions(mask:xr.DataArray)->xr.Dataset:
+def mask_to_positions(mask: xr.DataArray) -> xr.Dataset:
     """
-    Convert 3D logical mask to coordinate positions. 
+    Convert 3D logical mask to coordinate positions.
 
     Parameters
     ----------
@@ -23,18 +23,18 @@ def mask_to_positions(mask:xr.DataArray)->xr.Dataset:
         Contains data variables "x", "y", "z".
         Coordinates "pos_number" and any others (e.g. "time") in mask.
 
-    """    
+    """
     poi = (
         mask.where(mask, drop=True)
-            .stack(pos_number=("x", "y", "z"))
-            .dropna(dim="pos_number")
+        .stack(pos_number=("x", "y", "z"))
+        .dropna(dim="pos_number")
     )
-    # now we'll turn this 1D dataset where (x, y, z) are coordinates into 
+    # now we'll turn this 1D dataset where (x, y, z) are coordinates into
     # one where they are variables instead
     positions = (
         poi.reset_index("pos_number")
-           .assign_coords(pos_number=np.arange(poi.pos_number.size))                       
-           .reset_coords(["x", "y", "z"])[["x", "y", "z"]]
+        .assign_coords(pos_number=np.arange(poi.pos_number.size))
+        .reset_coords(["x", "y", "z"])[["x", "y", "z"]]
     )
-    
+
     return positions
