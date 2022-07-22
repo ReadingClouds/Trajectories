@@ -45,7 +45,7 @@ def wrap_posn(x, x_min, x_max):
 
 def find_coord_grid_spacing(da_coord, show_warnings=True):
     grid_tol = 0.001
-    
+
     v_name = f"d{da_coord.name}"
     if v_name in da_coord.attrs:
         return da_coord.attrs[v_name]
@@ -60,7 +60,7 @@ def find_coord_grid_spacing(da_coord, show_warnings=True):
 
     dx_all = np.diff(da_coord.values)
 
-    if (np.max(dx_all) - np.min(dx_all)) / np.mean(dx_all) > grid_tol :
+    if (np.max(dx_all) - np.min(dx_all)) / np.mean(dx_all) > grid_tol:
         raise Exception("Non-uniform grid")
 
     return np.mean(dx_all)
