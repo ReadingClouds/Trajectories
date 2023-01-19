@@ -157,4 +157,30 @@ def integrate_trajectories(
         minim_kwargs=minim_kwargs,
     )
 
+    attrs = {
+        "interp_order": interp_order,
+        "solver": forward_solver,
+    }
+
+    for c in "xyz":
+        attrs[f"d{c}"] = ds_position_scalars[c].attrs[f"d{c}"]
+        attrs[f"L{c}"] = ds_position_scalars[c].attrs[f"L{c}"]
+
+    attrs["trajectory timestep"] = (
+        ds_traj.time.values[-1] - ds_traj.time.values[0]
+    ) / (ds_traj.time.size - 1)
+
+    if "fixed_point_iterator" in forward_solver and point_iter_kwargs is not None:
+        attrs["maxiter"] = point_iter_kwargs["maxiter"]
+        attrs["tol"] = point_iter_kwargs["tol"]
+    elif minim_kwargs is not None:
+        attrs["maxiter"] = minim_kwargs["minimize_options"]["maxiter"]
+        attrs["max_outer_loops"] = minim_kwargs["max_outer_loops"]
+
+    if "hybrid_fixed_point_iterator" in forward_solver and minim_kwargs is not None:
+        attrs["minimize_maxiter"] = minim_kwargs["minimize_options"]["maxiter"]
+        attrs["tol"] = minim_kwargs["tol"]
+
+    ds_traj.attrs = attrs
+
     return ds_traj

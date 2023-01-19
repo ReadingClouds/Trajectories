@@ -295,6 +295,10 @@ def _test_trajectory_integration_diagonal_advection(forward_solver):
     position_scalars = [f"traj_tracer_{s}" for s in ["xr", "xi", "yr", "yi", "zr"]]
     ds_position_scalars = ds[position_scalars]
 
+    ds_position_scalars.attrs["Lx"] = Lx
+    ds_position_scalars.attrs["Ly"] = Ly
+    ds_position_scalars.attrs["Lz"] = Lz
+
     # make up some starting points for the trajectories, making three trajectories for now
     ds_starting_points = xr.Dataset(coords=dict(trajectory_number=[0, 1, 2]))
     ds_starting_points["x"] = (
