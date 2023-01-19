@@ -56,7 +56,7 @@ This module also implements a simple function to re-label the combined mask, lea
 ![Cloud and BL classification](animations/Traj_plot_classes.gif)
 
 The multiple cloud encounters can be put into context by including the Eulerian cloud field:
- [Cloud and BL classification with Eulerian field](animations/Traj_plot_classes_field.gif).
+ ![Cloud and BL classification with Eulerian field](animations/Traj_plot_classes_field.gif).
 
  ## The family subpackage
 
