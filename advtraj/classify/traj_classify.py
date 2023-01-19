@@ -32,6 +32,12 @@ def set_traj_class(mask):
 
     it_ref = list(mask.time).index(mask.ref_time)
 
+    m = mask.isel(time=it_ref)
+
+    v = xr.where(m, 0, -1)
+
+    traj_class.loc[dict(time=mask.ref_time)] = v.values
+
     for it in range(it_ref - 1, -1, -1):
 
         t = mask.time.isel(time=it)
