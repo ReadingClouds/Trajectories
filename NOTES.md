@@ -151,6 +151,99 @@ The symbol '\*' denotes data present, while 'x' means data absent. The above was
 using a fixed number of requested forward and backward points in each
 trajectory, but the actual output was limited by data availability in the source data.
 
+Once generated, the source varables can also be interpolated onto trajectories using `family.traj_family.data_to_traj_family`.
 
+## Object matching
 
- Once generated, the source varables can also be interpolated onto trajectories using `family.traj_family.data_to_traj_family`.
+Some objects in different family members are likely to be related - e.g. part of the same cloud.
+Functionality has been added to [cohobj](https://github.com/ParaConUK/cohobj) and `traj_family` to
+find overlapping objects.
+
+The function `family.traj_family.find_family_matching_objects` will find objects at different
+reference times that overlap, in some way, the requested objects in a 'master' reference time.
+A 'fast' method is provided that just uses bounding boxes for the 'in-mask' parts of an object.
+This is illustrated in the following:
+![Object bounding box](animations/Traj_plot_box.gif).
+A slower method first screens using these bounding boxes (i.e. only considers objects with overlapping bounding boxes), then estimates the fractional overlap by mapping 'in-mask' points to nearest grid points and finding the common grid points.
+The resulting dictionary can be printed using `family.traj_family.print_matching_objects`.
+For example, for object 9 in master reference time 23160.0 above, the matching objects at reference time
+22560.0 are printed below:
+
+    Master Reference File Index: 34
+    Master Reference Time: 23160.0
+      Object 9
+      Reference time: 22560.0
+        Time: 21060.0 matching obj: 0: 0.00 3: 0.03
+        Time: 21120.0 matching obj: 3: 0.00
+        Time: 21180.0 matching obj: 0: 0.00 3: 0.02
+        Time: 21240.0 matching obj: 3: 0.05
+        Time: 21300.0 matching obj: 3: 0.05
+        Time: 21360.0 matching obj: 0: 0.00 3: 0.06
+        Time: 21420.0 matching obj: 3: 0.04
+        Time: 21480.0 matching obj: 3: 0.04
+        Time: 21540.0 matching obj: 3: 0.11
+        Time: 21600.0 matching obj: 3: 0.13
+        Time: 21660.0 matching obj: 0: 0.00 3: 0.08
+        Time: 21720.0 matching obj: 3: 0.25
+        Time: 21780.0 matching obj: 0: 0.00
+        Time: 21840.0 matching obj: 0: 0.04 3: 0.17
+        Time: 21900.0 matching obj: 0: 0.07 3: 0.16
+        Time: 21960.0 matching obj: 0: 0.09 3: 0.09
+        Time: 22020.0 matching obj: 0: 0.13 3: 0.10
+        Time: 22080.0 matching obj: 0: 0.13 3: 0.11
+        Time: 22140.0 matching obj: 0: 0.13 3: 0.09
+        Time: 22200.0 matching obj: 0: 0.13 3: 0.08
+        Time: 22260.0 matching obj: 0: 0.16 3: 0.07
+        Time: 22320.0 matching obj: 0: 0.20 3: 0.07
+        Time: 22380.0 matching obj: 0: 0.23 3: 0.06
+        Time: 22440.0 matching obj: 0: 0.20 3: 0.06
+        Time: 22500.0 matching obj: 0: 0.20 3: 0.05
+        Time: 22560.0 matching obj: 0: 0.19 3: 0.04
+        Time: 22620.0 matching obj: 0: 0.22 3: 0.03
+        Time: 22680.0 matching obj: 0: 0.20 3: 0.02
+        Time: 22740.0 matching obj: 0: 0.22 3: 0.02
+        Time: 22800.0 matching obj: 0: 0.22 3: 0.03
+        Time: 22860.0 matching obj: 0: 0.22 3: 0.02
+        Time: 22920.0 matching obj: 0: 0.18 3: 0.02
+        Time: 22980.0 matching obj: 0: 0.19 3: 0.04
+        Time: 23040.0 matching obj: 0: 0.17 3: 0.04
+        Time: 23100.0 matching obj: 0: 0.17 3: 0.04
+        Time: 23160.0 matching obj: 0: 0.16 3: 0.04
+        Time: 23220.0 matching obj: 0: 0.14 3: 0.04
+        Time: 23280.0 matching obj: 0: 0.15 3: 0.02
+        Time: 23340.0 matching obj: 0: 0.15 3: 0.03
+        Time: 23400.0 matching obj: 0: 0.13
+        Time: 23460.0 matching obj: 0: 0.15
+        Time: 23520.0 matching obj: 0: 0.22
+        Time: 23580.0 matching obj: 0: 0.22 3: 0.04
+        Time: 24660.0 matching obj: 3: 0.00 6: 0.00
+            All times matching obj: 0: 0.23 3: 0.25 6: 0.00
+
+Note that some objects have zero overlap - this is because the 'fast' bounding-box overlap only considers the horizontal dimensions, as it is often of interest if one object lies beneath another.
+
+It is possible to find all of the objects in all reference times that overlap objects in the master reference time.
+This is illustrated for the same object 9 as above using `plot.plot_trajectory_animation.plot_family_animation`.
+![All objects overlapping](animations/Family_plot_nomask_all.gif).
+
+This is quite unwieldy.
+If we just select two reference times, for example, we obtain
+![Two reference time objects overlapping](animations/Family_plot_nomask.gif).
+In this case, one reference time chosen is just 3 min (180 s) earlier than the master reference time, and the object overlapping (blue) is clearly much the same as the master (black); choosing 10 min earlier results in two overlapping objects (0 (red) and 3 (green)), and one (green) clearly represents an earlier 'cell' at the same location.
+This is a little clearer if we include the 'in-cloud' mask:
+![Two reference time objects overlapping with mask](animations/Family_plot.gif).
+The bounding boxes for the 10 minute time gap is shown here:
+![Bounding boxes overlapping](animations/Family_plot_boxes.gif).
+And, finally, we include the Eulerian cloud field:
+![Two reference time objects overlapping with field](animations/Family_plot_field.gif).
+
+## Example code
+Use of these packages clearly depends upon the source data.
+However, to illustrate their use, we have included example scripts in the examples directory.
+These can be summarised as follows:
+- **monc_test_traj_compute.py**: Script for producing trajectories from MONC LES model output.
+- **monc_test_data_to_traj.py**: Script to interpolate gridded data to trajectories.
+- **monc_test_traj_classify.py**: Script to test trajectory classification.
+- **monc_plot_traj_anim.py**: Plot trajectory animations.
+- **monc_test_traj_family_compute.py**: Script to compute trajectory family from MONC data.
+- **monc_test_data_to_traj_family.py**: Script to interpolate gridded data to trajectory family.
+- **monc_test_traj_family_matching_objects.py**: Script to compute matching objects and plot family animations.
