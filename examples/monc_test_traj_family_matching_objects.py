@@ -5,20 +5,32 @@ Script to compute matching objects and plot family animations.
 
 """
 import glob
+import pickle
 import time
 
+# import matplotlib.pyplot as plt
+# import networkx as nx
 import xarray as xr
 from cohobj.object_tools import get_bounding_boxes
 from load_data import load_data
 
 from advtraj.family.traj_family import (
     analyse_traj_family,
+    draw_object_graph,
     find_family_matching_objects,
+    graph_matching_objects,
+    matching_obj_to_nodelist,
     print_matching_objects,
+    print_matching_objects_graph,
+    related_objects,
+    start_objects,
     summarise_traj_family,
     traj_name_to_data_name,
 )
 from advtraj.plot.plot_trajectory_animation import plot_family_animation
+
+# import numpy as np
+
 
 case = "cloud"
 
@@ -47,7 +59,7 @@ else:
 
 output_path = odir + f"{file_prefix}trajectories_{case}_{interp_order}_{minim}_{expt}"
 
-traj_path_list = list(glob.glob(f"{output_path}_[0-9][0-9].nc"))
+traj_path_list = list(glob.glob(f"{output_path}_[0-9][0-9].nc"))[30:50]
 
 family_times = analyse_traj_family(traj_path_list)
 summary = summarise_traj_family(family_times)
@@ -124,41 +136,94 @@ elif case == "cloud":
 
 time1 = time.perf_counter()
 
-mol = find_family_matching_objects(
-    ds_list, select=[9], master_ref_time=23160.0, fast=False
-)
+obj_file = "_objects_sample_ref_fast"
+pkl_file = output_path + obj_file + ".pkl"
+
+find_mol = True
+
+if find_mol:
+
+    mol_fam = find_family_matching_objects(
+        ds_list,
+        ref_time_only=True,
+        # ref_time_only=False,
+        # forward=False,
+        # adjacent_only=True,
+        adjacent_only=False,
+        fast=True,
+        # fast=False,
+    )
+
+    with open(pkl_file, "wb") as fp:
+
+        pickle.dump(mol_fam, fp)
+
+        print("Done writing matching objects to pickle file.")
+
+else:
+
+    with open(pkl_file, "rb") as fp:
+
+        mol_fam = pickle.load(fp)
+
+        print("Done reading matching objects from pickle file.")
 
 time2 = time.perf_counter()
-
 delta_t = time2 - time1
 
-print_matching_objects(mol, select=[9], full=False)
 
-print_matching_objects(mol, select=[9], ref_times_sel=[22560.0], full=True)
+G = graph_matching_objects(mol_fam, include_types=(1, 2))
+print_matching_objects_graph(G)
+
+print(start_objects(G))
+
+draw_object_graph(G, ntypes=(1, 2), save_file=output_path + obj_file + "_all.png")
+
+
+node_sel = (23400.0, 17)
+mol = mol_fam[node_sel[0]]
+nodelist = matching_obj_to_nodelist(
+    mol, node_sel[1], ref_times_sel=None, overlap_thresh=None
+)
+
+nodelist = related_objects(G, node_sel)  # , overlap_thresh = 0.1)
+
+draw_object_graph(
+    G,
+    nodelist=nodelist,
+    highlight_nodes=[node_sel],
+    ntypes=(1, 2),
+    save_file=output_path + obj_file + ".png",
+)
+# , overlap_thresh = 0.1)
+
+print_matching_objects(
+    mol, select=[node_sel[1]], ref_times_sel=[node_sel[0]], full=True
+)
 print(f"Elapsed time = {delta_t}")
 
-anim = plot_family_animation(
-    ds_list,
-    mol,
-    select=[9],
-    # ref_times_sel = [22560.0, 22980.0],
-    # field_mask = mask_field,
-    galilean=(-8, -1.5),
-    overlap_thresh=0.1,
-    title="Trajectory Family",
-    legend=True,
-    figsize=(15, 12),
-    not_inobj_size=0.5,
-    inobj_size=2.0,
-    field_size=4.0,
-    fps=5,
-    anim_name="Family_plot_nomask_all.gif",
-    # with_boxes = True,
-    plot_mask=False,
-    load_ds=True,
-    view_point=(0, 0),
-    x_lim=[4400, 6400],
-    y_lim=[3000, 5000],
-    # z_lim = None,
-    # colors=['k', 'r','g','b'],
-)
+# for vp in [(0,0), (0,90), (90, 0), (45, 140)]:
+for vp in [(0, 0)]:
+    anim = plot_family_animation(
+        ds_list,
+        # field_mask = mask_field,
+        nodelist,
+        highlight_obj=[node_sel],
+        galilean=(-8, -1.5),
+        title="Trajectory Family",
+        legend=True,
+        figsize=(15, 12),
+        not_inobj_size=0.5,
+        inobj_size=2.0,
+        field_size=4.0,
+        fps=5,
+        anim_name=f"../animations/Family_plot_mask_related_sample{obj_file}_{vp[0]:03d}_{vp[1]:03d}.gif",
+        with_boxes=False,
+        plot_mask=True,
+        load_ds=True,
+        view_point=vp,
+        # x_lim=[3000, 6000],
+        y_lim=[4000, 8000],
+        # z_lim = None,
+        # colors=['k', 'r','g','b'],
+    )

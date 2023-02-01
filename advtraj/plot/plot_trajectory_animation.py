@@ -326,12 +326,10 @@ def plot_traj_animation(
 
 def plot_family_animation(
     traj_family_list,
-    matching_objects,
-    select=None,
-    ref_times_sel=None,
+    obj_list,
+    highlight_obj=None,
     field_mask=None,
     galilean=None,
-    overlap_thresh=None,
     title=None,
     legend=False,
     figsize=(15, 12),
@@ -357,18 +355,13 @@ def plot_family_animation(
     traj_family_list : list(xr.Dataset) or list(tuple(xr.Dataset, xr.Dataset))
         List of trajectory family datasets: if tuple, second item
         contains object box boundaries for box plotting.
-    matching_objects : dict
-        Output from ..family.traj_family.find_family_matching_objects
-    select : list(int), optional
-        list of object_label values in master_ref to plot. The default is None.
+    obj_list : list[(ref_time, object)]
+        List of objects to plot
     field_mask : xarray DataArray, optional
         Eulerian field of bool with times matching ds_traj.
         The default is None.
     galilean : tuple (u,v), optional
         Velocity compoinents for Galilean Tranform. The default is None.
-    overlap_thresh: float
-        If matching_objects contains fractional overlap, only plot objects
-        with maximum overlap exceeding overlap_thresh.
     title : str, optional
         Title of plot. Default is None.
     legend : bool, optional
@@ -419,23 +412,20 @@ def plot_family_animation(
             ds = ds.load()
         print("Loaded.")
 
+    ref_times = family_coords(traj_family, "ref_time")
+
+    if highlight_obj is None:
+        highlight_obj = []
+
     if colors is None:
         colors = def_colors
 
     if title is None:
         title = ""
 
-    master_ref = matching_objects["master_ref"]
+    master_ref_time = obj_list[0][0]
 
-    mo = matching_objects["matching_objects"]
-
-    if select is None:
-        select = list(mo.keys())
-
-    ref_times = family_coords(traj_family, "ref_time")
-
-    if ref_times_sel is None:
-        ref_times_sel = ref_times
+    master_ref = ref_times.index(master_ref_time)
 
     plot_field = field_mask is not None
 
@@ -449,7 +439,10 @@ def plot_family_animation(
     time_min = 1e100
     time_max = -1e100
 
-    for ds in traj_family:
+    # for ds in traj_family:
+    for (obj_time, objnum) in obj_list:
+        obj_index = ref_times.index(obj_time)
+        ds = traj_family[obj_index]
         time_min = min(time_min, ds.time.values.min())
         time_max = max(time_max, ds.time.values.max())
 
@@ -477,23 +470,24 @@ def plot_family_animation(
 
     # Create empty line objects for each trajectory selected.
 
-    line_list, box_list, nplt = create_family_obj_lines(
+    lines, boxes, nplt = create_family_obj_lines(
         ax,
-        select,
-        matching_objects,
+        obj_list,
+        highlight_obj,
         plot_mask,
         not_inobj_size,
         inobj_size,
         with_boxes,
         colors,
-        ref_times_sel=ref_times_sel,
-        overlap_thresh=overlap_thresh,
+        # ref_times_sel=ref_times_sel,
+        # overlap_thresh=overlap_thresh,
     )
 
     legend_title = "Object (Ref Time: Number)"
 
     if legend:
-        plt.legend(title=legend_title, loc="upper right", ncol=3)
+        ncolmax = 6
+        plt.legend(title=legend_title, loc="upper right", ncol=min(nplt, ncolmax))
 
     # animation function.  This is called sequentially
     def animate_trfplt(itime):
@@ -521,10 +515,8 @@ def plot_family_animation(
                 line_field,
             )
 
-        # time = time_min + itime * timestep
         _update_family_obj_plot(
             traj_family,
-            master_ref,
             ref_times,
             plot_time,
             itime,
@@ -535,12 +527,11 @@ def plot_family_animation(
             Ly,
             galilean,
             timestep,
-            line_list,
+            lines,
         )
         if with_boxes:
             _update_family_box_plot(
                 traj_object_bounds,
-                master_ref,
                 ref_times,
                 plot_time,
                 itime,
@@ -550,7 +541,7 @@ def plot_family_animation(
                 Ly,
                 galilean,
                 timestep,
-                box_list,
+                boxes,
             )
 
         ax.set_title(f"{title}\nTime index {itime:03d} Time={plot_time}.")
@@ -707,34 +698,34 @@ def create_obj_lines(
 
 def create_family_obj_lines(
     ax,
-    select,
-    matching_objects,
+    obj_list,
+    highlight_obj,
     plot_mask,
     not_inobj_size,
     inobj_size,
     with_boxes,
     colors,
-    ref_times_sel=None,
-    overlap_thresh=None,
 ):
 
-    master_ref_time = matching_objects["master_ref_time"]
-
-    mo = matching_objects["matching_objects"]
-
+    lines = {}
     nplt = 0
     # Store animated lines in lists
-    line_list = {}
     if with_boxes:
-        box_list = {}
+        boxes = {}
     else:
-        box_list = None
+        boxes = None
 
-    for iobj in select:
-        if with_boxes:
-            box_list_obj = {}
-        line_list_obj = {}
+    for obj in obj_list:
+        # print(f'Processing {obj=}')
+        (match_time, objnum) = obj
+
+        lab = f"{match_time}: {objnum}"
+        if obj in highlight_obj:
+            lab += "*"
+
         if plot_mask:
+            # print('With mask')
+
             (line_out,) = ax.plot3D(
                 [],
                 [],
@@ -744,6 +735,7 @@ def create_family_obj_lines(
                 markersize=not_inobj_size,
                 color=colors[nplt % len(colors)],
             )
+
             (line_in,) = ax.plot3D(
                 [],
                 [],
@@ -752,11 +744,16 @@ def create_family_obj_lines(
                 marker="o",
                 markersize=inobj_size,
                 color=line_out.get_color(),
-                label=f"{master_ref_time}: {iobj} (Ref)",
+                label=lab,
             )
-            line_list_obj["master"] = (line_out, line_in)
+
+            lines[obj] = (line_out, line_in)
+            if with_boxes:
+                (box,) = ax.plot([], [], color=line_out.get_color())
+                boxes[obj] = box
         else:
-            line = ax.plot3D(
+            # print('No mask')
+            (line,) = ax.plot3D(
                 [],
                 [],
                 [],
@@ -764,76 +761,15 @@ def create_family_obj_lines(
                 marker="o",
                 markersize=not_inobj_size,
                 color=colors[nplt % len(colors)],
-                label=f"{master_ref_time}: {iobj} (Ref)",
+                label=lab,
             )
-            line_list_obj["master"] = line
-        if with_boxes:
-            (box,) = ax.plot([], [], color=line_out.get_color())
-            box_list_obj["master"] = box
+            lines[obj] = line
+            if with_boxes:
+                (box,) = ax.plot([], [], color=line.get_color())
+                boxes[obj] = box
         nplt += 1
-        for match_time, matches in mo[iobj].items():
-
-            if match_time not in ref_times_sel:
-                continue
-            # print(f'{match_time=}')
-            lines = {}
-            if with_boxes:
-                boxes = {}
-            else:
-                boxes = None
-            for obj, ov in matches["All times"].items():
-                # print(f'{obj=} {ov=}')
-                if (
-                    ov is not None
-                    and overlap_thresh is not None
-                    and ov < overlap_thresh
-                ):
-                    continue
-                # print('Plotting')
-                if plot_mask:
-                    (line_out,) = ax.plot3D(
-                        [],
-                        [],
-                        [],
-                        linestyle="",
-                        marker="o",
-                        markersize=not_inobj_size,
-                        color=colors[nplt % len(colors)],
-                    )
-                    (line_in,) = ax.plot3D(
-                        [],
-                        [],
-                        [],
-                        linestyle="",
-                        marker="o",
-                        markersize=inobj_size,
-                        color=line_out.get_color(),
-                        label=f"{match_time}: {obj}",
-                    )
-                    lines[obj] = (line_out, line_in)
-                else:
-                    line = ax.plot3D(
-                        [],
-                        [],
-                        [],
-                        linestyle="",
-                        marker="o",
-                        markersize=not_inobj_size,
-                        color=colors[nplt % len(colors)],
-                        label=f"{match_time}: {obj}",
-                    )
-                    lines[obj] = line
-                if with_boxes:
-                    (box,) = ax.plot([], [], color=line_out.get_color())
-                    boxes[obj] = box
-                nplt += 1
-            line_list_obj[match_time] = lines
-            if with_boxes:
-                box_list_obj[match_time] = boxes
-        line_list[iobj] = line_list_obj
-        if with_boxes:
-            box_list[iobj] = box_list_obj
-    return line_list, box_list, nplt
+    # print(lines, boxes)
+    return lines, boxes, nplt
 
 
 def _get_xyz(f, i, xlim, ylim, Lx, Ly, galilean, timestep):
@@ -905,13 +841,13 @@ def _update_obj_plot(
 def _xyz_plot(x, y, z, lines, plot_mask, mask, reset=False):
     if reset:
         if plot_mask:
-            [line, line_cl] = lines
+            (line, line_cl) = lines
             line.set_data([], [])
             line.set_3d_properties([])
             line_cl.set_data([], [])
             line_cl.set_3d_properties([])
         else:
-            [line] = lines
+            (line) = lines
             line.set_data([], [])
             line.set_3d_properties([])
         return
@@ -920,13 +856,13 @@ def _xyz_plot(x, y, z, lines, plot_mask, mask, reset=False):
         in_obj = mask
         not_in_obj = ~mask
 
-        [line, line_cl] = lines
+        (line, line_cl) = lines
         line.set_data(x[not_in_obj], y[not_in_obj])
         line.set_3d_properties(z[not_in_obj])
         line_cl.set_data(x[in_obj], y[in_obj])
         line_cl.set_3d_properties(z[in_obj])
     else:
-        [line] = lines
+        (line) = lines
         line.set_data(x, y)
         line.set_3d_properties(z)
     return
@@ -934,7 +870,7 @@ def _xyz_plot(x, y, z, lines, plot_mask, mask, reset=False):
 
 def _update_family_obj_plot(
     ds_list,
-    master_ref,
+    # master_ref,
     ref_times,
     plot_time,
     itime,
@@ -945,57 +881,36 @@ def _update_family_obj_plot(
     Ly,
     galilean,
     timestep,
-    line_list,
+    lines,
 ):
 
     # print(f"{itime=}")
     nplt = 0
-    for iobj, line_list_obj in line_list.items():
-        for match_time, matches in line_list_obj.items():
-            # for obj, lines in line_list_obj:
-            if match_time == "master":
-                traj_master = ds_list[master_ref]
-                if plot_time in traj_master.time:
-                    # print(f"Master")
-                    traj_master_at_time = traj_master.sel(time=plot_time)
-                    traj = traj_master_at_time.where(
-                        traj_master_at_time.object_label == iobj, drop=True
-                    )
-                    x, y, z = _get_xyz(
-                        traj, itime, xlim, ylim, Lx, Ly, galilean, timestep
-                    )
-                    if plot_mask:
-                        mask = traj.obj_mask >= 1
-                    else:
-                        mask = None
-                    _xyz_plot(x, y, z, matches, plot_mask, mask)
-                else:
-                    _xyz_plot([], [], [], matches, plot_mask, [], reset=True)
-                nplt += 1
-            else:
-                traj_ref = ds_list[ref_times.index(match_time)]
-                if plot_time in traj_ref.time:
-                    # print(f"{match_time=}")
-                    traj_ref_at_time = traj_ref.sel(time=plot_time)
+    for obj, line in lines.items():
+        # print(f'Plotting {obj=}')
+        (match_time, objnum) = obj
+        traj_ref = ds_list[ref_times.index(match_time)]
+        if plot_time in traj_ref.time:
+            # print(f"{match_time=}")
+            traj_ref_at_time = traj_ref.sel(time=plot_time)
 
-                    for obj, lines in matches.items():
-                        traj = traj_ref_at_time.where(
-                            traj_ref_at_time.object_label == obj, drop=True
-                        )
-                        x, y, z = _get_xyz(
-                            traj, itime, xlim, ylim, Lx, Ly, galilean, timestep
-                        )
-                        if plot_mask:
-                            mask = traj.obj_mask >= 1
-                        else:
-                            mask = None
-                        _xyz_plot(x, y, z, lines, plot_mask, mask)
-                        nplt += 1
-                else:
-                    # print(f"No {match_time=}")
-                    for obj, lines in matches.items():
-                        _xyz_plot([], [], [], lines, plot_mask, [], reset=True)
-                        nplt += 1
+            # for obj, lines in matches.items():
+            traj = traj_ref_at_time.where(
+                traj_ref_at_time.object_label == objnum, drop=True
+            )
+            x, y, z = _get_xyz(traj, itime, xlim, ylim, Lx, Ly, galilean, timestep)
+            if plot_mask:
+                mask = traj.obj_mask >= 1
+            else:
+                mask = None
+            # print(f'{len(x)}')
+            _xyz_plot(x, y, z, line, plot_mask, mask)
+        else:
+            # print(f"No {match_time=}")
+            # for obj, lines in matches.items():
+            _xyz_plot([], [], [], line, plot_mask, [], reset=True)
+            #
+        nplt += 1
 
     return
 
@@ -1042,7 +957,7 @@ def _update_box_plot(ds_object_bounds, itime, Lx, Ly, iobj, galilean, timestep, 
 
 def _update_family_box_plot(
     bb_list,
-    master_ref,
+    # master_ref,
     ref_times,
     plot_time,
     itime,
@@ -1052,42 +967,30 @@ def _update_family_box_plot(
     Ly,
     galilean,
     timestep,
-    box_list,
+    boxes,
 ):
 
     nplt = 0
-    for iobj, box_list_obj in box_list.items():
-        for match_time, matches in box_list_obj.items():
-            if match_time == "master":
-                bb_master = bb_list[master_ref]
-                if plot_time in bb_master.time:
-                    # print(f"Master")
-                    bb_master_at_time = bb_master.sel(object_label=iobj, time=plot_time)
-                    _box_plot(
-                        bb_master_at_time, matches, itime, Lx, Ly, galilean, timestep
-                    )
-                else:
-                    _box_plot(
-                        None, matches, itime, Lx, Ly, galilean, timestep, reset=True
-                    )
-                nplt += 1
-            else:
-                bb_ref = bb_list[ref_times.index(match_time)]
-                if plot_time in bb_ref.time:
-                    # print(f"{match_time=}")
-                    bb_ref_at_time = bb_ref.sel(time=plot_time)
+    nplt = 0
+    for obj, box in boxes.items():
+        # print(f'Plotting {obj=}')
+        (match_time, objnum) = obj
+        # print(bb_list)
+        # print(match_time)
 
-                    for obj, box in matches.items():
-                        bb = bb_ref_at_time.sel(object_label=obj)
-                        _box_plot(bb, box, itime, Lx, Ly, galilean, timestep)
-                        nplt += 1
-                else:
-                    # print(f"No {match_time=}")
-                    for obj, box in matches.items():
-                        _box_plot(
-                            None, box, itime, Lx, Ly, galilean, timestep, reset=True
-                        )
-                        nplt += 1
+        bb_ref = bb_list[ref_times.index(match_time)]
+        # print(bb_ref)
+        if plot_time in bb_ref.time:
+            # print(f"{match_time=}")
+            bb_ref_at_time = bb_ref.sel(time=plot_time)
+
+            # for obj, box in matches.items():
+            bb = bb_ref_at_time.sel(object_label=objnum)
+            _box_plot(bb, box, itime, Lx, Ly, galilean, timestep)
+        else:
+            # print(f"No {match_time=}")
+            _box_plot(None, box, itime, Lx, Ly, galilean, timestep, reset=True)
+        nplt += 1
     return
 
 
@@ -1100,10 +1003,19 @@ def gal_trans(x, y, galilean, j, timestep):
 
 
 def conform_plot(x, Lx, xlim):
-    #    if xlim[0] < 0 and xlim[1] < Lx:
-    #        return
-    #    if xlim[0] > 0 and xlim[1] > Lx:
-    #        return
-    # if xlim[0] == 0 and xlim[1] == Lx:
+
     x = x % Lx
+    if xlim[0] == 0 and xlim[1] == Lx:
+        return x
+
+    xmin = x.min()
+    xmax = x.max()
+
+    if xlim[0] < 0:
+        if xlim[0] <= (xmax - Lx):
+            x[x > xlim[1]] -= Lx
+    if Lx < xlim[1]:
+        if (xmin + Lx) <= xlim[1]:
+            x[x < xlim[0]] += Lx
+
     return x
