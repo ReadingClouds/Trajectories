@@ -112,9 +112,10 @@ venv.bak/
 # Test data
 test_data
 *.nc
-*.png
 
 # vim temporary files
 .*.sw*
+
+*.backup
 
 source/
