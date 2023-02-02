@@ -4,6 +4,16 @@
 
 [Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.5.1...HEAD)
 
+*maintenance*
+
+- update version of `isort` used in CI to resolve bug with `poetry` version
+  used by Github Actions
+  [\#26](https://github.com/ParaConUK/advtraj/pull/26) @leifdenby
+
+- add `scipy` to requirements
+  [\#26](https://github.com/ParaConUK/advtraj/pull/26) @leifdenby
+
+
 ## [v0.5.1](https://github.com/ParaConUK/advtraj/tree/v0.5.1)
 
 [Full Changelog](https://github.com/ParaConUK/advtraj/compare/v0.5.0...v0.5.1)
