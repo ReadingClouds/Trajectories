@@ -262,26 +262,33 @@ Unique node keys are constructed as the tuple (reference time, object number).
 The reference time is as per the model output files, a float. I worry that comparisons may fail, but, so far, this has not been an issue. It might be wise to convert to integer, but this would introduce a restriction.
 
 An example generated from our test family is shown in the following picture, generated using `draw_object_graph` after generating a nodelist with `related_objects`.
-![A graph of related objects](figures/diagnostics_3d_ts_trajectories_cloud_5_fixed_point_iterator_std_objects_sel.png)
+![A graph of related objects](figures/diagnostics_3d_ts_trajectories_cloud_5_fixed_point_iterator_std_objects_ref_sel_23160_9.png)
+
 The maximumum overlap is denoted via the thickness of joining line.
 Thin lines have zero overlap.
 Pink lines are `ntype` 1, blue `ntype` 2.
-This is for object 17 at reference time 23400.
+This is for object 9 at reference time 23160 (the same as selected above).
 
-Note that a continuous graph starts at time 22320 object 27 and continues to the end of the simulation. Objects are numbered independently at each time, but it is clear that the algorithm works its way across the grid, so the numbering reflects the mean wind in this case; about 14 minutes to cross the domain, or a drift speed of -7.6 m/s (not much less than the cloud-layer wind).
+Objects are numbered independently at each time, but it is clear that the algorithm works its way across the grid, so the numbering reflects the mean wind in this case; about 14 minutes to cross the domain, or a drift speed of -7.6 m/s (not much less than the cloud-layer wind).
 There are two main contiguous graphs before this time that have been identified because of overlap with the early to middle stages of the main graph.
 At time 24000 a second contiguous graph becomes evident; this is because of a zero fractional overlap, so would be removed by ignoring these case, but the point of including them is that they overlap horizontally, but do not overlap in 3D, so must be at different levels.
+This can be visualised as follows. There are so many nodes included that we have not plotted the key.
+![A graph of related objects](animations/Family_plot_mask_related_objects_ref_000_000.gif)
 
 The example above is chosen deliberately to illustrate a long-lived contiguous graph.
 At the other extreme, we might have something like
 ![Short object graph](figures/diagnostics_3d_ts_trajectories_cloud_5_fixed_point_iterator_std_objects_sample_ref_short.png)
 where a fairly long-lived graph interacts 'remotely' with a graph that has just 3 times.
+
 An extreme example is an object that has just one reference timestep, but overlaps both a past and future graph:
 ![Very short-lived object](figures/diagnostics_3d_ts_trajectories_cloud_5_fixed_point_iterator_std_objects_sample_ref_isol.png)
 
 Clearly, further analysis of the graph structure will enable 'super-objects' corresponding to these contiguous graphs, and interactions between them to be found.
-
-It must be recalled that the overlap between objects here is considering only points that meet the mask criteria chosen, in this case, 'in-cloud'. The [classify](#the-classify-subpackage) could be used to refine the generation of graphs considerable, though at the cost of much more complex graphs.
+If we filter the set to keep only `ntype` 1 edges (using `subgraph_ntype`, the above graph becomes:
+![A graph of related `ntype` 1 objects](figures/diagnostics_3d_ts_trajectories_cloud_5_fixed_point_iterator_std_objects_ref_nt1_sel_23160_9.png)
+This can be visualised thus:
+![](animations/Family_plot_mask_related_objects_ref_nt1_000_000.gif)
+It must be recalled that the overlap between objects here is considering only points that meet the mask criteria chosen, in this case, 'in-cloud'. The [classify](#the-classify-subpackage) sub-package could be used to refine the generation of graphs considerable, though at the cost of much more complex graphs.
 
 Computation of the overlapping objects (using `find_family_matching_objects`) is, by default, extremely computationally demanding.
 Every reference time is compared with every other; this is already an O(N<sup>2</sup>) problem. Every time in the trajectory set for reference time is compared with its equivalent time in the comparison, so, suppose we have a reference time at T, and compare with a reference time (T-2), then data from the reference set from typically T-N/2 to T+N/2 are compared, so long as the data exist.
