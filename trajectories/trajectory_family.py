@@ -237,10 +237,9 @@ class Trajectory_Family :
 #                for it_back in range(0, 4) :
                     rep =""
                     for obj in matching_objects[it_back][i] :
-                        rep += "{} ".format(obj)
+                        rep += f"{obj} "
                     if len(rep) > 0 :
-                        print("t_off: {0} iobj: {1} it_back: {2} obj: {3}".\
-                                  format(t_off, iobj, it_back, rep))
+                        print(f"master reference time {master_ref} offset time: {t_off} object: {iobj} it_back: {it_back} matching obj: {rep}")
         return
 
     def matching_object_list_summary(self, master_ref = None, select = None, \
@@ -342,12 +341,11 @@ class Trajectory_Family :
             matching_objects = mols[t_off]
             for i in range(0, len(select)) :
                 iobj = select[i]
-                rep =""
+                rep = f" "
                 for mo, mot, mint in matching_objects[i] :
-                    rep += "({}, {}, {:02d})".format(mo,mot,mint)
+                    rep += f"(matching object {mo}, type {mot}, %overlap {mint:02d})"
                 if len(rep) > 0 :
-                    print("t_off: {0} iobj: {1} obj: {2} ".\
-                                  format(t_off, iobj, rep))
+                    print(f"Master reference time {master_ref} object {iobj} offset time {t_off} matching obj {rep}")
 
         return
 

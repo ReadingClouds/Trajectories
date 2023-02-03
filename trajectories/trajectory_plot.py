@@ -179,6 +179,8 @@ def plot_trajectory_history(tr, select_obj, fn) :
             ax.set_xlabel(r"time h$^{-1}$",fontsize=16)
             ax.set_title('Cloud %2.2d'%select_obj)
         fig4.savefig(fn+'_Cloud_tracer_z_%3.3d'%select_obj+'.png')
+        
+    plt.show()
 
     return
 
@@ -260,7 +262,7 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
 
             for j,v in enumerate(["th","th_v","th_L",\
                                   "q_vapour","q_cloud_liquid_mass","q_total",\
-                                  "w","tracer_rad1","MSE"]):
+                                  "w","MSE"]):
 
                 if v in tr.variable_list :
                     lab = tr.variable_list[v]
@@ -319,7 +321,9 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
 
             for j,v in enumerate(["th","th_v","th_L",\
                                   "q_vapour","q_cloud_liquid_mass","q_total",\
-                                  "w","tracer_rad1","MSE"]):
+                                  "w",
+                                  #"tracer_rad1",
+                                  "MSE"]):
 
                 if v in tr.variable_list :
                     lab = r"$\Delta$" + tr.variable_list[v]
@@ -368,7 +372,9 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
 
             for j,v in enumerate(["th","th_v","th_L",\
                                   "q_vapour","q_cloud_liquid_mass","q_total",\
-                                  "w","tracer_rad1","MSE"]):
+                                  "w",
+                                  #"tracer_rad1",
+                                  "MSE"]):
 
                 if v in tr.variable_list :
                     vptr = tr.var(v)
@@ -391,7 +397,9 @@ def plot_trajectory_mean_history(tr, traj_cl, mean_prop, fn, \
 
             for j,v in enumerate(["th","th_v","th_L",\
                                   "q_vapour","q_cloud_liquid_mass","q_total",\
-                                  "w","tracer_rad1","MSE"]):
+                                  "w",
+                                  #"tracer_rad1",
+                                  "MSE"]):
                 if v in tr.variable_list :
                     vptr = tr.var(v)
                 elif v in mean_prop["derived_variable_list"] :
@@ -567,6 +575,74 @@ def get_file_times(infiles, dir_override=None) :
     for i, file in enumerate(files) : file_times[i] = file_key(file)
     return files, file_times
 
+def setup_axes(traj, select, galilean, title, include_gal=True):
+    fig = plt.figure(figsize=(10,6), tight_layout=True)
+    ax = fig.add_subplot(111, projection='3d')
+
+ #   fig, ax = plt.subplots(1, figsize=(10,6), projection='3d')
+
+    if np.size(select) > 1 :
+        x_min = traj.coords['xcoord'][0]
+        x_max = traj.coords['xcoord'][-1]
+        y_min = traj.coords['ycoord'][0]
+        y_max = traj.coords['ycoord'][-1]
+
+    elif include_gal :
+
+        iobj = select[0]
+
+        x = traj.trajectory[0,traj.labels == iobj,0]%traj.nx
+        y = traj.trajectory[0,traj.labels == iobj,1]%traj.ny
+        x_min = np.min(x)
+        x_max = np.max(x)
+        y_min = np.min(y)
+        y_max = np.max(y)
+        if galilean is not None :
+            timestep = traj.times[1]-traj.times[0]
+
+            for j in range(1, np.shape(traj.trajectory)[0]):
+                x = traj.trajectory[j,traj.labels == iobj,0]%traj.nx
+                y = traj.trajectory[j,traj.labels == iobj,1]%traj.ny
+                x, y = gal_trans(x, y,  galilean, j, timestep, traj)
+                x_min = min(x_min, np.min(x))
+                x_max = max(x_max, np.max(x))
+                y_min = min(y_min, np.min(y))
+                y_max = max(y_max, np.max(y))
+
+    else :
+        iobj = select[0]
+        x = traj.trajectory[0,traj.labels == iobj,0]
+        y = traj.trajectory[0,traj.labels == iobj,1]
+        xm = np.mean(x)
+        xr = np.max(x)- np.min(x)
+#        print(np.min(x),np.max(x))
+        ym = np.mean(y)
+        yr = np.max(y)- np.min(y)
+        xr = np.min([xr,yr])/2
+        x_min = xm-xr
+        x_max = xm+xr
+        y_min = ym-xr
+        y_max = ym+xr
+
+#    print(x_min,x_max,y_min,y_max)
+
+
+    ax.set_xlim(x_min,x_max)
+    ax.set_ylim(y_min,y_max)
+    ax.set_zlim(0, traj.coords['zcoord'][-1])
+
+    ax.set_box_aspect((np.ptp(ax.get_xlim()) * traj.coords['deltax'],
+                       np.ptp(ax.get_ylim()) * traj.coords['deltay'],
+                       np.ptp(traj.coords['z'])))
+    
+#    print("asp ",ax.get_box_aspect())
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    if title is not None :
+        ax.set_title(title)
+        
+    return fig, ax
+
 def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
                         legend = False, select = None,
                         galilean = None, plot_field = False,
@@ -575,6 +651,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
                         plot_class = None,
                         no_cloud_size = 0.2, cloud_size = 2.0,
                         field_size = 0.5, fps = 10, with_boxes = False,
+                        view_point=(10,-90),
                         var = None,
                         ) :
     """
@@ -610,7 +687,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
 	@author: Peter Clark
 
     """
-    plt.ioff()
+#    plt.ioff()
     ntraj = traj.ntimes
     nobj = traj.nobjects
 
@@ -639,52 +716,12 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
 #    print(select)
     #input("Press any key...")
     # First set up the figure, the axis, and the plot element we want to animate
-    fig = plt.figure(figsize=(10,6), tight_layout=True)
-    ax = fig.add_subplot(111, projection='3d')
+    
+    (elev, azim) = view_point
+    fig, ax = setup_axes(traj, select, galilean, title)
 
- #   fig, ax = plt.subplots(1, figsize=(10,6), projection='3d')
-
-    if np.size(select) > 1 :
-        x_min = traj.coords['xcoord'][0]
-        x_max = traj.coords['xcoord'][-1]
-        y_min = traj.coords['ycoord'][0]
-        y_max = traj.coords['ycoord'][-1]
-
-    else :
-
-        iobj = select[0]
-
-        x = traj.trajectory[0,traj.labels == iobj,0]%traj.nx
-        y = traj.trajectory[0,traj.labels == iobj,1]%traj.ny
-        x_min = np.min(x)
-        x_max = np.max(x)
-        y_min = np.min(y)
-        y_max = np.max(y)
-        if galilean is not None :
-            for j in range(1, np.shape(traj.trajectory)[0]):
-                x = traj.trajectory[j,traj.labels == iobj,0]%traj.nx
-                y = traj.trajectory[j,traj.labels == iobj,1]%traj.ny
-                x, y = gal_trans(x, y,  galilean, j, timestep, traj)
-                x_min = min(x_min, np.min(x))
-                x_max = max(x_max, np.max(x))
-                y_min = min(y_min, np.min(y))
-                y_max = max(y_max, np.max(y))
-
-#    print(x_min,x_max,y_min,y_max)
-
-
-    ax.set_xlim(x_min,x_max)
-    ax.set_ylim(y_min,y_max)
-    ax.set_zlim(0, traj.coords['zcoord'][-1])
-
-    ax.set_box_aspect((np.ptp(ax.get_xlim()) * traj.coords['deltax'],
-                       np.ptp(ax.get_ylim()) * traj.coords['deltay'],
-                       np.ptp(traj.coords['z'])))
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    if title is not None :
-        ax.set_title(title)
-
+    ax.view_init(elev, azim)
+    
     line_list = list([])
 
     if with_boxes :
@@ -723,7 +760,16 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
 
             nplt +=1
 
-    if legend : plt.legend()
+    # if legend : plt.legend()
+    if legend : 
+        if plot_class:
+            plt.legend(title="Class",
+                       loc="upper right",
+                       ncol=2)
+        else:
+            plt.legend(title="Object Number", 
+                       loc="upper right", 
+                       ncol=2)
 
 #    print('Axes set up')
 
@@ -746,11 +792,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
         return
 
     # animation function.  This is called sequentially
-    def animate_trplt(i):
-#        print(f'Frame {i}')
-    #    j = traj.ntimes-i-1
-        j = i
-    #    print 'Frame %d Time %d'%(i,j)
+    def animate_trplt(j):
         xlim = ax.get_xlim()
         ylim = ax.get_ylim()
 
@@ -776,8 +818,8 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
             if galilean is not None :
                 x, y = gal_trans(x, y,  galilean, j, timestep, traj)
 
-            clip_arr = (x >= (x_min-10)) & (x <= (x_max+10)) \
-                     & (y >= (y_min-10)) & (y <= (y_max+10))
+            clip_arr = (x >= (xlim[0])) & (x <= (xlim[1])) \
+                     & (y >= (ylim[0])) & (y <= (ylim[1]))
             x = x[clip_arr]
             y = y[clip_arr]
             z = z[clip_arr]
@@ -833,7 +875,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
                     box.set_3d_properties(z)
 
                 nplt +=1
-        ax.set_title(f'Time index {i:03d}')
+        ax.set_title(f'{title} Time index {j:03d}')
 
         return
 
@@ -844,13 +886,20 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
     # call the animator.  blit=True means only re-draw the parts that have changed.
     if fps > 0 :
         list_class_numbers = False
-        anim = animation.FuncAnimation(fig, animate_trplt, init_func=init_trplt,
-                                 frames=ntraj, interval=1000./fps, blit=False)
-        if save_anim : anim.save(anim_name+'.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
+        anim = animation.FuncAnimation(fig, 
+                                       animate_trplt, 
+                                       init_func=init_trplt,
+                                       frames=ntraj, 
+                                       interval=1000./fps, 
+                                       blit=False)
+#        if save_anim : anim.save(anim_name+'.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
+        if save_anim : anim.save(anim_name+'.gif', fps=fps)#, extra_args=['-vcodec', 'libx264'])
+        
+        plt.show()
     else :
         list_class_numbers = True
 #        plt.ioff()
-        plt.ion()
+#        plt.ion()
         init_trplt()
         frame = 0
 #        rep = 0
@@ -874,7 +923,7 @@ def plot_traj_animation(traj, save_anim=False, anim_name='traj_anim',
 #            animate_trplt(frame)
 
         anim = None
-        plt.ioff()
+#        plt.ioff()
 
     return anim
 
@@ -968,7 +1017,9 @@ def plot_traj_family_animation(traj_family, match_index, \
                         galilean = None, plot_field = False,
                         dir_override = None, \
                         no_cloud_size = 0.2, cloud_size = 2.0, \
-                        field_size = 0.5, fps = 10, with_boxes = False) :
+                        field_size = 0.5, fps = 10, with_boxes = False,
+                        view_point=(10,-90),
+                        ) :
     """
     Function to plot animation of members of trajectory family.
 
@@ -1019,9 +1070,10 @@ def plot_traj_family_animation(traj_family, match_index, \
 
         if select is None : select = np.arange(0, nobj, dtype = int)
         match_traj = traj_family.family[-(1+match_index)]
-        match_objs = traj_family.matching_object_list_summary( \
-                select = select, overlap_thresh = overlap_thresh)
-#        print(match_objs)
+        match_objs = traj_family.matching_object_list_summary( 
+                         select = select,
+                         overlap_thresh = overlap_thresh)
+        print(match_objs)
         plot_linked = False
         max_t = match_index -1
         nframes = traj.ntimes+match_index
@@ -1035,7 +1087,7 @@ def plot_traj_family_animation(traj_family, match_index, \
         plot_linked = True
         max_t = 0
         if super_obj is None :
-            linked_objs = traj_family.find_linked_objects(ref=ref, \
+            linked_objs = traj_family.find_linked_objects(master_ref=ref, \
                                     select = ref_obj , \
                                     overlap_thresh = overlap_thresh)
             print(linked_objs)
@@ -1056,28 +1108,13 @@ def plot_traj_family_animation(traj_family, match_index, \
 #    print(match_traj)
 #    print("Match index {}".format(match_index))
     # First set up the figure, the axis, and the plot element we want to animate
-    fig = plt.figure(figsize=(10,6))
-    ax = fig.add_subplot(111, projection='3d')
+#    fig = plt.figure(figsize=(10,6))
+#    ax = fig.add_subplot(111, projection='3d')
+    (elev, azim) = view_point
+    fig, ax = setup_axes(traj, select, galilean, title)
 
-    if np.size(select) > 1 :
-        x_min = traj.coords['xcoord'][0]
-        x_max = traj.coords['xcoord'][-1]
-        y_min = traj.coords['ycoord'][0]
-        y_max = traj.coords['ycoord'][-1]
-    else :
-        iobj = select[0]
-        x = traj.trajectory[0,traj.labels == iobj,0]
-        y = traj.trajectory[0,traj.labels == iobj,1]
-        xm = np.mean(x)
-        xr = np.max(x)- np.min(x)
-#        print(np.min(x),np.max(x))
-        ym = np.mean(y)
-        yr = np.max(y)- np.min(y)
-        xr = np.min([xr,yr])/2
-        x_min = xm-xr
-        x_max = xm+xr
-        y_min = ym-xr
-        y_max = ym+xr
+    ax.view_init(elev, azim)
+
 #        print(xm,xr,ym,yr)
 
 # For speed, create lists containing only data to be plotted.
@@ -1091,7 +1128,7 @@ def plot_traj_family_animation(traj_family, match_index, \
 #    for iobj in range(0,traj.nobjects):
     for iobj in select:
 #        if np.isin(iobj,select) :
-#        print("Adding {} to traj_list".format(iobj))
+        print("Adding {} to traj_list".format(iobj))
         traj_list.append((traj.trajectory[:,traj.labels == iobj,...], \
                                 traj.data[:,traj.labels == iobj,...],
                            traj.in_obj_box[:,iobj,...]) )
@@ -1129,8 +1166,8 @@ def plot_traj_family_animation(traj_family, match_index, \
         else :
 
             mobj_ptr=np.where(select == iobj)[0][0]
-#            print(iobj, mobj_ptr)
-            mob = match_objs[match_index-1][mobj_ptr]
+            print(iobj, mobj_ptr)
+            mob = match_objs['matching_object_summary'][match_index-1][mobj_ptr]
 
 #            print(mob)
 #            input("Press enter")
@@ -1154,14 +1191,6 @@ def plot_traj_family_animation(traj_family, match_index, \
 #    print(len(match_traj_list_list[0]))
 #    print(match_traj_list_list)
 #    input("Press enter")
-
-    ax.set_xlim(x_min-10,x_max+10)
-    ax.set_ylim(y_min-10,y_max+10)
-    ax.set_zlim(0, traj.coords['zcoord'][-1])
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    if title is not None :
-        ax.set_title(title)
 
     line_list = list([])
     match_line_list_list = list([])
@@ -1227,7 +1256,7 @@ def plot_traj_family_animation(traj_family, match_index, \
 #                    print(match_obj)
 #                input("Press enter")
             mobj_ptr=np.where(select == iobj)[0][0]
-            for match_obj in match_objs[match_index-1][mobj_ptr] :
+            for match_obj in match_objs['matching_object_summary'][match_index-1][mobj_ptr] :
 #                    print("Matching object {} ho ho".format(match_obj))
                 line, = ax.plot([], [], linestyle='' ,marker='o', \
                                        markersize = no_cloud_size)
@@ -1247,7 +1276,10 @@ def plot_traj_family_animation(traj_family, match_index, \
             match_box_list_list.append(match_box_list)
 
         nplt +=1
-    if legend : plt.legend()
+    if legend :
+         plt.legend(title="Matching Object Number", 
+                    loc="upper right", 
+                    ncol=2)
 
 #    print(line_list)
 #    print(match_line_list_list)
@@ -1345,6 +1377,8 @@ def plot_traj_family_animation(traj_family, match_index, \
 #        input("Press enter")
 #        print("Frame {0} {1}".format(i,j))
 #        input("Press enter")
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
         if plot_field :
 
             if j >= 0 :
@@ -1362,8 +1396,8 @@ def plot_traj_family_animation(traj_family, match_index, \
             if galilean is not None :
                 x, y = gal_trans(x, y,  galilean, j, timestep, traj)
 
-            clip_arr = (x >= (x_min-10)) & (x <= (x_max+10)) \
-                     & (y >= (y_min-10)) & (y <= (y_max+10))
+            clip_arr = (x >= (xlim[0])) & (x <= (xlim[1])) \
+                     & (y >= (ylim[0])) & (y <= (ylim[1]))
             x = x[clip_arr]
             y = y[clip_arr]
             z = z[clip_arr]
@@ -1445,9 +1479,10 @@ def plot_traj_family_animation(traj_family, match_index, \
     # call the animator.  blit=True means only re-draw the parts that have changed.
     anim = animation.FuncAnimation(fig, animate, init_func=init,
                                    frames=nframes, interval=1000./fps, blit=False)
-    if save_anim : anim.save(anim_name+'.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
+#    if save_anim : anim.save(anim_name+'.mp4', fps=fps)#, extra_args=['-vcodec', 'libx264'])
+    if save_anim : anim.save(anim_name+'.gif', fps=fps)#, extra_args=['-vcodec', 'libx264'])
     plt.show()
-    return
+    return anim
 
 def conform_plot(x, nx, xlim ) :
     if xlim[0] < 0 and xlim[1] < nx:

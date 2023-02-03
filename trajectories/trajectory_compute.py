@@ -375,6 +375,7 @@ def compute_trajectories(files,
 
     dataset=Dataset(files[ref_file_number])
     print("Dataset opened ", files[ref_file_number])
+#    print(dataset)
     theta = dataset.variables["th"]
     ref_times = dataset.variables[theta.dimensions[0]][...]
     print('Starting in file number {}, name {}, index {} at time {}.'.\
